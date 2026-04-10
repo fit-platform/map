@@ -24,8 +24,8 @@
         input:checked + .slider { background-color: var(--accent); }
         input:checked + .slider:before { transform: translateX(22px); }
 
-        .layout { display: flex; flex: 1; overflow: hidden; }
-        #map { flex: 1; height: 100%; z-index: 1; background: #e0e5eb; }
+        .layout { display: flex; flex: 1; overflow: hidden; min-width: 0; }
+        #map { flex: 1; min-width: 0; height: 100%; z-index: 1; background: #e0e5eb; }
         .sidebar { width: 340px; display: flex; flex-direction: column; background: #ffffff; border-left: 1px solid var(--border); z-index: 2; box-shadow: -2px 0 10px rgba(0,0,0,0.03); }
         .sidebar-header { padding: 20px; border-bottom: 1px solid var(--border); background: #fcfcfc; }
         .sidebar-content { padding: 10px; overflow-y: auto; flex: 1; background: #f9f9f9; }
@@ -67,9 +67,55 @@
 
         .leaflet-tooltip { padding: 12px; border-radius: 8px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.2); min-width: 240px; }
 
+        .roadview-resizer {
+            width: 12px;
+            flex: 0 0 12px;
+            position: relative;
+            cursor: col-resize;
+            z-index: 4;
+            background: transparent;
+            user-select: none;
+            touch-action: none;
+        }
+        .roadview-resizer.hidden { display: none; }
+        .roadview-resizer::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 50%;
+            width: 1px;
+            transform: translateX(-50%);
+            background: #d7dde7;
+        }
+        .roadview-resizer::after {
+            content: '↔';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 26px;
+            height: 26px;
+            transform: translate(-50%, -50%);
+            border-radius: 999px;
+            background: white;
+            border: 1px solid #d7dde7;
+            color: #718096;
+            font-size: 13px;
+            line-height: 24px;
+            text-align: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+        }
+        .roadview-resizer:hover::after,
+        body.is-resizing .roadview-resizer::after {
+            background: #f8fbff;
+            border-color: #b7c7db;
+            color: var(--accent);
+        }
+
         .roadview-panel {
-            width: 420px; display: flex; flex-direction: column; background: #fff;
+            width: 420px; min-width: 320px; max-width: 960px; display: flex; flex-direction: column; background: #fff;
             border-left: 1px solid var(--border); z-index: 2; box-shadow: -2px 0 10px rgba(0,0,0,0.03);
+            flex: 0 0 auto;
         }
         .roadview-panel.hidden { display: none; }
         .roadview-header {
@@ -93,7 +139,8 @@
             background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2px 6px;
             font-size: 11px;
         }
-        body.full-map-mode .roadview-panel { display: none !important; }
+        body.full-map-mode .roadview-panel,
+        body.full-map-mode .roadview-resizer { display: none !important; }
 
         .notice {
             position: fixed; left: 16px; bottom: 16px; z-index: 2000;
@@ -120,6 +167,7 @@
 
 <div class="layout">
     <div id="map"></div>
+    <div id="roadview-resizer" class="roadview-resizer hidden" title="드래그하여 로드뷰 폭 조절"></div>
     <div id="roadview-panel" class="roadview-panel hidden">
         <div class="roadview-header">
             <div class="roadview-header-left">
@@ -214,8 +262,8 @@
     const draggableGroup = L.layerGroup().addTo(map);
     let markers = [];
 
-
     const roadviewWrap = document.getElementById('roadview-panel');
+    const roadviewResizer = document.getElementById('roadview-resizer');
     const roadviewEl = document.getElementById('roadview');
     const roadviewEmpty = document.getElementById('roadview-empty');
     const roadviewHelp = document.getElementById('roadview-help');
@@ -229,6 +277,20 @@
     let roadviewClient = null;
     let kakaoSdkLoaded = false;
     let kakaoSdkLoadError = false;
+
+    let isResizing = false;
+    const ROADVIEW_MIN_WIDTH = 320;
+    const ROADVIEW_MAX_WIDTH = 960;
+
+    function invalidateMapLater(delay = 0) {
+        setTimeout(() => map.invalidateSize(), delay);
+    }
+
+    function setRoadviewVisible(visible) {
+        roadviewWrap.classList.toggle('hidden', !visible);
+        roadviewResizer.classList.toggle('hidden', !visible);
+        invalidateMapLater(50);
+    }
 
     function isKakaoSdkReady() {
         return !!(window.kakao && window.kakao.maps && typeof window.kakao.maps.load === 'function');
@@ -259,7 +321,7 @@
     }
 
     if (closeRoadviewBtn) {
-        closeRoadviewBtn.addEventListener('click', () => roadviewWrap.classList.add('hidden'));
+        closeRoadviewBtn.addEventListener('click', () => setRoadviewVisible(false));
     }
 
     initializeKakaoSdk();
@@ -275,7 +337,7 @@
 
     function openRoadviewForProject(project) {
         roadviewTitle.textContent = `${project.name} 로드뷰`;
-        roadviewWrap.classList.remove('hidden');
+        setRoadviewVisible(true);
         roadviewEmpty.style.display = 'none';
         roadviewHelp.style.display = 'none';
         roadviewEl.style.display = 'block';
@@ -318,9 +380,40 @@
             }
             roadviewEl.style.display = 'block';
             roadview.setPanoId(panoId, position);
+            invalidateMapLater(100);
         });
     }
 
+    roadviewResizer.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        isResizing = true;
+        document.body.classList.add('is-resizing');
+        document.body.style.cursor = 'col-resize';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        const viewportWidth = window.innerWidth;
+        const sidebarWidth = document.body.classList.contains('full-map-mode') ? 0 : (document.querySelector('.sidebar')?.offsetWidth || 0);
+        const availableWidth = viewportWidth - sidebarWidth - roadviewResizer.offsetWidth;
+        const desiredWidth = viewportWidth - e.clientX - sidebarWidth;
+        const safeMax = Math.min(ROADVIEW_MAX_WIDTH, Math.max(ROADVIEW_MIN_WIDTH, availableWidth - 220));
+        const newWidth = Math.max(ROADVIEW_MIN_WIDTH, Math.min(desiredWidth, safeMax > ROADVIEW_MIN_WIDTH ? safeMax : ROADVIEW_MAX_WIDTH));
+        roadviewWrap.style.width = `${newWidth}px`;
+        invalidateMapLater();
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!isResizing) return;
+        isResizing = false;
+        document.body.classList.remove('is-resizing');
+        document.body.style.cursor = '';
+        invalidateMapLater();
+    });
+
+    window.addEventListener('resize', () => {
+        invalidateMapLater();
+    });
 
     function buildDashboard(projects) {
         markers = [];
@@ -423,7 +516,7 @@
             document.body.classList.remove('full-map-mode');
             markers.forEach((m) => m.pin.bindTooltip(m.tooltipHtml, { direction: 'top', opacity: 1 }));
         }
-        setTimeout(() => map.invalidateSize(), 400);
+        invalidateMapLater(400);
     }
 
     document.getElementById('mode-toggle').addEventListener('change', updateMode);
