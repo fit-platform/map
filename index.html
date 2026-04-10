@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>프로젝트 통합 관리 대시보드</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --border: #E8E8E8; --accent: #1565C0; --bg: #F5F7FA; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Noto Sans KR', sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: var(--bg); color: #333; }
+        header {
+            padding: 0 25px; background: white; z-index: 1000;
+            display: flex; justify-content: space-between; align-items: center;
+            height: 60px; flex-shrink: 0; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        h1 { margin: 0; font-size: 18px; font-weight: 700; color: var(--accent); letter-spacing: -0.5px; }
+        .switch-container { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: #555; }
+        .switch { position: relative; display: inline-block; width: 44px; height: 22px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; inset: 0; background-color: #CBD5E0; transition: .4s; border-radius: 22px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent); }
+        input:checked + .slider:before { transform: translateX(22px); }
+
+        .layout { display: flex; flex: 1; overflow: hidden; }
+        #map { flex: 1; height: 100%; z-index: 1; background: #e0e5eb; }
+        .sidebar { width: 340px; display: flex; flex-direction: column; background: #ffffff; border-left: 1px solid var(--border); z-index: 2; box-shadow: -2px 0 10px rgba(0,0,0,0.03); }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid var(--border); background: #fcfcfc; }
+        .sidebar-content { padding: 10px; overflow-y: auto; flex: 1; background: #f9f9f9; }
+        body.full-map-mode .sidebar { display: none; }
+
+        .sidebar-content::-webkit-scrollbar { width: 6px; }
+        .sidebar-content::-webkit-scrollbar-track { background: transparent; }
+        .sidebar-content::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 10px; }
+
+        .project-card {
+            background: white; border-radius: 10px; padding: 15px; margin-bottom: 12px;
+            border: 1px solid #edf2f7; transition: all 0.2s; cursor: pointer;
+        }
+        .project-card:hover { transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.08); border-color: #d1d9e6; }
+        .card-name { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #1a202c; display: block; }
+        .card-info { font-size: 11px; color: #718096; line-height: 1.6; }
+        .card-info b { color: #4a5568; }
+        .status-badge {
+            display: inline-block; padding: 3px 8px; border-radius: 4px;
+            font-size: 10px; font-weight: 700; color: white; margin-bottom: 8px;
+        }
+
+        .draggable-label-container {
+            background: white; border-width: 2px; border-style: solid; border-radius: 12px;
+            padding: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            text-align: left; font-size: 11px; width: 250px; cursor: grab;
+        }
+        .label-title { font-weight: 700; font-size: 12px; display: block; border-bottom: 1px solid #f0f0f0; padding-bottom: 6px; margin-bottom: 8px; }
+        .section-tag { font-size: 9px; color: #A0AEC0; font-weight: bold; margin-top: 8px; display: block; text-transform: uppercase; }
+        .label-content { display: block; color: #4A5568; margin: 2px 0; line-height: 1.5; }
+
+        .legend {
+            background: white; padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+            z-index: 1000; font-size: 11px;
+        }
+        .legend-item { display: flex; align-items: center; margin-bottom: 5px; }
+        .legend-color { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; }
+
+        .leaflet-tooltip { padding: 12px; border-radius: 8px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.2); min-width: 240px; }
+
+        .roadview-panel {
+            width: 420px; display: flex; flex-direction: column; background: #fff;
+            border-left: 1px solid var(--border); z-index: 2; box-shadow: -2px 0 10px rgba(0,0,0,0.03);
+        }
+        .roadview-panel.hidden { display: none; }
+        .roadview-header {
+            height: 56px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 1px solid var(--border); background: #fcfcfc;
+        }
+        .roadview-header-left { display: flex; flex-direction: column; gap: 3px; }
+        .roadview-header-title { font-size: 14px; font-weight: 700; color: #1a202c; }
+        .roadview-header-caption { font-size: 11px; color: #718096; }
+        .roadview-close {
+            border: 1px solid #d7dde7; background: white; border-radius: 8px; padding: 7px 10px;
+            font-size: 12px; cursor: pointer;
+        }
+        .roadview-close:hover { background: #f7fafc; }
+        #roadview { flex: 1; min-height: 420px; background: #eef2f7; }
+        .roadview-empty, .roadview-help {
+            padding: 18px; font-size: 12px; line-height: 1.7; color: #4a5568;
+            border-top: 1px solid var(--border); background: #fff;
+        }
+        .roadview-help code {
+            background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2px 6px;
+            font-size: 11px;
+        }
+        body.full-map-mode .roadview-panel { display: none !important; }
+
+        .notice {
+            position: fixed; left: 16px; bottom: 16px; z-index: 2000;
+            background: rgba(33, 37, 41, 0.92); color: white; padding: 12px 14px;
+            border-radius: 10px; box-shadow: 0 8px 20px rgba(0,0,0,0.18); font-size: 12px; max-width: 440px;
+            line-height: 1.5; display: none;
+        }
+        .notice strong { color: #9dd4ff; }
+        .notice code { background: rgba(255,255,255,0.14); padding: 1px 4px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🏢 프로젝트 통합 관리 <small style="font-weight: 300; font-size: 12px; color: #999; margin-left: 10px;">Smart Dashboard</small></h1>
+    <div class="switch-container">
+        Label Mode
+        <label class="switch">
+            <input type="checkbox" id="mode-toggle">
+            <span class="slider"></span>
+        </label>
+    </div>
+</header>
+
+<div class="layout">
+    <div id="map"></div>
+    <div id="roadview-panel" class="roadview-panel hidden">
+        <div class="roadview-header">
+            <div class="roadview-header-left">
+                <span id="roadview-title" class="roadview-header-title">로드뷰</span>
+                <span class="roadview-header-caption">지도 포인트를 클릭하면 주변 거리뷰를 표시합니다.</span>
+            </div>
+            <button id="close-roadview" class="roadview-close" type="button">닫기</button>
+        </div>
+        <div id="roadview"></div>
+        <div id="roadview-empty" class="roadview-empty" style="display:none;"></div>
+        <div id="roadview-help" class="roadview-help" style="display:none;"></div>
+    </div>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h3 style="font-size: 15px; margin:0;">📋 프로젝트 리스트</h3>
+            <p id="project-count" style="font-size: 11px; color: #999; margin: 5px 0 0 0;">JSON 파일을 불러오는 중입니다...</p>
+        </div>
+
+        <div class="legend">
+            <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px;">단계별 안내</div>
+            <div class="legend-item"><div class="legend-color" style="background:#D84315;"></div> 제조/협약 (진행)</div>
+            <div class="legend-item"><div class="legend-color" style="background:#FB8C00;"></div> 발주 준비 (대기)</div>
+            <div class="legend-item"><div class="legend-color" style="background:#1565C0;"></div> 설계 단계 (기획)</div>
+            <div class="legend-item"><div class="legend-color" style="background:#42A5F5;"></div> 컨설팅/검토 (사전)</div>
+        </div>
+
+        <div class="sidebar-content" id="sidebar-list"></div>
+    </div>
+</div>
+
+<div class="notice" id="notice"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script id="kakao-sdk-script" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=0271fd44341d6cc2f148c0949087d9eb"></script>
+<script>
+    const DATA_FILE = './projects.json';
+
+    function showNotice(message) {
+        const notice = document.getElementById('notice');
+        notice.innerHTML = message;
+        notice.style.display = 'block';
+    }
+
+    function getStepColor(stage = '') {
+        if (stage.includes('제조') || stage.includes('협약')) return '#D84315';
+        if (stage.includes('발주')) return '#FB8C00';
+        if (stage.includes('설계')) return '#1565C0';
+        if (stage.includes('컨설팅')) return '#42A5F5';
+        return '#9E9E9E';
+    }
+
+    function formatVol(vol) {
+        return String(vol || '').trim() === '검토중' ? '검토중' : `${vol}개`;
+    }
+
+    async function loadProjectsFromJson() {
+        const response = await fetch(DATA_FILE, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`JSON 파일을 찾을 수 없습니다: ${DATA_FILE}`);
+
+        const rows = await response.json();
+        if (!Array.isArray(rows)) {
+            throw new Error('projects.json 최상위 구조는 배열이어야 합니다.');
+        }
+
+        return rows
+            .map((row) => ({
+                id: Number(row.id || 0) || 0,
+                name: String(row.name ?? '').trim(),
+                client: String(row.client ?? '-').trim(),
+                partner: String(row.partner ?? '-').trim(),
+                area: String(row.area ?? '').trim(),
+                floor: String(row.floor ?? '').trim(),
+                vol: String(row.vol ?? '').trim(),
+                pkg: String(row.pkg ?? '').trim(),
+                stage: String(row.stage ?? '').trim(),
+                lat: Number(row.lat),
+                lng: Number(row.lng)
+            }))
+            .filter((p) => p.name && !Number.isNaN(p.lat) && !Number.isNaN(p.lng));
+    }
+
+    const map = L.map('map', {
+        minZoom: 7,
+        maxZoom: 18,
+        maxBounds: [[32.0, 123.0], [44.0, 133.0]],
+        maxBoundsViscosity: 1.0
+    }).setView([37.48, 127.05], 11);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+    const projectLayer = L.layerGroup().addTo(map);
+    const draggableGroup = L.layerGroup().addTo(map);
+    let markers = [];
+
+
+    const roadviewWrap = document.getElementById('roadview-panel');
+    const roadviewEl = document.getElementById('roadview');
+    const roadviewEmpty = document.getElementById('roadview-empty');
+    const roadviewHelp = document.getElementById('roadview-help');
+    const roadviewTitle = document.getElementById('roadview-title');
+    const closeRoadviewBtn = document.getElementById('close-roadview');
+
+    const kakaoSdkScript = document.getElementById('kakao-sdk-script');
+    const kakaoKeyConfigured = !kakaoSdkScript.src.includes('YOUR_KAKAO_JAVASCRIPT_KEY');
+
+    let roadview = null;
+    let roadviewClient = null;
+    let kakaoSdkLoaded = false;
+    let kakaoSdkLoadError = false;
+
+    function isKakaoSdkReady() {
+        return !!(window.kakao && window.kakao.maps && typeof window.kakao.maps.load === 'function');
+    }
+
+    function initializeKakaoSdk() {
+        if (!kakaoKeyConfigured) return;
+
+        if (!isKakaoSdkReady()) {
+            kakaoSdkLoadError = true;
+            return;
+        }
+
+        try {
+            window.kakao.maps.load(function() {
+                kakaoSdkLoaded = true;
+            });
+        } catch (e) {
+            console.error('Kakao SDK initialization failed:', e);
+            kakaoSdkLoadError = true;
+        }
+    }
+
+    if (kakaoSdkScript) {
+        kakaoSdkScript.addEventListener('error', function() {
+            kakaoSdkLoadError = true;
+        });
+    }
+
+    if (closeRoadviewBtn) {
+        closeRoadviewBtn.addEventListener('click', () => roadviewWrap.classList.add('hidden'));
+    }
+
+    initializeKakaoSdk();
+
+    function ensureRoadviewObjects() {
+        if (!kakaoSdkLoaded || !kakaoKeyConfigured) return false;
+        if (!roadview) {
+            roadview = new kakao.maps.Roadview(roadviewEl);
+            roadviewClient = new kakao.maps.RoadviewClient();
+        }
+        return true;
+    }
+
+    function openRoadviewForProject(project) {
+        roadviewTitle.textContent = `${project.name} 로드뷰`;
+        roadviewWrap.classList.remove('hidden');
+        roadviewEmpty.style.display = 'none';
+        roadviewHelp.style.display = 'none';
+        roadviewEl.style.display = 'block';
+
+        if (!kakaoKeyConfigured) {
+            roadviewEl.style.display = 'none';
+            roadviewHelp.style.display = 'block';
+            roadviewHelp.innerHTML = 'HTML 안의 <code>YOUR_KAKAO_JAVASCRIPT_KEY</code>를 실제 JavaScript 키로 바꿔주세요.';
+            return;
+        }
+
+        if (kakaoSdkLoadError) {
+            roadviewEl.style.display = 'none';
+            roadviewHelp.style.display = 'block';
+            roadviewHelp.innerHTML = '카카오 지도 SDK 로드에 실패했습니다. <code>http://localhost:8000</code> 같은 현재 접속 주소가 카카오 개발자 콘솔의 Web 플랫폼 도메인에 등록되어 있는지, 그리고 키가 JavaScript 키인지 확인하세요.';
+            return;
+        }
+
+        if (!kakaoSdkLoaded) {
+            roadviewEl.style.display = 'none';
+            roadviewHelp.style.display = 'block';
+            roadviewHelp.innerHTML = '카카오 지도 SDK가 아직 초기화되지 않았습니다. 페이지를 한 번 새로고침하거나, 현재 접속 주소와 등록 도메인이 일치하는지 확인하세요.';
+            return;
+        }
+
+        if (!ensureRoadviewObjects()) {
+            roadviewEl.style.display = 'none';
+            roadviewHelp.style.display = 'block';
+            roadviewHelp.innerHTML = '로드뷰 객체를 초기화하지 못했습니다.';
+            return;
+        }
+
+        const position = new kakao.maps.LatLng(project.lat, project.lng);
+        roadviewClient.getNearestPanoId(position, 50, function(panoId) {
+            if (!panoId) {
+                roadviewEl.style.display = 'none';
+                roadviewEmpty.style.display = 'block';
+                roadviewEmpty.textContent = '이 위치 반경 50m 내에 로드뷰가 없습니다.';
+                return;
+            }
+            roadviewEl.style.display = 'block';
+            roadview.setPanoId(panoId, position);
+        });
+    }
+
+
+    function buildDashboard(projects) {
+        markers = [];
+        projectLayer.clearLayers();
+        draggableGroup.clearLayers();
+
+        const sidebar = document.getElementById('sidebar-list');
+        sidebar.innerHTML = '';
+        document.getElementById('project-count').textContent = `총 ${projects.length}개의 프로젝트가 JSON 데이터와 연동되어 있습니다.`;
+
+        projects.forEach((p) => {
+            const color = getStepColor(p.stage);
+            const volText = formatVol(p.vol);
+
+            const card = document.createElement('div');
+            card.className = 'project-card';
+            card.innerHTML = `
+                <span class="status-badge" style="background:${color}">${p.stage}</span>
+                <span class="card-name">${p.name}</span>
+                <div class="card-info">
+                    🏢 <b>발주(관계):</b> ${p.client}(${p.partner})<br>
+                    📐 <b>규모:</b> ${p.floor} / ${p.area}<br>
+                    📦 <b>물량:</b> ${volText}<br>
+                    🛠 <b>패키징:</b> ${p.pkg}
+                </div>
+            `;
+            sidebar.appendChild(card);
+
+            const pin = L.circleMarker([p.lat, p.lng], {
+                radius: 7, fillColor: color, color: '#fff', weight: 2, fillOpacity: 0.9
+            }).addTo(projectLayer);
+
+            const tooltipHtml = `
+                <div style="font-weight:700; color:${color}; font-size:13px; border-bottom:1px solid #eee; padding-bottom:5px; margin-bottom:5px;">${p.name}</div>
+                <div style="font-size:11px; line-height:1.6;">
+                    🏢 <b>발주(관계):</b> ${p.client}(${p.partner})<br>
+                    🏠 <b>규모:</b> ${p.area} / ${p.floor}<br>
+                    📦 <b>수량:</b> <b style="color:#333;">${volText}</b><br>
+                    🛠 <b>패키징:</b> <span style="color:${color}; font-weight:bold;">${p.pkg}</span>
+                </div>
+            `;
+
+            pin.on('mouseover', function() { this.setRadius(12); });
+            pin.on('mouseout', function() { this.setRadius(7); });
+            pin.on('click', () => {
+                map.flyTo([p.lat, p.lng], 14);
+                pin.openTooltip();
+                openRoadviewForProject(p);
+            });
+
+            markers.push({ pin, data: p, color, tooltipHtml });
+
+            card.onclick = () => {
+                map.flyTo([p.lat, p.lng], 14);
+                pin.openTooltip();
+                openRoadviewForProject(p);
+            };
+        });
+
+        updateMode();
+    }
+
+    function updateMode() {
+        const isLabelMode = document.getElementById('mode-toggle').checked;
+        draggableGroup.clearLayers();
+
+        if (isLabelMode) {
+            document.body.classList.add('full-map-mode');
+            const b = map.getBounds();
+            const n = b.getNorth(), s = b.getSouth(), e = b.getEast(), w = b.getWest();
+
+            markers.forEach((m, i) => {
+                m.pin.unbindTooltip();
+                let lLat, lLng;
+                if (i < 4) { lLat = n - ((n - s) / 5 * (i + 1)); lLng = w + (e - w) * 0.12; }
+                else if (i < 8) { lLat = n - ((n - s) / 5 * (i - 3)); lLng = e - (e - w) * 0.12; }
+                else if (i < 11) { lLat = n - (n - s) * 0.1; lLng = w + ((e - w) / 4 * (i - 7)); }
+                else { lLat = s + (n - s) * 0.1; lLng = w + ((e - w) / 4 * (i - 10)); }
+
+                const volLabel = formatVol(m.data.vol);
+                const labelHtml = `
+                    <div class="draggable-label-container" style="border-color: ${m.color};">
+                        <span class="label-title" style="color: ${m.color};">${m.data.name}</span>
+                        <span class="section-tag">[발주 및 관계]</span>
+                        <span class="label-content">${m.data.client}(${m.data.partner})</span>
+                        <span class="section-tag">[규모 및 패키징]</span>
+                        <span class="label-content">${m.data.floor} / ${m.data.area}</span>
+                        <span class="label-content">🛠 <b>${m.data.pkg}</b></span>
+                        <span class="label-content" style="border-top:1px dashed #eee; margin-top:5px; padding-top:4px;">📦 수량: <b>${volLabel}</b></span>
+                    </div>
+                `;
+                const labelIcon = L.divIcon({ html: labelHtml, className: '', iconAnchor: [125, 60] });
+                const labelMarker = L.marker([lLat, lLng], { icon: labelIcon, draggable: true }).addTo(draggableGroup);
+                const polyline = L.polyline([[m.data.lat, m.data.lng], [lLat, lLng]], {
+                    color: m.color, weight: 1.5, dashArray: '6, 6', opacity: 0.4
+                }).addTo(draggableGroup);
+                labelMarker.on('drag', (ev) => polyline.setLatLngs([[m.data.lat, m.data.lng], ev.target.getLatLng()]));
+            });
+        } else {
+            document.body.classList.remove('full-map-mode');
+            markers.forEach((m) => m.pin.bindTooltip(m.tooltipHtml, { direction: 'top', opacity: 1 }));
+        }
+        setTimeout(() => map.invalidateSize(), 400);
+    }
+
+    document.getElementById('mode-toggle').addEventListener('change', updateMode);
+
+    loadProjectsFromJson()
+        .then(buildDashboard)
+        .catch((error) => {
+            console.error(error);
+            document.getElementById('project-count').textContent = 'JSON 파일을 불러오지 못했습니다.';
+            showNotice(
+                `<strong>JSON 연동 실패</strong><br>` +
+                `1) <strong>index.html</strong>과 <strong>projects.json</strong>이 같은 폴더에 있는지 확인하세요.<br>` +
+                `2) GitHub Pages에서는 보통 바로 동작합니다.<br>` +
+                `3) 로컬 확인은 같은 폴더에서 <code>python -m http.server 8000</code> 실행 후 <code>http://localhost:8000/index.html</code>로 접속하세요.`
+            );
+        });
+</script>
+</body>
+</html>
