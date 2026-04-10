@@ -309,11 +309,11 @@
         }
 
         const position = new kakao.maps.LatLng(project.lat, project.lng);
-        roadviewClient.getNearestPanoId(position, 50, function(panoId) {
+        roadviewClient.getNearestPanoId(position, 100, function(panoId) {
             if (!panoId) {
                 roadviewEl.style.display = 'none';
                 roadviewEmpty.style.display = 'block';
-                roadviewEmpty.textContent = '이 위치 반경 50m 내에 로드뷰가 없습니다.';
+                roadviewEmpty.textContent = '이 위치 반경 100m 내에 로드뷰가 없습니다.';
                 return;
             }
             roadviewEl.style.display = 'block';
