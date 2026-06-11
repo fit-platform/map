@@ -57,6 +57,7 @@
       <input id="password" type="password" placeholder="비밀번호" autocomplete="current-password">
       <button class="btn" id="loginBtn">로그인</button>
       <div class="msg" id="loginMsg"></div>
+      <pre class="diagOut" id="authLog" hidden></pre>
       <button class="diaglink" id="diagBtn">🔧 로그인이 안 되면 여기를 눌러 연결 진단</button>
       <pre class="diagOut" id="diagOut" hidden></pre>
     </div>
@@ -97,6 +98,14 @@
     const loginView=$('loginView'), appView=$('appView');
     let currentUser = null;
 
+    // 상태 기록 (무슨 일이 일어나는지 화면에 글자로 남김)
+    const _log=[];
+    function logStatus(s){
+      const el=$('authLog'); el.hidden=false;
+      _log.push(s);
+      el.textContent='[상태 기록]\n'+_log.slice(-6).join('\n');
+    }
+
     // 화면 전환: onAuthStateChange가 넘겨준 session을 그대로 사용
     // ⚠️ 이 안에서 getSession/getUser 등 auth 메서드를 다시 부르면 데드락(멈춤) → 절대 호출 금지
     function updateView(session){
@@ -126,9 +135,13 @@
           if(/Invalid login credentials/i.test(error.message)) msg.textContent='이메일 또는 비밀번호가 올바르지 않습니다. (관리자가 계정을 등록했는지 확인하세요)';
           else if(/Email not confirmed/i.test(error.message)) msg.textContent='계정이 확인되지 않았습니다. 관리자가 사용자 등록 시 "Auto Confirm User"를 켜야 합니다.';
           else msg.textContent='로그인 실패: '+error.message;
+          logStatus('로그인 실패: '+error.message);
+        } else {
+          logStatus('로그인 요청 성공 → 세션 적용 대기 중...');
         }
       } catch(e) {
         msg.className='msg err'; msg.textContent=e.message;
+        logStatus('예외: '+e.message);
       } finally {
         $('loginBtn').disabled=false; $('loginBtn').textContent='로그인';
       }
@@ -197,7 +210,10 @@
     };
 
     // 로그인 상태 변화 감지 — 콜백이 준 session을 그대로 사용 (getSession 재호출 금지 → 데드락 방지)
-    sb.auth.onAuthStateChange((event, session) => updateView(session));
+    sb.auth.onAuthStateChange((event, session) => {
+      logStatus('상태변화: '+event+(session ? ' (로그인됨: '+session.user.email+')' : ' (세션 없음)'));
+      updateView(session);
+    });
     // 시작 시 1회만 현재 세션 확인
     sb.auth.getSession().then(({ data:{ session } }) => updateView(session));
   </script>
