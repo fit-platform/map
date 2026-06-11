@@ -78,7 +78,15 @@
     // ===== Supabase 연결 정보 (anon public 키는 공개돼도 안전) =====
     const SUPABASE_URL = "https://auykdsmpfkljassfavba.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF1eWtkc21wZmtsamFzc2ZhdmJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNDY3MDQsImV4cCI6MjA5NjcyMjcwNH0.RDyHifIK1IbmmNi_vqP3nqFwIQG3F7sI0Df2VjZrzTM";
-    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+        // navigator.locks 데드락 방지: 여러 탭/반복 시도 시 로그인이 멈추는 현상 회피
+        lock: (name, acquireTimeout, fn) => fn()
+      }
+    });
 
     const $ = id => document.getElementById(id);
     const loginView=$('loginView'), appView=$('appView');
