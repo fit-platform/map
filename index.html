@@ -6,19 +6,150 @@
 <title>FIT Platform</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:'Pretendard','Malgun Gothic',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;
-    background:linear-gradient(135deg,#0f172a,#1e293b);color:#e2e8f0;text-align:center;padding:24px;}
-  .card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:48px 44px;max-width:520px;}
-  h1{font-size:38px;letter-spacing:-.02em;margin-bottom:14px;}
-  p{font-size:18px;color:#94a3b8;line-height:1.6;}
-  .badge{display:inline-block;font-size:13px;font-weight:700;letter-spacing:.1em;color:#7dd3fc;background:rgba(56,189,248,.12);padding:6px 14px;border-radius:999px;margin-bottom:22px;}
+  :root{--accent:#2563eb;--ink:#1e293b;--muted:#64748b;--line:#e2e8f0;--bg:#f1f5f9;}
+  body{font-family:'Pretendard','Malgun Gothic',sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;}
+  .wrap{max-width:680px;margin:0 auto;padding:24px 18px 60px;}
+  /* login */
+  #loginView{min-height:100vh;display:flex;align-items:center;justify-content:center;}
+  .loginCard{background:#fff;border-radius:20px;padding:44px 38px;width:100%;max-width:400px;box-shadow:0 20px 50px rgba(15,23,42,.12);text-align:center;}
+  .badge{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.14em;color:var(--accent);background:#eff6ff;padding:6px 14px;border-radius:999px;margin-bottom:18px;}
+  .loginCard h1{font-size:28px;margin-bottom:6px;letter-spacing:-.02em;}
+  .loginCard .sub{color:var(--muted);font-size:15px;margin-bottom:26px;}
+  input{width:100%;padding:14px 16px;border:1.5px solid var(--line);border-radius:12px;font-size:16px;margin-bottom:12px;outline:none;transition:border .15s;}
+  input:focus{border-color:var(--accent);}
+  button{cursor:pointer;border:none;font-family:inherit;}
+  .btn{width:100%;background:var(--accent);color:#fff;font-size:17px;font-weight:700;padding:14px;border-radius:12px;transition:background .15s;}
+  .btn:hover{background:#1d4ed8;}
+  .btn:disabled{opacity:.6;cursor:default;}
+  .msg{font-size:14px;margin-top:12px;min-height:18px;}
+  .msg.err{color:#dc2626;} .msg.ok{color:#16a34a;}
+  /* app */
+  header.bar{display:flex;align-items:center;justify-content:space-between;background:#fff;border-radius:14px;padding:14px 18px;margin-bottom:20px;box-shadow:0 4px 14px rgba(15,23,42,.06);}
+  header.bar .who{font-size:14px;color:var(--muted);}
+  header.bar .who b{color:var(--ink);}
+  .logout{background:#f1f5f9;color:#475569;font-size:14px;font-weight:600;padding:8px 14px;border-radius:9px;}
+  .logout:hover{background:#e2e8f0;}
+  h2{font-size:22px;margin-bottom:14px;}
+  .noteForm{display:flex;gap:10px;margin-bottom:18px;}
+  .noteForm input{margin-bottom:0;}
+  .noteForm .btn{width:auto;padding:14px 22px;white-space:nowrap;}
+  ul{list-style:none;display:flex;flex-direction:column;gap:10px;}
+  li.note{background:#fff;border-radius:12px;padding:16px 18px;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;box-shadow:0 3px 10px rgba(15,23,42,.05);}
+  li.note .c{font-size:16px;line-height:1.5;word-break:break-word;}
+  li.note .meta{font-size:12px;color:var(--muted);margin-top:6px;}
+  li.note .del{background:none;color:#cbd5e1;font-size:20px;line-height:1;padding:2px 6px;border-radius:6px;flex:none;}
+  li.note .del:hover{color:#dc2626;background:#fef2f2;}
+  .empty{color:var(--muted);text-align:center;padding:30px;font-size:15px;}
 </style>
 </head>
 <body>
-  <div class="card">
-    <span class="badge">FIT PLATFORM</span>
-    <h1>준비 중입니다 🚧</h1>
-    <p>통합 웹앱을 구축하고 있습니다.<br>곧 로그인 기능과 함께 찾아옵니다.</p>
-  </div>
+
+  <!-- 로그인 화면 -->
+  <section id="loginView" hidden>
+    <div class="loginCard">
+      <span class="badge">FIT PLATFORM</span>
+      <h1>로그인</h1>
+      <p class="sub">우리 팀 전용 페이지입니다</p>
+      <input id="email" type="email" placeholder="이메일" autocomplete="username">
+      <input id="password" type="password" placeholder="비밀번호" autocomplete="current-password">
+      <button class="btn" id="loginBtn">로그인</button>
+      <div class="msg" id="loginMsg"></div>
+    </div>
+  </section>
+
+  <!-- 앱 화면 -->
+  <section id="appView" hidden>
+    <div class="wrap">
+      <header class="bar">
+        <div class="who">로그인됨: <b id="userEmail"></b></div>
+        <button class="logout" id="logoutBtn">로그아웃</button>
+      </header>
+      <h2>📝 팀 메모장</h2>
+      <form class="noteForm" id="noteForm">
+        <input id="noteInput" placeholder="메모를 입력하고 추가를 누르세요" maxlength="500">
+        <button class="btn" type="submit">추가</button>
+      </form>
+      <ul id="noteList"></ul>
+    </div>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // ===== Supabase 연결 정보 (anon public 키는 공개돼도 안전) =====
+    const SUPABASE_URL = "https://auykdsmpfkljassfavba.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF1eWtkc21wZmtsamFzc2ZhdmJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNDY3MDQsImV4cCI6MjA5NjcyMjcwNH0.RDyHifIK1IbmmNi_vqP3nqFwIQG3F7sI0Df2VjZrzTM";
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const $ = id => document.getElementById(id);
+    const loginView=$('loginView'), appView=$('appView');
+
+    // 로그인 상태에 따라 화면 전환
+    async function refreshUI(){
+      const { data:{ session } } = await sb.auth.getSession();
+      if(session){
+        loginView.hidden = true; appView.hidden = false;
+        $('userEmail').textContent = session.user.email;
+        loadNotes();
+      } else {
+        appView.hidden = true; loginView.hidden = false;
+      }
+    }
+
+    // 로그인
+    $('loginBtn').onclick = async () => {
+      const email=$('email').value.trim(), password=$('password').value;
+      const msg=$('loginMsg'); msg.className='msg'; msg.textContent='';
+      if(!email||!password){ msg.className='msg err'; msg.textContent='이메일과 비밀번호를 입력하세요.'; return; }
+      $('loginBtn').disabled=true; $('loginBtn').textContent='로그인 중...';
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      $('loginBtn').disabled=false; $('loginBtn').textContent='로그인';
+      if(error){ msg.className='msg err'; msg.textContent='로그인 실패: '+error.message; }
+    };
+    // 엔터로 로그인
+    $('password').addEventListener('keydown', e=>{ if(e.key==='Enter') $('loginBtn').click(); });
+
+    // 로그아웃
+    $('logoutBtn').onclick = async () => { await sb.auth.signOut(); };
+
+    // 메모 불러오기
+    async function loadNotes(){
+      const list=$('noteList');
+      const { data, error } = await sb.from('notes').select('*').order('created_at',{ascending:false});
+      if(error){ list.innerHTML='<div class="empty">불러오기 오류: '+error.message+'</div>'; return; }
+      if(!data.length){ list.innerHTML='<div class="empty">아직 메모가 없습니다. 첫 메모를 남겨보세요!</div>'; return; }
+      list.innerHTML='';
+      for(const n of data){
+        const li=document.createElement('li'); li.className='note';
+        const left=document.createElement('div');
+        left.innerHTML='<div class="c"></div><div class="meta"></div>';
+        left.querySelector('.c').textContent=n.content;
+        left.querySelector('.meta').textContent=(n.created_by||'')+' · '+new Date(n.created_at).toLocaleString('ko-KR');
+        const del=document.createElement('button'); del.className='del'; del.textContent='×'; del.title='삭제';
+        del.onclick=()=>removeNote(n.id);
+        li.append(left, del); list.appendChild(li);
+      }
+    }
+
+    // 메모 추가
+    $('noteForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const input=$('noteInput'); const content=input.value.trim(); if(!content) return;
+      const { data:{ user } } = await sb.auth.getUser();
+      const { error } = await sb.from('notes').insert({ content, created_by: user.email });
+      if(error){ alert('저장 실패: '+error.message); return; }
+      input.value=''; loadNotes();
+    };
+
+    // 메모 삭제
+    async function removeNote(id){
+      const { error } = await sb.from('notes').delete().eq('id', id);
+      if(error){ alert('삭제 실패: '+error.message); return; }
+      loadNotes();
+    }
+
+    // 로그인 상태 변화 감지 + 시작
+    sb.auth.onAuthStateChange(()=>refreshUI());
+    refreshUI();
+  </script>
 </body>
 </html>
