@@ -101,9 +101,22 @@
       const msg=$('loginMsg'); msg.className='msg'; msg.textContent='';
       if(!email||!password){ msg.className='msg err'; msg.textContent='이메일과 비밀번호를 입력하세요.'; return; }
       $('loginBtn').disabled=true; $('loginBtn').textContent='로그인 중...';
-      const { error } = await sb.auth.signInWithPassword({ email, password });
-      $('loginBtn').disabled=false; $('loginBtn').textContent='로그인';
-      if(error){ msg.className='msg err'; msg.textContent='로그인 실패: '+error.message; }
+      try {
+        const { error } = await Promise.race([
+          sb.auth.signInWithPassword({ email, password }),
+          new Promise((_,rej)=>setTimeout(()=>rej(new Error('시간 초과 — 인터넷 연결이나 회사 방화벽(supabase.co 차단)을 확인하세요.')), 12000))
+        ]);
+        if(error){
+          msg.className='msg err';
+          if(/Invalid login credentials/i.test(error.message)) msg.textContent='이메일 또는 비밀번호가 올바르지 않습니다. (관리자가 계정을 등록했는지 확인하세요)';
+          else if(/Email not confirmed/i.test(error.message)) msg.textContent='계정이 확인되지 않았습니다. 관리자가 사용자 등록 시 "Auto Confirm User"를 켜야 합니다.';
+          else msg.textContent='로그인 실패: '+error.message;
+        }
+      } catch(e) {
+        msg.className='msg err'; msg.textContent=e.message;
+      } finally {
+        $('loginBtn').disabled=false; $('loginBtn').textContent='로그인';
+      }
     };
     // 엔터로 로그인
     $('password').addEventListener('keydown', e=>{ if(e.key==='Enter') $('loginBtn').click(); });
