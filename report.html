@@ -47,6 +47,7 @@
   .diagram.flush{flex:1;display:flex;align-items:center;}
   .diagram svg{width:100%;height:auto;display:block;}
   .note{font-size:15.5px;color:var(--muted);margin-top:16px;line-height:1.5;}
+  code{font-family:ui-monospace,Menlo,Consolas,monospace;background:#1d1d1f;color:#e8e8ed;border-radius:6px;padding:2px 8px;font-size:13.5px;}
   .tag{display:inline-block;font-size:12.5px;font-weight:600;padding:2px 9px;border-radius:7px;}
   .tag.code{background:var(--blue-tint);color:var(--blue);} .tag.data{background:var(--green-tint);color:var(--green);}
   .url{display:inline-block;background:var(--green-tint);color:var(--green);font-weight:600;padding:7px 15px;border-radius:10px;font-size:16px;margin-top:8px;}
@@ -367,9 +368,22 @@
     <p class="note">이 구조 위에 탭과 기능을 계속 얹어 통합 웹앱으로 키워나갈 수 있습니다. 🚀</p>
   </section>
 
-  <!-- 12 migration guide -->
+  <!-- 12 migration step 0: connect GitHub -->
   <section class="slide">
-    <div class="kicker">실전 가이드 · 마이그레이션</div>
+    <div class="kicker">마이그레이션 · STEP 0 (PC당 처음 한 번만)</div>
+    <h2>먼저, 내 PC를 GitHub에 연결한다</h2>
+    <ul style="gap:12px;">
+      <li><span class="dot">1</span><div><b>Git 설치</b> — <b>git-scm.com</b> 에서 받아 설치(기본값 Next). 내 PC가 GitHub와 대화하는 기본 도구입니다.</div></li>
+      <li><span class="dot">2</span><div><b>GitHub CLI 설치</b> — PowerShell을 열고 <code>winget install --id GitHub.cli -e</code> (로그인을 쉽게 해주는 도구)</div></li>
+      <li><span class="dot">3</span><div><b>로그인</b> — <code>gh auth login</code> → GitHub.com · HTTPS · 브라우저 로그인. ⭐ 반드시 <b>fit-platform 계정</b>. (한 번이면 PC에 저장됨)</div></li>
+      <li><span class="dot">4</span><div><b>저장소 받기(clone)</b> — <code>git clone https://github.com/fit-platform/map.git</code> → 바탕화면에 <b>map 폴더</b> 생성(배포.bat 등 포함).</div></li>
+    </ul>
+    <p class="note">이 4단계는 <b>PC당 딱 한 번</b>. 어려우면 클로드에게 <b>“이 PC를 fit-platform/map에 연결해줘”</b> 라고 하면 설치·clone을 대신 해줍니다 (브라우저 로그인만 직접). → 끝나면 다음 페이지로.</p>
+  </section>
+
+  <!-- 13 migration guide -->
+  <section class="slide">
+    <div class="kicker">마이그레이션 · 내 앱 옮기기</div>
     <h2>흩어진 내 앱을 현재 체계로 옮기기</h2>
     <ul style="gap:11px;">
       <li><span class="dot">1</span><div><b>최신 받기</b> — 「최신버전_받기.bat」으로 map 폴더를 최신 상태로 맞춥니다.</div></li>
