@@ -367,6 +367,21 @@
     <p class="note">이 구조 위에 탭과 기능을 계속 얹어 통합 웹앱으로 키워나갈 수 있습니다. 🚀</p>
   </section>
 
+  <!-- 12 migration guide -->
+  <section class="slide">
+    <div class="kicker">실전 가이드 · 마이그레이션</div>
+    <h2>흩어진 내 앱을 현재 체계로 옮기기</h2>
+    <ul style="gap:11px;">
+      <li><span class="dot">1</span><div><b>최신 받기</b> — 「최신버전_받기.bat」으로 map 폴더를 최신 상태로 맞춥니다.</div></li>
+      <li><span class="dot">2</span><div><b>내 파일 넣기</b> — HTML·JS·CSS는 <b>miniapps/</b>, 이미지는 <b>IMG/</b>, 엑셀은 <b>data/</b>에 복사. (클로드에게 “내 앱을 miniapps/○○ 로 정리해줘”)</div></li>
+      <li><span class="dot">3</span><div><b>메뉴에 연결</b> — index.html 탭/메뉴에 내 앱 링크 추가. (클로드에게 부탁)</div></li>
+      <li><span class="dot">4</span><div><b>데이터는 Supabase로</b> ⭐ — 로컬·파일·다른 DB에 있던 데이터를 Supabase 표로 옮기고(엑셀은 CSV import), 저장 코드를 Supabase 호출로 교체. (클로드에게 부탁)</div></li>
+      <li><span class="dot">5</span><div><b>로그인 통합</b> — 따로 로그인 쓰던 앱은 공통 로그인으로 통일(이미 있는 세션 사용).</div></li>
+      <li><span class="dot">6</span><div><b>테스트 후 정리</b> — 「배포.bat」 → 로그인해 동작 확인 → 기존 Netlify·Firebase 등은 확인 후 폐기.</div></li>
+    </ul>
+    <p class="note">기억하세요: <span class="tag code">코드·이미지·xlsx → GitHub</span> · <span class="tag data">사용자 데이터 → Supabase</span>. 한 번에 다 옮기지 말고 <b>한 앱씩 순서대로</b> 진행하세요.</p>
+  </section>
+
 </div></div>
 
 <div class="hint" id="hint">← → 방향키 또는 화면 양옆을 눌러 넘기세요</div>
