@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>이신재 앱 — FIT Platform</title>
+<link rel="stylesheet" href="../shared/style.css">
+</head>
+<body>
+
+  <section id="loginView" hidden>
+    <div class="loginCard">
+      <span class="badge">FIT PLATFORM</span>
+      <h1>로그인</h1>
+      <p class="sub">우리 팀 전용 페이지입니다</p>
+      <input id="email" type="email" placeholder="이메일" autocomplete="username">
+      <input id="password" type="password" placeholder="비밀번호" autocomplete="current-password">
+      <button class="btn" id="loginBtn">로그인</button>
+      <div class="msg" id="loginMsg"></div>
+    </div>
+  </section>
+
+  <section id="appView" hidden>
+    <div class="wrap">
+      <header class="bar">
+        <a class="back" href="../">← 메인으로</a>
+        <div class="who">로그인됨: <b id="userEmail"></b></div>
+        <button class="logout" id="logoutBtn">로그아웃</button>
+      </header>
+
+      <!-- ✏️ 이신재: 여기서부터 앱 내용을 작성하세요 -->
+      <h2>이신재 앱</h2>
+      <p style="color:var(--muted)">아직 개발 중입니다.</p>
+      <!-- ✏️ 여기까지 -->
+
+    </div>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../shared/supabase.js"></script>
+  <script>
+    const $ = id => document.getElementById(id);
+    let currentUser = null;
+
+    function updateView(session){
+      currentUser = session ? session.user : null;
+      if(session){
+        $('loginView').hidden = true; $('appView').hidden = false;
+        $('userEmail').textContent = session.user.email;
+      } else {
+        $('appView').hidden = true; $('loginView').hidden = false;
+      }
+    }
+
+    $('loginBtn').onclick = async () => {
+      const email=$('email').value.trim(), password=$('password').value;
+      const msg=$('loginMsg'); msg.className='msg'; msg.textContent='';
+      if(!email||!password){ msg.className='msg err'; msg.textContent='이메일과 비밀번호를 입력하세요.'; return; }
+      $('loginBtn').disabled=true; $('loginBtn').textContent='로그인 중...';
+      try {
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if(error){ msg.className='msg err'; msg.textContent='로그인 실패: '+error.message; }
+      } finally {
+        $('loginBtn').disabled=false; $('loginBtn').textContent='로그인';
+      }
+    };
+    $('password').addEventListener('keydown', e=>{ if(e.key==='Enter') $('loginBtn').click(); });
+    $('logoutBtn').onclick = async () => { await sb.auth.signOut(); };
+
+    sb.auth.onAuthStateChange((event, session) => updateView(session));
+    sb.auth.getSession().then(({ data:{ session } }) => updateView(session));
+  </script>
+</body>
+</html>

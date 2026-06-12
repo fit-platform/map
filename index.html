@@ -4,212 +4,59 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FIT Platform</title>
+<link rel="stylesheet" href="shared/style.css">
 <style>
-  *{margin:0;padding:0;box-sizing:border-box;}
-  :root{--accent:#2563eb;--ink:#1e293b;--muted:#64748b;--line:#e2e8f0;--bg:#f1f5f9;}
-  body{font-family:'Pretendard','Malgun Gothic',sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;}
-  .wrap{max-width:680px;margin:0 auto;padding:24px 18px 60px;}
-  /* login */
-  #loginView{min-height:100vh;display:flex;align-items:center;justify-content:center;}
-  .loginCard{background:#fff;border-radius:20px;padding:44px 38px;width:100%;max-width:400px;box-shadow:0 20px 50px rgba(15,23,42,.12);text-align:center;}
-  .badge{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.14em;color:var(--accent);background:#eff6ff;padding:6px 14px;border-radius:999px;margin-bottom:18px;}
-  .loginCard h1{font-size:28px;margin-bottom:6px;letter-spacing:-.02em;}
-  .loginCard .sub{color:var(--muted);font-size:15px;margin-bottom:26px;}
-  input{width:100%;padding:14px 16px;border:1.5px solid var(--line);border-radius:12px;font-size:16px;margin-bottom:12px;outline:none;transition:border .15s;}
-  input:focus{border-color:var(--accent);}
-  button{cursor:pointer;border:none;font-family:inherit;}
-  .btn{width:100%;background:var(--accent);color:#fff;font-size:17px;font-weight:700;padding:14px;border-radius:12px;transition:background .15s;}
-  .btn:hover{background:#1d4ed8;}
-  .btn:disabled{opacity:.6;cursor:default;}
-  .msg{font-size:14px;margin-top:12px;min-height:18px;}
-  .msg.err{color:#dc2626;} .msg.ok{color:#16a34a;}
-  .diaglink{display:block;width:100%;background:none;color:#94a3b8;font-size:13px;margin-top:14px;text-decoration:underline;}
-  .diaglink:hover{color:#64748b;}
-  .diagOut{text-align:left;background:#0f172a;color:#e2e8f0;border-radius:10px;padding:14px;margin-top:12px;font-size:12.5px;line-height:1.7;white-space:pre-wrap;word-break:break-word;font-family:Consolas,monospace;}
-  /* app */
-  header.bar{display:flex;align-items:center;justify-content:space-between;background:#fff;border-radius:14px;padding:14px 18px;margin-bottom:20px;box-shadow:0 4px 14px rgba(15,23,42,.06);}
-  header.bar .who{font-size:14px;color:var(--muted);}
-  header.bar .who b{color:var(--ink);}
-  .logout{background:#f1f5f9;color:#475569;font-size:14px;font-weight:600;padding:8px 14px;border-radius:9px;}
-  .logout:hover{background:#e2e8f0;}
-  h2{font-size:22px;margin-bottom:14px;}
-  .noteForm{display:flex;gap:10px;margin-bottom:18px;}
-  .noteForm input{margin-bottom:0;}
-  .noteForm .btn{width:auto;padding:14px 22px;white-space:nowrap;}
-  ul{list-style:none;display:flex;flex-direction:column;gap:10px;}
-  li.note{background:#fff;border-radius:12px;padding:16px 18px;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;box-shadow:0 3px 10px rgba(15,23,42,.05);}
-  li.note .c{font-size:16px;line-height:1.5;word-break:break-word;}
-  li.note .meta{font-size:12px;color:var(--muted);margin-top:6px;}
-  li.note .del{background:none;color:#cbd5e1;font-size:20px;line-height:1;padding:2px 6px;border-radius:6px;flex:none;}
-  li.note .del:hover{color:#dc2626;background:#fef2f2;}
-  .empty{color:var(--muted);text-align:center;padding:30px;font-size:15px;}
+  .hub{max-width:720px;margin:0 auto;padding:48px 18px 80px;}
+  .hub-header{text-align:center;margin-bottom:48px;}
+  .hub-header .badge{font-size:13px;font-weight:800;letter-spacing:.14em;color:var(--accent);background:#eff6ff;padding:7px 16px;border-radius:999px;display:inline-block;margin-bottom:18px;}
+  .hub-header h1{font-size:32px;font-weight:800;letter-spacing:-.03em;margin-bottom:8px;}
+  .hub-header p{color:var(--muted);font-size:16px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;}
+  .card{background:#fff;border-radius:16px;padding:28px 24px;box-shadow:0 4px 18px rgba(15,23,42,.07);text-decoration:none;color:var(--ink);transition:transform .15s, box-shadow .15s;display:block;}
+  .card:hover{transform:translateY(-3px);box-shadow:0 10px 30px rgba(15,23,42,.12);}
+  .card .icon{font-size:32px;margin-bottom:14px;}
+  .card .name{font-size:18px;font-weight:700;margin-bottom:6px;}
+  .card .desc{font-size:14px;color:var(--muted);line-height:1.5;}
+  .card .tag{display:inline-block;font-size:12px;font-weight:600;color:var(--accent);background:#eff6ff;padding:3px 10px;border-radius:999px;margin-top:14px;}
 </style>
 </head>
 <body>
-
-  <!-- 로그인 화면 -->
-  <section id="loginView" hidden>
-    <div class="loginCard">
-      <span class="badge">FIT PLATFORM</span>
-      <h1>로그인</h1>
-      <p class="sub">우리 팀 전용 페이지입니다</p>
-      <input id="email" type="email" placeholder="이메일" autocomplete="username">
-      <input id="password" type="password" placeholder="비밀번호" autocomplete="current-password">
-      <button class="btn" id="loginBtn">로그인</button>
-      <div class="msg" id="loginMsg"></div>
-      <button class="diaglink" id="diagBtn">🔧 로그인이 안 되면 여기를 눌러 연결 진단</button>
-      <pre class="diagOut" id="diagOut" hidden></pre>
+  <div class="hub">
+    <div class="hub-header">
+      <div class="badge">FIT PLATFORM</div>
+      <h1>메인 허브</h1>
+      <p>팀 앱 모음 — 원하는 앱을 선택하세요</p>
     </div>
-  </section>
 
-  <!-- 앱 화면 -->
-  <section id="appView" hidden>
-    <div class="wrap">
-      <header class="bar">
-        <div class="who">로그인됨: <b id="userEmail"></b></div>
-        <button class="logout" id="logoutBtn">로그아웃</button>
-      </header>
-      <h2>📝 팀 메모장</h2>
-      <form class="noteForm" id="noteForm">
-        <input id="noteInput" placeholder="메모를 입력하고 추가를 누르세요" maxlength="500">
-        <button class="btn" type="submit">추가</button>
-      </form>
-      <ul id="noteList"></ul>
+    <div class="grid">
+      <a class="card" href="shinjae/">
+        <div class="icon">🗂️</div>
+        <div class="name">이신재</div>
+        <div class="desc">이신재 개발 앱입니다.</div>
+        <span class="tag">개발 중</span>
+      </a>
+
+      <a class="card" href="jubyung/">
+        <div class="icon">📊</div>
+        <div class="name">이주병</div>
+        <div class="desc">이주병 개발 앱입니다.</div>
+        <span class="tag">개발 중</span>
+      </a>
+
+      <a class="card" href="sangeun/">
+        <div class="icon">📝</div>
+        <div class="name">한상은</div>
+        <div class="desc">한상은 개발 앱입니다.</div>
+        <span class="tag">개발 중</span>
+      </a>
+
+      <a class="card" href="heejin/">
+        <div class="icon">📌</div>
+        <div class="name">엄희진</div>
+        <div class="desc">엄희진 개발 앱입니다.</div>
+        <span class="tag">개발 중</span>
+      </a>
     </div>
-  </section>
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script>
-    // ===== Supabase 연결 정보 (anon public 키는 공개돼도 안전) =====
-    const SUPABASE_URL = "https://auykdsmpfkljassfavba.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF1eWtkc21wZmtsamFzc2ZhdmJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNDY3MDQsImV4cCI6MjA5NjcyMjcwNH0.RDyHifIK1IbmmNi_vqP3nqFwIQG3F7sI0Df2VjZrzTM";
-    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: false,
-        // navigator.locks 데드락 방지: 여러 탭/반복 시도 시 로그인이 멈추는 현상 회피
-        lock: (name, acquireTimeout, fn) => fn()
-      }
-    });
-
-    const $ = id => document.getElementById(id);
-    const loginView=$('loginView'), appView=$('appView');
-    let currentUser = null;
-
-    // 상태 기록 (개발자 콘솔로만 — 문제 발생 시 F12 콘솔에서 확인)
-    function logStatus(s){ console.log('[status]', s); }
-
-    // 화면 전환: onAuthStateChange가 넘겨준 session을 그대로 사용
-    // ⚠️ 이 안에서 getSession/getUser 등 auth 메서드를 다시 부르면 데드락(멈춤) → 절대 호출 금지
-    function updateView(session){
-      currentUser = session ? session.user : null;
-      if(session){
-        loginView.hidden = true; appView.hidden = false;
-        $('userEmail').textContent = session.user.email;
-        loadNotes();
-      } else {
-        appView.hidden = true; loginView.hidden = false;
-      }
-    }
-
-    // 로그인
-    $('loginBtn').onclick = async () => {
-      const email=$('email').value.trim(), password=$('password').value;
-      const msg=$('loginMsg'); msg.className='msg'; msg.textContent='';
-      if(!email||!password){ msg.className='msg err'; msg.textContent='이메일과 비밀번호를 입력하세요.'; return; }
-      $('loginBtn').disabled=true; $('loginBtn').textContent='로그인 중...';
-      try {
-        const { error } = await Promise.race([
-          sb.auth.signInWithPassword({ email, password }),
-          new Promise((_,rej)=>setTimeout(()=>rej(new Error('시간 초과 — 인터넷 연결이나 회사 방화벽(supabase.co 차단)을 확인하세요.')), 12000))
-        ]);
-        if(error){
-          msg.className='msg err';
-          if(/Invalid login credentials/i.test(error.message)) msg.textContent='이메일 또는 비밀번호가 올바르지 않습니다. (관리자가 계정을 등록했는지 확인하세요)';
-          else if(/Email not confirmed/i.test(error.message)) msg.textContent='계정이 확인되지 않았습니다. 관리자가 사용자 등록 시 "Auto Confirm User"를 켜야 합니다.';
-          else msg.textContent='로그인 실패: '+error.message;
-          logStatus('로그인 실패: '+error.message);
-        } else {
-          logStatus('로그인 요청 성공 → 세션 적용 대기 중...');
-        }
-      } catch(e) {
-        msg.className='msg err'; msg.textContent=e.message;
-        logStatus('예외: '+e.message);
-      } finally {
-        $('loginBtn').disabled=false; $('loginBtn').textContent='로그인';
-      }
-    };
-    // 엔터로 로그인
-    $('password').addEventListener('keydown', e=>{ if(e.key==='Enter') $('loginBtn').click(); });
-
-    // 로그아웃
-    $('logoutBtn').onclick = async () => { await sb.auth.signOut(); };
-
-    // 메모 불러오기
-    async function loadNotes(){
-      const list=$('noteList');
-      const { data, error } = await sb.from('notes').select('*').order('created_at',{ascending:false});
-      if(error){ list.innerHTML='<div class="empty">불러오기 오류: '+error.message+'</div>'; return; }
-      if(!data.length){ list.innerHTML='<div class="empty">아직 메모가 없습니다. 첫 메모를 남겨보세요!</div>'; return; }
-      list.innerHTML='';
-      for(const n of data){
-        const li=document.createElement('li'); li.className='note';
-        const left=document.createElement('div');
-        left.innerHTML='<div class="c"></div><div class="meta"></div>';
-        left.querySelector('.c').textContent=n.content;
-        left.querySelector('.meta').textContent=(n.created_by||'')+' · '+new Date(n.created_at).toLocaleString('ko-KR');
-        const del=document.createElement('button'); del.className='del'; del.textContent='×'; del.title='삭제';
-        del.onclick=()=>removeNote(n.id);
-        li.append(left, del); list.appendChild(li);
-      }
-    }
-
-    // 메모 추가
-    $('noteForm').onsubmit = async (e) => {
-      e.preventDefault();
-      const input=$('noteInput'); const content=input.value.trim(); if(!content) return;
-      const { error } = await sb.from('notes').insert({ content, created_by: currentUser ? currentUser.email : null });
-      if(error){ alert('저장 실패: '+error.message); return; }
-      input.value=''; loadNotes();
-    };
-
-    // 메모 삭제
-    async function removeNote(id){
-      const { error } = await sb.from('notes').delete().eq('id', id);
-      if(error){ alert('삭제 실패: '+error.message); return; }
-      loadNotes();
-    }
-
-    // 연결 진단
-    $('diagBtn').onclick = async () => {
-      const out=$('diagOut'); out.hidden=false; out.textContent='진단 중... (최대 20초)';
-      const lines=['[연결 진단 결과]'];
-      // ① 기본 연결 (단순 GET, 사전요청 없음)
-      try{ const t=Date.now(); await fetch(SUPABASE_URL+'/auth/v1/health',{mode:'no-cors'});
-        lines.push('① 기본 연결(GET): 성공 ('+(Date.now()-t)+'ms)'); }
-      catch(e){ lines.push('① 기본 연결(GET): 실패 — '+e.message); }
-      out.textContent=lines.join('\n');
-      // ② 로그인 방식 요청 (POST + CORS 사전요청) — 실제로 멈추는 부분
-      try{ const t=Date.now();
-        await Promise.race([
-          sb.auth.signInWithPassword({email:'diag@test.invalid',password:'x'}),
-          new Promise((_,rej)=>setTimeout(()=>rej(new Error('10초 내 응답 없음 → 이 요청이 차단됨')),10000))
-        ]);
-        lines.push('② 로그인 요청(POST): 정상 응답 ('+(Date.now()-t)+'ms)'); }
-      catch(e){ lines.push('② 로그인 요청(POST): '+e.message+' ('+'약 '+'10000ms)'); }
-      // ③ 환경 정보
-      lines.push('③ 페이지 주소: '+location.origin);
-      out.textContent=lines.join('\n');
-    };
-
-    // 로그인 상태 변화 감지 — 콜백이 준 session을 그대로 사용 (getSession 재호출 금지 → 데드락 방지)
-    sb.auth.onAuthStateChange((event, session) => {
-      logStatus('상태변화: '+event+(session ? ' (로그인됨: '+session.user.email+')' : ' (세션 없음)'));
-      updateView(session);
-    });
-    // 시작 시 1회만 현재 세션 확인
-    sb.auth.getSession().then(({ data:{ session } }) => updateView(session));
-  </script>
+  </div>
 </body>
 </html>
