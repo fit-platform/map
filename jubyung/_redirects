@@ -1,0 +1,24 @@
+# 함수 프록시 (서버 저장/불러오기)
+/api/*  /.netlify/functions/:splat  200
+
+# ★보안: 내부 문서·도구·소스 공개 차단 (force 404). 실제 파일을 가리려면 '!' 필수.
+#  - 런타임 HTTP 서빙만 차단. 로컬 배포 스크립트(node tools/...) 동작에는 영향 없음.
+/0_START_HERE.txt                /404.html  404!
+/README.md                       /404.html  404!
+/guide_install.md                /404.html  404!
+/guide_team_password.md          /404.html  404!
+/guide_security_SRI.md           /404.html  404!
+/SECURITY_PATCH_NOTES.txt        /404.html  404!
+/package.json                    /404.html  404!
+/1_DEPLOY_Windows.bat            /404.html  404!
+/2_GENERATE_SRI_Windows.bat      /404.html  404!
+/3_HARDEN_OPTIONAL_Windows.bat   /404.html  404!
+/gen_sri_Mac.command             /404.html  404!
+/harden_Mac.command              /404.html  404!
+/tools/*                         /404.html  404!
+/netlify/*                       /404.html  404!
+# (선택) 팀 사용가이드도 비공개로 하려면 아래 주석 해제
+# /GUIDE.html                    /404.html  404!
+
+# SPA 캐치올 (반드시 마지막)
+/*  /index.html  200

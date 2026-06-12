@@ -1,74 +1,2262 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>이주병 앱 — FIT Platform</title>
-<link rel="stylesheet" href="../shared/style.css">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FIT Platform SCM Matrix</title>
+<!-- ★보안: 아래 4개 cdnjs 리소스에는 SRI(integrity) 해시를 넣어 무결성을 검증하세요.
+     cdnjs.com 각 라이브러리 페이지의 "Copy SRI" 버튼 값을 integrity="..."로 추가하면 됩니다.
+     (정확한 해시를 넣어야 하며, 틀리면 로드가 차단됩니다. guide_security_SRI.md 참고) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pretendard/1.3.9/static/pretendard.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- ★보안: xlsx 0.18.5 → 0.20.3 (CVE-2023-30533 Prototype Pollution / CVE-2024-22363 ReDoS 패치본)
+     공식 CDN은 SRI를 제공하지 않으므로, 가능하면 이 파일을 사이트 내부로 vendoring(복사)하여 외부 의존을 끊는 것을 권장합니다. -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<style>
+    :root{
+      --navy:#6e6e73;--navy2:#6e6e73;--blue:#2c2c2e;--steel:#aeaeb2;--amber:#6e6e73;
+      --paper:#f2f2f7;--ink:#1c1c1e;--mut:#6e6e73;--panel:#ffffff;--panel2:#f2f2f7;
+      --linec:#e3e3e8;--field:#ededf2;--gridline:rgba(60,60,67,.06);--glow:rgba(60,60,67,.05);
+      --s0:#8e8e93;--s0bg:#f2f2f7;--s0t:#6e6e73; --s1:#007aff;--s1bg:#e8f1ff;--s1t:#0061d6;
+      --s2:#30b0c7;--s2bg:#e2f4f8;--s2t:#1e7e91; --s25:#5e5ce6;--s25bg:#ecebfd;--s25t:#4a48c9;
+      --s3:#34c759;--s3bg:#e5f8ea;--s3t:#1e8e3e;
+      --headaccent:#1c1c1e;--onnavy:#ffffff;--trash:#8e8e93;
+      --jvtbg:#d8d8de;--jvtfg:#1c1c1e;--jvfbg:#f2f2f7;--jvffg:#8e8e93;
+      --netposfg:#1c1c1e;--netnegfg:#8e8e93;--scmet:#1c1c1e;--scunmet:#8e8e93;--burg:#007aff;
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --navy:#48484a;--navy2:#48484a;--blue:#e5e5ea;--steel:#636366;--amber:#98989d;
+        --paper:#000000;--ink:#ffffff;--mut:#98989d;--panel:#1c1c1e;--panel2:#2c2c2e;
+        --linec:#38383a;--field:#2c2c2e;--gridline:rgba(255,255,255,.06);--glow:rgba(255,255,255,.05);
+        --s0:#98989d;--s0bg:#2c2c2e;--s0t:#aeaeb2; --s1:#0a84ff;--s1bg:#0e2138;--s1t:#5aa9ff;
+        --s2:#40c8e0;--s2bg:#0e2c33;--s2t:#7fe0f0; --s25:#7d7aff;--s25bg:#201e3a;--s25t:#b7b5ff;
+        --s3:#30d158;--s3bg:#0e2c19;--s3t:#7ae69a;
+        --headaccent:#ffffff;--onnavy:#ffffff;--trash:#98989d;
+        --jvtbg:#45454a;--jvtfg:#ffffff;--jvfbg:#2c2c2e;--jvffg:#98989d;
+        --netposfg:#ffffff;--netnegfg:#98989d;--scmet:#ffffff;--scunmet:#98989d;--burg:#0a84ff;
+      }
+    }
+    html,body,#root{height:100%} body{margin:0;background:var(--paper);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Pro Display','Pretendard','Pretendard Variable',system-ui,'Apple SD Gothic Neo',sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter-spacing:-0.011em}
+    #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:var(--blue);font-family:system-ui,'malgun gothic',sans-serif;font-size:14px}
+    input[type=number]::-webkit-inner-spin-button{opacity:.5}
+    @media (prefers-color-scheme: dark){ input[type=number]::-webkit-inner-spin-button{filter:invert(.8)} }
+    ::placeholder{color:#9aa6bd}
+    @media (prefers-color-scheme: dark){ ::placeholder{color:#5b677a} }
+  .scrollbox{scroll-behavior:smooth;transition:max-height .32s cubic-bezier(.4,0,.2,1),height .32s cubic-bezier(.4,0,.2,1);-webkit-overflow-scrolling:touch;overscroll-behavior:none;overscroll-behavior-x:none;scrollbar-width:none;-ms-overflow-style:none}
+  .scrollbox::-webkit-scrollbar{width:0;height:0;display:none}
+  html,body{overscroll-behavior-x:none}
+  .stickhead thead th{position:sticky;top:0;z-index:6;background:var(--navy2);box-shadow:inset 0 -1px 0 var(--linec)}
+  .stickhead tr.projsep > td, .stickhead tr.projsep > th{border-top:1px solid var(--linec)}
+  .stickhead thead th, .stickhead td[style*="sticky"]{backface-visibility:hidden;-webkit-backface-visibility:hidden;will-change:transform;transform:translateZ(0)}
+  .needcheck::placeholder{color:#7a828d;font-weight:600;opacity:1}
+  .rounded{border-radius:8px!important}
+  .rounded-md{border-radius:10px!important}
+  .rounded-lg{border-radius:12px!important}
+  .rounded-xl{border-radius:18px!important}
+    .hbar-track{position:relative;height:9px;border-radius:6px;background:var(--field);border:1px solid var(--linec);box-sizing:border-box}
+    .hbar-thumb{position:absolute;top:0;left:0;height:100%;min-width:40px;border-radius:6px;background:#9aa6bd;cursor:grab;touch-action:none}
+    .hbar-thumb:active{cursor:grabbing;background:#7a8595}
+    @media (prefers-color-scheme: dark){ .hbar-thumb{background:#5b677a} }
+  .ystrip button, .ystrip select { min-height: 32px; padding-top:4px!important; padding-bottom:4px!important; }
+  .tbar button, .tbar select { height:32px; min-height:0!important; box-sizing:border-box; padding-top:0!important; padding-bottom:0!important; }
+  .tbar span.inline-flex { height:32px; box-sizing:border-box; display:inline-flex; align-items:stretch; }
+  .tbar span.inline-flex > * { height:100%; min-height:0!important; }
+  .tbar select, .ystrip select { -webkit-appearance:none; -moz-appearance:none; appearance:none; background-image:none; cursor:pointer; }
+  @media print {
+    @page { size: A4 landscape; margin: 8mm; }
+    html, body { background:#fff !important; }
+    :root { --paper:#ffffff;--ink:#1c1c1e;--mut:#6e6e73;--panel:#ffffff;--panel2:#f2f2f7;--linec:#e3e3e8;--field:#ededf2;--navy:#6e6e73;--navy2:#6e6e73;--blue:#2c2c2e;--steel:#aeaeb2;--amber:#6e6e73;--gridline:rgba(60,60,67,.06);--glow:rgba(60,60,67,.05);--s0:#8e8e93;--s0bg:#f2f2f7;--s0t:#6e6e73;--s1:#007aff;--s1bg:#e8f1ff;--s1t:#0061d6;--s2:#30b0c7;--s2bg:#e2f4f8;--s2t:#1e7e91;--s25:#5e5ce6;--s25bg:#ecebfd;--s25t:#4a48c9;--s3:#34c759;--s3bg:#e5f8ea;--s3t:#1e8e3e;--headaccent:#1c1c1e;--onnavy:#ffffff;--trash:#8e8e93;--jvtbg:#d8d8de;--jvtfg:#1c1c1e;--jvfbg:#f2f2f7;--jvffg:#8e8e93;--netposfg:#1c1c1e;--netnegfg:#8e8e93;--scmet:#1c1c1e;--scunmet:#8e8e93;--burg:#007aff; }
+    body.printing #appRoot { zoom: var(--print-scale, 1); }
+    .overflow-x-auto, .overflow-auto { overflow: visible !important; }
+    .no-print, button { display:none !important; }
+    .scrollbox { max-height:none !important; overflow:visible !important; border:none !important; }
+    .stickhead thead th { position:static !important; }
+    * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>(() => {
+  const { useState, useMemo, useEffect } = React;
+  const STORE_KEY = "fit_scm_state_v2";
+  const BUILD_AT = "2026. 6. 12 (KST)";
+  const loadSaved = () => {
+    try {
+      const r = window.localStorage.getItem(STORE_KEY);
+      return r ? JSON.parse(r, (k, v) => k === "__proto__" || k === "constructor" || k === "prototype" ? void 0 : v) : null;
+    } catch (e) {
+      return null;
+    }
+  };
+  function Svg({ size = 16, children }) {
+    return /* @__PURE__ */ React.createElement(
+      "svg",
+      {
+        width: size,
+        height: size,
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: "currentColor",
+        strokeWidth: "2",
+        strokeLinecap: "round",
+        strokeLinejoin: "round"
+      },
+      children
+    );
+  }
+  const TrendingUp = (p) => /* @__PURE__ */ React.createElement(Svg, { ...p }, /* @__PURE__ */ React.createElement("polyline", { points: "22 7 13.5 15.5 8.5 10.5 2 17" }), /* @__PURE__ */ React.createElement("polyline", { points: "16 7 22 7 22 13" }));
+  const Building2 = (p) => /* @__PURE__ */ React.createElement(Svg, { ...p }, /* @__PURE__ */ React.createElement("path", { d: "M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18" }), /* @__PURE__ */ React.createElement("path", { d: "M2 22h20" }), /* @__PURE__ */ React.createElement("path", { d: "M10 6h4M10 10h4M10 14h4" }));
+  const Plus = (p) => /* @__PURE__ */ React.createElement(Svg, { ...p }, /* @__PURE__ */ React.createElement("path", { d: "M12 5v14M5 12h14" }));
+  const Minus = (p) => /* @__PURE__ */ React.createElement(Svg, { ...p }, /* @__PURE__ */ React.createElement("path", { d: "M5 12h14" }));
+  const Trash2 = (p) => /* @__PURE__ */ React.createElement(Svg, { ...p }, /* @__PURE__ */ React.createElement("path", { d: "M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" }));
+  const Settings2 = (p) => /* @__PURE__ */ React.createElement(Svg, { ...p }, /* @__PURE__ */ React.createElement("path", { d: "M20 7h-9M14 17H5" }), /* @__PURE__ */ React.createElement("circle", { cx: "17", cy: "17", r: "3" }), /* @__PURE__ */ React.createElement("circle", { cx: "7", cy: "7", r: "3" }));
+  const Gauge = (p) => /* @__PURE__ */ React.createElement(Svg, { ...p }, /* @__PURE__ */ React.createElement("path", { d: "M12 14l4-4" }), /* @__PURE__ */ React.createElement("path", { d: "M3.34 19a10 10 0 1 1 17.32 0" }));
+  const Target = (p) => /* @__PURE__ */ React.createElement(Svg, { ...p }, /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "9" }), /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "5" }), /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "1" }));
+  const Layers = (p) => /* @__PURE__ */ React.createElement(Svg, { ...p }, /* @__PURE__ */ React.createElement("path", { d: "m12 2 9 5-9 5-9-5 9-5z" }), /* @__PURE__ */ React.createElement("path", { d: "m3 12 9 5 9-5" }), /* @__PURE__ */ React.createElement("path", { d: "m3 17 9 5 9-5" }));
+  const Undo2 = (p) => /* @__PURE__ */ React.createElement(Svg, { ...p }, /* @__PURE__ */ React.createElement("path", { d: "M9 14 4 9l5-5" }), /* @__PURE__ */ React.createElement("path", { d: "M4 9h11a5 5 0 0 1 0 10H9" }));
+  const Printer = (p) => /* @__PURE__ */ React.createElement(Svg, { ...p }, /* @__PURE__ */ React.createElement("path", { d: "M6 9V2h12v7" }), /* @__PURE__ */ React.createElement("path", { d: "M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" }), /* @__PURE__ */ React.createElement("path", { d: "M6 14h12v8H6z" }));
+  const Download = (p) => /* @__PURE__ */ React.createElement(Svg, { ...p }, /* @__PURE__ */ React.createElement("path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }), /* @__PURE__ */ React.createElement("path", { d: "M7 10l5 5 5-5" }), /* @__PURE__ */ React.createElement("path", { d: "M12 15V3" }));
+  const Upload = (p) => /* @__PURE__ */ React.createElement(Svg, { ...p }, /* @__PURE__ */ React.createElement("path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }), /* @__PURE__ */ React.createElement("path", { d: "M17 8l-5-5-5 5" }), /* @__PURE__ */ React.createElement("path", { d: "M12 3v12" }));
+  const BookOpen = (p) => /* @__PURE__ */ React.createElement(Svg, { ...p }, /* @__PURE__ */ React.createElement("path", { d: "M2 3h6a4 4 0 0 1 4 4v15a3 3 0 0 0-3-3H2z" }), /* @__PURE__ */ React.createElement("path", { d: "M22 3h-6a4 4 0 0 0-4 4v15a3 3 0 0 1 3-3h7z" }));
+  const GUIDE_HTML = `<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FIT Platform SCM Matrix · 사용 가이드북</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pretendard/1.3.9/static/pretendard.min.css" />
+<style>
+  :root{
+    --paper:#fbfbfd; --panel:#ffffff; --ink:#1c1c1e; --mut:#6e6e73; --faint:#8e8e93;
+    --line:#e6e6eb; --line2:#eeeef2; --field:#f2f2f7;
+    --oem:#007aff; --lease:#30b0c7; --plus:#5e5ce6; --jv:#34c759;
+    --warn:#ff9f0a; --tip:#34c759; --note:#007aff;
+    --radius:18px;
+    --maxw:1080px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:'Pretendard','Pretendard Variable',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    letter-spacing:-0.011em; line-height:1.72; font-size:16px;
+  }
+  .num{font-variant-numeric:tabular-nums}
+  a{color:inherit}
+
+  /* ── layout ── */
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 22px; display:grid; grid-template-columns:230px 1fr; gap:48px;}
+  main{min-width:0; padding-bottom:120px;}
+  aside{position:sticky; top:0; align-self:start; height:100vh; overflow:auto; padding:40px 0; scrollbar-width:none;}
+  aside::-webkit-scrollbar{display:none}
+
+  /* ── hero ── */
+  .hero{border-bottom:1px solid var(--line); margin-bottom:46px; padding:62px 0 34px;}
+  .eyebrow{font-size:12px; letter-spacing:.22em; font-weight:700; color:var(--mut); display:flex; align-items:center; gap:9px;}
+  .eyebrow::before{content:""; width:22px; height:2px; background:var(--ink); display:inline-block; border-radius:2px;}
+  .hero h1{font-size:clamp(30px,6vw,46px); line-height:1.1; letter-spacing:-.03em; font-weight:800; margin:16px 0 10px;}
+  .hero h1 .sub{display:block; font-size:clamp(16px,3vw,21px); font-weight:600; color:var(--mut); letter-spacing:-.01em; margin-top:10px;}
+  .hero p{color:var(--mut); font-size:16px; max-width:62ch; margin:14px 0 0;}
+  .meta{margin-top:24px; display:flex; gap:8px; flex-wrap:wrap;}
+  .pill{font-size:12.5px; font-weight:600; color:var(--mut); background:var(--field); border:1px solid var(--line); border-radius:999px; padding:5px 12px;}
+
+  /* ── TOC ── */
+  .toc-title{font-size:11px; letter-spacing:.18em; font-weight:700; color:var(--faint); margin:0 0 14px; padding-left:2px;}
+  nav ol{list-style:none; margin:0; padding:0; counter-reset:toc;}
+  nav li{counter-increment:toc; margin:0;}
+  nav a{display:flex; gap:9px; align-items:baseline; text-decoration:none; color:var(--mut); font-size:13.5px; font-weight:500;
+        padding:6px 10px; border-radius:9px; border-left:2px solid transparent; transition:.15s;}
+  nav a::before{content:counter(toc,decimal-leading-zero); font-variant-numeric:tabular-nums; font-size:11px; color:var(--faint); font-weight:600; min-width:18px;}
+  nav a:hover{color:var(--ink); background:var(--field);}
+  nav a.active{color:var(--ink); font-weight:700; background:var(--field); border-left-color:var(--ink);}
+  nav a.active::before{color:var(--ink);}
+
+  /* ── sections ── */
+  section{padding-top:30px; margin-top:30px; border-top:1px solid var(--line2); scroll-margin-top:24px;}
+  section:first-of-type{border-top:none; margin-top:0;}
+  h2{font-size:clamp(22px,4vw,28px); letter-spacing:-.02em; font-weight:800; margin:0 0 6px; display:flex; align-items:baseline; gap:12px;}
+  h2 .no{font-size:14px; font-weight:700; color:var(--faint); font-variant-numeric:tabular-nums; letter-spacing:0;}
+  h3{font-size:17.5px; font-weight:700; letter-spacing:-.01em; margin:30px 0 8px;}
+  .lead{color:var(--mut); font-size:16px; margin:8px 0 18px; max-width:66ch;}
+  p{margin:12px 0;}
+  strong,b{font-weight:700;}
+  .ink{color:var(--ink); font-weight:600;}
+  code,.kbd{font-family:'Pretendard',monospace; background:var(--field); border:1px solid var(--line); border-radius:7px; padding:1px 7px; font-size:13.5px; font-weight:600; white-space:nowrap; font-variant-numeric:tabular-nums;}
+
+  ul.clean{margin:12px 0; padding:0; list-style:none;}
+  ul.clean>li{position:relative; padding:7px 0 7px 22px; border-bottom:1px solid var(--line2);}
+  ul.clean>li:last-child{border-bottom:none;}
+  ul.clean>li::before{content:""; position:absolute; left:3px; top:17px; width:6px; height:6px; border-radius:50%; background:var(--ink);}
+
+  ol.steps{counter-reset:step; list-style:none; margin:16px 0; padding:0;}
+  ol.steps>li{counter-increment:step; position:relative; padding:12px 0 12px 46px; border-bottom:1px solid var(--line2);}
+  ol.steps>li:last-child{border-bottom:none;}
+  ol.steps>li::before{content:counter(step); position:absolute; left:0; top:11px; width:28px; height:28px; border-radius:50%;
+        background:var(--ink); color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center;}
+  ol.steps>li b{display:block; margin-bottom:1px;}
+
+  /* ── callouts ── */
+  .call{border:1px solid var(--line); border-left-width:4px; border-radius:12px; padding:14px 16px; margin:18px 0; background:var(--panel); font-size:14.5px;}
+  .call .ttl{font-weight:700; font-size:12.5px; letter-spacing:.04em; text-transform:uppercase; margin-bottom:4px;}
+  .call p{margin:4px 0;}
+  .call.tip{border-left-color:var(--tip);} .call.tip .ttl{color:#1e8e3e;}
+  .call.note{border-left-color:var(--note);} .call.note .ttl{color:#0061d6;}
+  .call.warn{border-left-color:var(--warn);} .call.warn .ttl{color:#b06a00;}
+
+  /* ── tables ── */
+  .tbl{width:100%; border-collapse:collapse; margin:16px 0; font-size:14px; border:1px solid var(--line); border-radius:12px; overflow:hidden;}
+  .tbl thead th{background:var(--field); text-align:left; font-weight:700; font-size:12.5px; color:var(--ink); padding:10px 13px; border-bottom:1px solid var(--line);}
+  .tbl td{padding:10px 13px; border-bottom:1px solid var(--line2); vertical-align:top;}
+  .tbl tr:last-child td{border-bottom:none;}
+  .tbl td:first-child{font-weight:600; white-space:nowrap;}
+  .tbl .num{text-align:right;}
+
+  /* ── stage flow ── */
+  .legend{display:flex; flex-wrap:wrap; gap:8px; margin:16px 0;}
+  .badge{display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:700; border-radius:999px; padding:6px 13px; border:1px solid transparent;}
+  .dot{width:9px; height:9px; border-radius:50%;}
+  .b-oem{background:#e8f1ff; color:#0061d6;} .b-oem .dot{background:var(--oem);}
+  .b-lease{background:#e2f4f8; color:#1e7e91;} .b-lease .dot{background:var(--lease);}
+  .b-plus{background:#ecebfd; color:#4a48c9;} .b-plus .dot{background:var(--plus);}
+  .b-jv{background:#e5f8ea; color:#1e8e3e;} .b-jv .dot{background:var(--jv);}
+
+  .flow{display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin:18px 0; padding:18px; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);}
+  .flow .step-pill{flex:1 1 120px; min-width:120px; text-align:center; border-radius:12px; padding:12px 8px;}
+  .flow .step-pill .lab{font-weight:800; font-size:14px;}
+  .flow .step-pill .cond{font-size:11.5px; color:var(--mut); margin-top:3px; font-weight:600;}
+  .flow .arrow{color:var(--faint); font-size:18px; font-weight:700; flex:0 0 auto;}
+
+  /* ── feature chips inline ── */
+  .ui{display:inline-flex; align-items:center; gap:5px; background:var(--ink); color:#fff; font-size:12.5px; font-weight:700;
+      border-radius:8px; padding:2px 9px; white-space:nowrap; letter-spacing:0; vertical-align:baseline;}
+  .ui.ghost{background:var(--field); color:var(--ink); border:1px solid var(--line);}
+
+  /* ── two-up cards ── */
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:16px 0;}
+  .card{border:1px solid var(--line); border-radius:14px; padding:16px 18px; background:var(--panel);}
+  .card h4{margin:0 0 6px; font-size:15px; font-weight:700;}
+  .card p{margin:4px 0; font-size:14px; color:var(--mut);}
+
+  .totop{position:fixed; right:22px; bottom:22px; width:44px; height:44px; border-radius:50%; border:1px solid var(--line);
+         background:var(--panel); color:var(--ink); font-size:18px; cursor:pointer; box-shadow:0 6px 22px rgba(0,0,0,.10); opacity:0; transition:.2s; z-index:50;}
+  .totop.show{opacity:1;}
+
+  footer{border-top:1px solid var(--line); margin-top:50px; padding:26px 0; color:var(--faint); font-size:13px;}
+
+  /* ── responsive ── */
+  @media (max-width:900px){
+    .wrap{grid-template-columns:1fr; gap:0;}
+    aside{position:static; height:auto; overflow:visible; padding:0; margin-bottom:26px;}
+    aside .toc-inner{border:1px solid var(--line); border-radius:14px; padding:14px 12px; background:var(--panel);}
+    nav ol{columns:2; column-gap:14px;}
+    .grid2{grid-template-columns:1fr;}
+    .hero{padding:42px 0 26px;}
+  }
+
+  /* ── print ── */
+  @media print{
+    @page{margin:16mm 14mm;}
+    body{background:#fff; font-size:11.5px; line-height:1.55;}
+    .wrap{display:block; max-width:none; padding:0;}
+    aside,.totop{display:none !important;}
+    .hero{padding:0 0 16px;}
+    section{break-inside:avoid; border-top:1px solid #ddd;}
+    .call,.card,.flow,.tbl,.grid2{break-inside:avoid;}
+    h2{font-size:18px;} h1{font-size:26px;}
+    a[href]{text-decoration:none;}
+  }
+</style>
 </head>
 <body>
 
-  <section id="loginView" hidden>
-    <div class="loginCard">
-      <span class="badge">FIT PLATFORM</span>
-      <h1>로그인</h1>
-      <p class="sub">우리 팀 전용 페이지입니다</p>
-      <input id="email" type="email" placeholder="이메일" autocomplete="username">
-      <input id="password" type="password" placeholder="비밀번호" autocomplete="current-password">
-      <button class="btn" id="loginBtn">로그인</button>
-      <div class="msg" id="loginMsg"></div>
+<div class="wrap">
+
+  <!-- ───────────────── TOC ───────────────── -->
+  <aside>
+    <div class="toc-inner">
+      <p class="toc-title">목차 · CONTENTS</p>
+      <nav>
+        <ol>
+          <li><a href="#s1">대시보드 개요</a></li>
+          <li><a href="#s2">화면 한눈에 보기</a></li>
+          <li><a href="#s3">빠른 시작 5단계</a></li>
+          <li><a href="#s4">핵심 요약 읽는 법</a></li>
+          <li><a href="#s5">시나리오 한 줄 요약</a></li>
+          <li><a href="#s6">가정값 입력</a></li>
+          <li><a href="#s7">OEM 생산능력·파트너</a></li>
+          <li><a href="#s8">① 물량표 입력</a></li>
+          <li><a href="#s9">①-2 OEM·공급가 표</a></li>
+          <li><a href="#s10">①-3 FIT 연도별 공급가</a></li>
+          <li><a href="#s11">② 단계 판정 결과</a></li>
+          <li><a href="#s12">단계 전환 판정 로직</a></li>
+          <li><a href="#s13">저장 · 공유</a></li>
+          <li><a href="#s14">인쇄 · PDF 출력</a></li>
+          <li><a href="#s15">색상 · 단계 체계</a></li>
+          <li><a href="#s16">자주 묻는 질문</a></li>
+        </ol>
+      </nav>
     </div>
-  </section>
+  </aside>
 
-  <section id="appView" hidden>
-    <div class="wrap">
-      <header class="bar">
-        <a class="back" href="../">← 메인으로</a>
-        <div class="who">로그인됨: <b id="userEmail"></b></div>
-        <button class="logout" id="logoutBtn">로그아웃</button>
-      </header>
+  <!-- ───────────────── MAIN ───────────────── -->
+  <main>
 
-      <!-- ✏️ 이주병: 여기서부터 앱 내용을 작성하세요 -->
-      <h2>이주병 앱</h2>
-      <p style="color:var(--muted)">아직 개발 중입니다.</p>
-      <!-- ✏️ 여기까지 -->
+    <header class="hero">
+      <div class="eyebrow">FIT PLATFORM · 사용 가이드</div>
+      <h1>SCM Matrix 대시보드<span class="sub">최적 공급 전략 모델 사용 설명서</span></h1>
+      <p>프로젝트별 연도 공급물량과 OEM 공급가를 입력하면, 공급망 단계(OEM→임차→JV)의 적정성과 추이가 실시간으로 산출됩니다. 이 문서는 화면 구성부터 입력·해석·저장·공유까지의 사용법을 정리한 가이드입니다.</p>
+      <div class="meta">
+        <span class="pill">웹 버전 (단일 페이지)</span>
+        <span class="pill">자동 저장 · 팀 서버 공유</span>
+        <span class="pill">2026.06 기준</span>
+      </div>
+    </header>
 
-    </div>
-  </section>
+    <!-- 1 -->
+    <section id="s1">
+      <h2><span class="no">01</span>대시보드 개요</h2>
+      <p class="lead">이 대시보드는 “FIT Platform 솔루션을 어느 시점에 어떤 공급 방식으로 생산·공급할 것인가”를 데이터로 판정하기 위한 도구입니다.</p>
+      <p>핵심 질문은 단 하나입니다 — <span class="ink">연도별 공급물량이 임계점을 넘는 시점</span>에 맞춰 생산·공급 체계를 어떻게 전환할지입니다. 공급망 단계는 다음 네 단계로 구분되며, 연간 공급물량에 따라 자동으로 권고됩니다.</p>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="../shared/supabase.js"></script>
-  <script>
-    const $ = id => document.getElementById(id);
-    let currentUser = null;
+      <div class="legend">
+        <span class="badge b-oem"><span class="dot"></span>OEM</span>
+        <span class="badge b-lease"><span class="dot"></span>임차</span>
+        <span class="badge b-plus"><span class="dot"></span>임차+강화</span>
+        <span class="badge b-jv"><span class="dot"></span>JV</span>
+      </div>
 
-    function updateView(session){
-      currentUser = session ? session.user : null;
-      if(session){
-        $('loginView').hidden = true; $('appView').hidden = false;
-        $('userEmail').textContent = session.user.email;
-      } else {
-        $('appView').hidden = true; $('loginView').hidden = false;
-      }
-    }
+      <ul class="clean">
+        <li><b>OEM</b> — 물량이 적은 초기. 외부 협력사에 위탁 생산.</li>
+        <li><b>임차</b> — 물량이 1차 임계(기본 500유닛)를 넘어 OEM 생산시설 임차가 유리해지는 구간.</li>
+        <li><b>임차+강화</b> — 물량이 2차 임계(기본 2,000유닛)를 넘었으나 JV 연속 조건은 아직 미충족인 과도기.</li>
+        <li><b>JV</b> — 2차 임계 물량이 지정 연수만큼 연속 유지되어 합작 생산법인 검토가 타당해지는 구간.</li>
+      </ul>
 
-    $('loginBtn').onclick = async () => {
-      const email=$('email').value.trim(), password=$('password').value;
-      const msg=$('loginMsg'); msg.className='msg'; msg.textContent='';
-      if(!email||!password){ msg.className='msg err'; msg.textContent='이메일과 비밀번호를 입력하세요.'; return; }
-      $('loginBtn').disabled=true; $('loginBtn').textContent='로그인 중...';
+      <div class="call note">
+        <div class="ttl">핵심 개념</div>
+        <p>“권고 단계”는 입력된 물량·가정값으로 <b>자동 계산된 결과</b>입니다. 가정값(임계물량·연속 연수 등)을 바꾸면 모든 표·차트·결론이 즉시 다시 계산됩니다.</p>
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section id="s2">
+      <h2><span class="no">02</span>화면 한눈에 보기</h2>
+      <p class="lead">화면은 위에서 아래로 “결론 → 입력 → 검증”의 흐름으로 배치되어 있습니다.</p>
+      <ul class="clean">
+        <li><b>헤더 · 툴바</b> — 제목과 오른쪽 상단의 동작 버튼들 (PDF 출력 · Excel · 서버 저장/불러오기 · 초기값). 인쇄 시 자동 숨김.</li>
+        <li><b>시나리오 한 줄 요약</b> — 정점·2단계 시작·JV 충족·결론을 한 문장으로 강조 표시.</li>
+        <li><b>핵심 요약</b> — KPI 4종, 공급물량 추이, FIT 공급가 구조와 마진율, 단계 전환 로드맵.</li>
+        <li><b>차트 영역</b> — 물량 추이 · 유형별 누적 · 단계 추이 · 순효익 등 시각화.</li>
+        <li><b>가정값 · OEM 생산능력</b> — 판정 기준이 되는 임계값과 협력사 연간 생산능력.</li>
+        <li><b>① 물량표</b> — 프로젝트별·유닛유형별 연도 공급물량 입력 (핵심 입력부).</li>
+        <li><b>①-2 OEM·공급가 표</b> — 솔루션별 OEM사·매입가·공급가·마진 입력.</li>
+        <li><b>①-3 FIT 연도표</b> — 연도별 공급가·매입가·마진 합계 (자동 집계).</li>
+        <li><b>② 단계 판정 결과</b> — 연도별 권고/적정 단계와 회수 지표 (검증부).</li>
+        <li><b>단계 전환 조건</b> — 판정에 사용된 로직 설명.</li>
+      </ul>
+    </section>
+
+    <!-- 3 -->
+    <section id="s3">
+      <h2><span class="no">03</span>빠른 시작 5단계</h2>
+      <p class="lead">처음 열면 예시 데이터(10개 프로젝트)가 채워져 있습니다. 아래 순서로 내 데이터로 바꿔가며 사용하세요.</p>
+      <ol class="steps">
+        <li><b>① 물량표에서 프로젝트를 정리합니다</b> 필요 없는 예시 프로젝트는 삭제하고, <span class="ui ghost">프로젝트 추가</span> 로 내 프로젝트를 만든 뒤 이름과 연도별 유닛 수량을 입력합니다.</li>
+        <li><b>①-2 표에서 OEM사와 가격을 입력합니다</b> 솔루션별 OEM사를 선택하고 매입가·공급 방식(비율%/정액₩)을 지정하면 공급가·마진이 자동 계산됩니다.</li>
+        <li><b>가정값을 확인합니다</b> 1→2단계·2→3단계 전환 임계물량과 JV 연속 연수가 사업 기준과 맞는지 확인합니다.</li>
+        <li><b>결과를 해석합니다</b> 상단의 핵심 요약·시나리오 문장과 ② 단계 판정 결과 표에서 권고 단계와 전환 시점을 확인합니다.</li>
+        <li><b>저장·공유합니다</b> 작업은 브라우저에 자동 저장됩니다. 팀과 공유하려면 <span class="ui">서버 저장</span> 또는 <span class="ui ghost">Excel</span> 내보내기를 사용합니다.</li>
+      </ol>
+      <div class="call tip">
+        <div class="ttl">팁</div>
+        <p>언제든 <span class="ui ghost">초기값</span> 버튼으로 예시 데이터 상태로 되돌릴 수 있습니다. 실험적으로 값을 바꿔봐도 안전합니다.</p>
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section id="s4">
+      <h2><span class="no">04</span>핵심 요약 읽는 법</h2>
+      <p class="lead">상단 “핵심 요약”은 전체 결론을 시각적으로 압축한 영역입니다. 네 블록으로 구성됩니다.</p>
+
+      <h3>KPI 카드 4종</h3>
+      <ul class="clean">
+        <li><b>누적 공급물량</b> — 전 기간 누적 유닛 수.</li>
+        <li><b>총 FIT 공급가</b> — 전체 공급가 합계(억원).</li>
+        <li><b>총 FIT 마진 · 마진율</b> — 공급가 대비 마진 총액과 비율.</li>
+        <li><b>최대 공급 피크</b> — 가장 물량이 큰 연도와 그 수량.</li>
+      </ul>
+
+      <h3>공급 물량 추이</h3>
+      <p>연도별 공급물량을 면적 그래프로 보여주고, 정점에는 점으로 표시합니다. 물량이 어느 해에 몰리는지 한눈에 확인할 수 있습니다.</p>
+
+      <h3>FIT 공급가 구조 + 마진율 링</h3>
+      <p>연도별 공급가를 <b>매입가(회색)</b>와 <b>마진(녹색)</b> 누적 막대로 나누어 보여주고, 오른쪽의 활동링(Activity Ring)이 전체 평균 마진율을 표시합니다.</p>
+
+      <h3>단계 전환 로드맵</h3>
+      <p>연도별 권고 단계를 색 띠로 이어 보여주고, 단계가 바뀌는 지점에 전환 배지를 표시합니다. 하단 두 콜아웃은 다음을 알려줍니다.</p>
+      <ul class="clean">
+        <li><b>임차 적합 진입</b> — 2단계(임차) 권고가 처음 시작되는 연도.</li>
+        <li><b>{접속 연도} 권고 단계</b> — 지금 접속한 웹 시계의 연도(예: <code>2026 권고 단계</code>)를 기준으로, 현재 시점에 권고되는 단계와 그 기준 공급물량.</li>
+      </ul>
+      <div class="call note">
+        <div class="ttl">참고</div>
+        <p>“{접속 연도} 권고 단계”는 PC·모바일의 시스템 시계 연도를 자동으로 읽어 표기합니다. 연도가 모델 기간(’26~’34) 밖이면 가장 가까운 연도의 단계로 자동 매칭됩니다.</p>
+      </div>
+    </section>
+
+    <!-- 5 -->
+    <section id="s5">
+      <h2><span class="no">05</span>시나리오 한 줄 요약</h2>
+      <p class="lead">핵심 요약 위의 한 문장은 전체 결론을 텍스트로 요약합니다. 네 개의 핵심 수치가 강조 색상(파랑) 볼드로 표시됩니다.</p>
+      <ul class="clean">
+        <li><b>정점</b> — 최대 공급 연도와 유닛 수량 (숫자·단위가 각각 볼드).</li>
+        <li><b>2단계 권고 시작</b> — OEM 생산시설 임차가 처음 권고되는 연도.</li>
+        <li><b>JV 단계 전환</b> — JV 조건(2,000유닛·연속 연수) 충족 여부(충족/미충족).</li>
+        <li><b>결론</b> — <code>→ JV 검토 착수</code> 또는 <code>→ OEM 생산시설 임차 유지</code>.</li>
+      </ul>
+      <p>입력값이 바뀌면 이 문장도 즉시 다시 쓰입니다. 회의·보고에서 한 줄로 핵심을 전달할 때 그대로 사용할 수 있습니다.</p>
+    </section>
+
+    <!-- 6 -->
+    <section id="s6">
+      <h2><span class="no">06</span>가정값 입력</h2>
+      <p class="lead">판정의 기준이 되는 값들입니다. 사업 전제가 달라지면 이 값을 조정하세요. 모든 값은 변경 즉시 전체 결과에 반영됩니다.</p>
+      <table class="tbl">
+        <thead><tr><th>입력 항목</th><th>단위</th><th>기본값</th><th>의미</th></tr></thead>
+        <tbody>
+          <tr><td>1→2단계 전환</td><td>유닛</td><td class="num">500</td><td>연간 공급물량이 이 값 이상이면 OEM→임차 단계를 권고합니다. (gate1)</td></tr>
+          <tr><td>2→3단계 전환</td><td>유닛</td><td class="num">2,000</td><td>연간 공급물량이 이 값 이상이면 JV 후보 구간에 진입합니다. (gate2)</td></tr>
+          <tr><td>JV 기간</td><td>년</td><td class="num">2</td><td>2차 임계를 연속으로 충족해야 하는 햇수. 이 조건을 만족하면 JV 권고.</td></tr>
+          <tr><td>마진회수율</td><td>0–1</td><td class="num">0.65</td><td>연간 FIT 마진 중 회수로 인정하는 비율. 회수마진 산출에 사용.</td></tr>
+          <tr><td>생산라인 임차 비용</td><td>억원</td><td class="num">5</td><td>회수기간 계산의 분자(투자액 성격).</td></tr>
+          <tr><td>생산라인 임차 기간</td><td>년</td><td class="num">2</td><td>순효익 계산 시 회수마진에서 차감되는 비용 항목.</td></tr>
+        </tbody>
+      </table>
+      <div class="call warn">
+        <div class="ttl">주의</div>
+        <p>임계물량을 낮추면 단계 전환이 앞당겨지고, 높이면 늦춰집니다. ② 표의 권고/적정 단계가 의도와 다르면 먼저 이 가정값부터 점검하세요.</p>
+      </div>
+    </section>
+
+    <!-- 7 -->
+    <section id="s7">
+      <h2><span class="no">07</span>OEM 생산능력 · 파트너</h2>
+      <p class="lead">솔루션 유형별로 협력사와 연간 생산능력(capacity)을 등록해 두는 영역입니다. 이 값은 가동률 계산의 기준이 됩니다.</p>
+      <ul class="clean">
+        <li><b>파트너 추가/삭제</b> — 각 솔루션 유형마다 협력사를 여러 곳 등록할 수 있습니다.</li>
+        <li><b>연간 생산능력</b> — 협력사별 연간 생산 가능 유닛 수. 비워 두면(미정) 가동률 계산에서 제외됩니다.</li>
+        <li><b>가동률</b> — 연간 공급물량 ÷ 등록된 생산능력으로 산출되어 ② 표에 표시됩니다.</li>
+      </ul>
+      <p>여기서 등록한 협력사 목록은 ①-2 표의 OEM사 풀다운(▾)에 그대로 나타납니다.</p>
+    </section>
+
+    <!-- 8 -->
+    <section id="s8">
+      <h2><span class="no">08</span>① 물량표 입력</h2>
+      <p class="lead">제목: <b>① 프로젝트별 · 유닛유형별 연도 공급물량 (유닛, 편집 가능)</b>. 이 표가 모든 계산의 출발점입니다.</p>
+
+      <h3>프로젝트 관리</h3>
+      <ul class="clean">
+        <li><span class="ui ghost">프로젝트 추가</span> 버튼으로 새 프로젝트를 맨 위에 추가합니다.</li>
+        <li>프로젝트 이름 칸을 클릭해 직접 수정할 수 있습니다. 이름 아래에는 <b>공급가 합계</b>와 <b>SCM 권고 단계 배지</b>가 함께 표시됩니다.</li>
+        <li>각 프로젝트 행의 휴지통 아이콘으로 삭제합니다.</li>
+      </ul>
+
+      <h3>연도별 유닛 입력</h3>
+      <ul class="clean">
+        <li>유닛유형별로 연도 칸에 수량을 입력합니다. 빈 칸은 0으로 간주됩니다.</li>
+        <li>스킨/공조/ICT 등 유닛유형이 행으로 구분되며, 솔루션 수량(FRAME·카트리지 등)은 자동 파생됩니다.</li>
+        <li><b>GRID · OS</b> 행에는 <span class="ui ghost">수량</span>/<span class="ui ghost">1식</span> 토글이 있어, 수량 기준인지 1식(일괄) 기준인지 선택합니다. 선택은 ①-2 가격표에 자동 반영됩니다.</li>
+      </ul>
+
+      <h3>탐색 보조</h3>
+      <ul class="clean">
+        <li>각 프로젝트 그룹 하단에 <b>프로젝트별 가로 슬라이더</b>가 있어 많은 연도를 좌우로 넘겨볼 수 있습니다.</li>
+        <li>표가 길면 <span class="ui ghost">더 보기 ▼</span> 로 뒤 연도까지 펼치고, <span class="ui ghost">닫기 ▲</span> 로 접습니다.</li>
+        <li>유형별 합계 행의 0 값은 옅게 표시되어 입력값과 구분됩니다.</li>
+      </ul>
+    </section>
+
+    <!-- 9 -->
+    <section id="s9">
+      <h2><span class="no">09</span>①-2 OEM · 공급가 표</h2>
+      <p class="lead">제목: <b>①-2 프로젝트별 솔루션 OEM · 공급가 (원/유닛)</b>. 솔루션 단위의 단가·마진을 입력합니다.</p>
+
+      <h3>OEM사 선택</h3>
+      <ul class="clean">
+        <li>수량이 0보다 큰 솔루션만 OEM사 풀다운(▾)이 활성화됩니다.</li>
+        <li>목록에서 <span class="ui ghost">+ 업체 추가…</span> 를 고르면 새 협력사를 즉석에서 등록할 수 있고, <span class="ui ghost">− 삭제</span> 로 제거합니다.</li>
+      </ul>
+
+      <h3>단가 · 방식 입력</h3>
+      <ul class="clean">
+        <li><b>OEM 매입가</b> — 협력사로부터의 매입 단가(원/유닛). 입력 칸 너비는 가장 긴 숫자에 맞춰 정렬됩니다.</li>
+        <li><b>OEM 방식</b> — <span class="ui ghost">비율%</span> 또는 <span class="ui ghost">정액₩</span>. 비율이면 마진율(%)로, 정액이면 금액으로 OEM 마진을 지정합니다. 이로부터 순제작비가 역산됩니다.</li>
+        <li><b>FIT 방식</b> — 동일하게 비율%/정액₩으로 FIT(우리) 공급 마진을 지정합니다.</li>
+        <li>입력에 따라 <b>공급가</b>와 <b>마진</b>이 자동 계산됩니다.</li>
+        <li>해당 솔루션이 적용되지 않는(수량 0) 행은 옅게 비활성 표시됩니다.</li>
+      </ul>
+      <div class="call note">
+        <div class="ttl">참고</div>
+        <p>GRID·OS의 <span class="ui ghost">1식</span> 여부는 ① 물량표에서 선택한 값이 그대로 반영됩니다. 가격표에서 따로 바꾸지 않아도 됩니다.</p>
+      </div>
+    </section>
+
+    <!-- 10 -->
+    <section id="s10">
+      <h2><span class="no">10</span>①-3 FIT 연도별 공급가</h2>
+      <p class="lead">제목: <b>①-3 FIT 연도별 공급가 · OEM 매입가 · 마진(평균 마진율)</b>. ①·①-2 입력을 연도 단위로 자동 집계한 결과 표입니다. 직접 입력하는 칸은 없습니다.</p>
+      <ul class="clean">
+        <li>연도별 <b>공급가 합계 · OEM 매입가 합계 · 마진 · 평균 마진율</b>을 보여줍니다.</li>
+        <li>맨 아래 합계/평균 행은 전 기간 총계를 표시합니다.</li>
+        <li>금액은 자릿수가 길어도 줄바꿈 없이 축약·정렬되어 가독성을 유지합니다.</li>
+      </ul>
+    </section>
+
+    <!-- 11 -->
+    <section id="s11">
+      <h2><span class="no">11</span>② 단계 판정 결과</h2>
+      <p class="lead">제목: <b>② 연도별 단계 판정 결과</b>. 입력 데이터로 판정된 연도별 결론과 회수 지표를 한 표에 모았습니다.</p>
+      <table class="tbl">
+        <thead><tr><th>열</th><th>의미</th></tr></thead>
+        <tbody>
+          <tr><td>연도</td><td>대상 연도.</td></tr>
+          <tr><td>물량</td><td>해당 연도의 총 공급물량(유닛).</td></tr>
+          <tr><td>가동률</td><td>물량 ÷ 등록 생산능력.</td></tr>
+          <tr><td>권고 단계</td><td>물량·가정값으로 자동 판정된 단계(OEM/임차/임차+강화/JV).</td></tr>
+          <tr><td>적정 단계</td><td>모델이 보는 가장 타당한 단계.</td></tr>
+          <tr><td>회수마진(억)</td><td>연간 FIT 마진 × 마진회수율.</td></tr>
+          <tr><td>순효익(억)</td><td>회수마진에서 비용 항목을 차감한 값.</td></tr>
+          <tr><td>회수기간(년)</td><td>생산라인 임차 비용 ÷ 순효익. 순효익이 0 이하면 표시되지 않습니다.</td></tr>
+          <tr><td>비고</td><td>전환 시점 등 부가 표시.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 12 -->
+    <section id="s12">
+      <h2><span class="no">12</span>단계 전환 판정 로직</h2>
+      <p class="lead">연도별 권고 단계는 그해 공급물량과 가정값으로 다음 규칙에 따라 결정됩니다.</p>
+
+      <div class="flow">
+        <div class="step-pill b-oem"><div class="lab">OEM</div><div class="cond">물량 &lt; 500</div></div>
+        <span class="arrow">→</span>
+        <div class="step-pill b-lease"><div class="lab">임차</div><div class="cond">500 ≤ 물량 &lt; 2,000</div></div>
+        <span class="arrow">→</span>
+        <div class="step-pill b-plus"><div class="lab">임차+강화</div><div class="cond">물량 ≥ 2,000<br>연속 미충족</div></div>
+        <span class="arrow">→</span>
+        <div class="step-pill b-jv"><div class="lab">JV</div><div class="cond">물량 ≥ 2,000<br>2년 연속</div></div>
+      </div>
+
+      <table class="tbl">
+        <thead><tr><th>조건</th><th>판정</th></tr></thead>
+        <tbody>
+          <tr><td>물량 = 0</td><td>OEM (공급 없음)</td></tr>
+          <tr><td>0 &lt; 물량 &lt; gate1(500)</td><td>OEM</td></tr>
+          <tr><td>gate1 ≤ 물량 &lt; gate2(2,000)</td><td>임차</td></tr>
+          <tr><td>물량 ≥ gate2, 연속 조건 미충족</td><td>임차+강화</td></tr>
+          <tr><td>물량 ≥ gate2가 consec(2)년 연속 충족</td><td>JV</td></tr>
+        </tbody>
+      </table>
+
+      <ul class="clean">
+        <li><b>2단계 시작연도</b> = 물량이 gate1(500) 이상이 되는 첫 연도.</li>
+        <li><b>JV 충족</b> = gate2(2,000) 이상이 consec(2)년 연속으로 유지되는 구간이 한 번이라도 존재할 때. 그 첫 연도가 “JV 검토 착수” 시점이 됩니다.</li>
+      </ul>
+      <div class="call tip">
+        <div class="ttl">팁</div>
+        <p>임계물량·연속 연수는 06 가정값에서 자유롭게 바꿀 수 있습니다. 보수적으로 보려면 임계와 연속 연수를 높이고, 공격적으로 보려면 낮추세요.</p>
+      </div>
+    </section>
+
+    <!-- 13 -->
+    <section id="s13">
+      <h2><span class="no">13</span>저장 · 공유</h2>
+      <p class="lead">작업 내용을 보관·공유하는 방법은 세 가지입니다.</p>
+
+      <div class="grid2">
+        <div class="card">
+          <h4>① 브라우저 자동 저장</h4>
+          <p>입력은 같은 기기·브라우저에 자동 저장됩니다. 헤더에 <span class="ui ghost">● 자동 저장됨</span> 시각이 표시됩니다. 다시 열면 마지막 상태가 복원됩니다.</p>
+          <p><span class="ui ghost">초기값</span> 버튼은 자동 저장을 지우고 예시 데이터로 되돌립니다.</p>
+        </div>
+        <div class="card">
+          <h4>② Excel 내보내기 / 불러오기</h4>
+          <p><span class="ui ghost">Excel</span> 버튼 옆 선택을 <b>다운로드</b>로 두면 현재 상태를 .xlsx로 저장하고, <b>불러오기</b>로 두면 .xlsx/.xls 파일에서 상태를 복원합니다.</p>
+          <p>내보낸 파일에는 전체 상태가 함께 저장되어, 같은 파일을 불러오면 그대로 재현됩니다.</p>
+        </div>
+      </div>
+
+      <h3>③ 팀 서버 저장 · 불러오기</h3>
+      <p>팀과 실시간으로 같은 데이터를 공유하는 방식입니다. <span class="ui">서버 저장</span>·<span class="ui ghost">서버 불러오기</span> 버튼을 사용합니다.</p>
+      <ul class="clean">
+        <li><b>비밀번호</b> — 처음 사용할 때 팀 비밀번호를 한 번 입력하면 세션 동안 유지됩니다.</li>
+        <li><b>서버 저장</b> — 저장본 이름과 저장자를 입력해 새 스냅샷으로 올립니다. 여러 버전을 동시에 보관할 수 있습니다.</li>
+        <li><b>서버 불러오기</b> — <span class="ui ghost">서버 저장본 선택</span> 창에서 원하는 스냅샷을 골라 <b>불러오기</b> 하거나 <b>삭제</b>할 수 있습니다.</li>
+      </ul>
+      <div class="call warn">
+        <div class="ttl">관리자 참고 (배포)</div>
+        <p>서버 기능의 <b>비밀번호</b>는 배포 사이트의 환경 변수로 설정되어 있어야 합니다. 서버 동작(함수) 자체를 바꾸려면 배포 폴더를 다시 올려야 합니다. 화면(디자인)만 바뀐 경우에는 재배포가 필요 없습니다.</p>
+      </div>
+    </section>
+
+    <!-- 14 -->
+    <section id="s14">
+      <h2><span class="no">14</span>인쇄 · PDF 출력</h2>
+      <p class="lead">헤더의 <span class="ui ghost">PDF 출력</span> 버튼으로 현재 화면을 인쇄/저장합니다.</p>
+      <ul class="clean">
+        <li>버튼 옆 선택에서 A4 <b>가로</b> 또는 <b>세로</b> 방향을 고릅니다. 표가 넓으면 가로가 유리합니다.</li>
+        <li>인쇄 시 툴바·슬라이더 등 조작용 요소는 자동으로 숨겨지고, 표·차트·결론만 깔끔하게 출력됩니다.</li>
+        <li>브라우저 인쇄 대화상자에서 “PDF로 저장”을 선택하면 파일로 보관할 수 있습니다.</li>
+      </ul>
+    </section>
+
+    <!-- 15 -->
+    <section id="s15">
+      <h2><span class="no">15</span>색상 · 단계 체계</h2>
+      <p class="lead">화면 전체는 가독성을 위해 모노톤(흑·회·백)을 기본으로 하고, 의미가 있는 곳에만 색을 사용합니다.</p>
+      <ul class="clean">
+        <li><b>차트</b> — 데이터 구분을 위해 색상을 사용합니다.</li>
+        <li><b>핵심 요약</b> — 결론 영역이므로 색상을 유지합니다.</li>
+        <li><b>SCM 권고 단계 배지</b> — 단계별 고유색으로 표시합니다.</li>
+        <li><b>시나리오 강조</b> — 핵심 4수치는 강조 색상(파랑) 볼드.</li>
+      </ul>
+      <div class="legend">
+        <span class="badge b-oem"><span class="dot"></span>OEM · 파랑</span>
+        <span class="badge b-lease"><span class="dot"></span>임차 · 틸</span>
+        <span class="badge b-plus"><span class="dot"></span>임차+강화 · 인디고</span>
+        <span class="badge b-jv"><span class="dot"></span>JV · 그린</span>
+      </div>
+      <p>기기의 시스템 설정(라이트/다크 모드)에 따라 화면 테마가 자동으로 전환됩니다.</p>
+    </section>
+
+    <!-- 16 -->
+    <section id="s16">
+      <h2><span class="no">16</span>자주 묻는 질문</h2>
+
+      <h3>데이터가 안 보이거나 이상해요.</h3>
+      <p><span class="ui ghost">초기값</span> 버튼으로 예시 데이터 상태로 되돌린 뒤 다시 입력해 보세요. 자동 저장 데이터가 초기화됩니다.</p>
+
+      <h3>다른 PC에서 작업을 이어가고 싶어요.</h3>
+      <p>자동 저장은 기기·브라우저 단위입니다. 기기 간 이동은 <span class="ui ghost">Excel</span> 내보내기/불러오기 또는 <span class="ui">서버 저장</span>/불러오기를 사용하세요.</p>
+
+      <h3>단계 전환 시점을 바꾸고 싶어요.</h3>
+      <p>06 가정값의 임계물량(1→2, 2→3)과 JV 연속 연수를 조정하면 ② 표와 로드맵이 즉시 다시 계산됩니다.</p>
+
+      <h3>OEM사 목록에 우리 협력사가 없어요.</h3>
+      <p>①-2 표의 OEM사 풀다운에서 <span class="ui ghost">+ 업체 추가…</span> 로 즉석 등록하거나, 07 OEM 생산능력에서 파트너로 추가하세요.</p>
+
+      <h3>서버 저장이 안 돼요.</h3>
+      <p>팀 비밀번호가 맞는지, 그리고 배포 사이트에 비밀번호 환경 변수가 설정·반영되어 있는지 확인하세요(관리자 영역).</p>
+
+      <h3>“2026 권고 단계”의 연도는 어떻게 정해지나요?</h3>
+      <p>접속한 기기의 시스템 시계 연도를 자동으로 읽습니다. 별도 설정은 필요 없습니다.</p>
+    </section>
+
+    <footer>
+      FIT Platform · SCM Matrix 대시보드 사용 가이드북 · 2026.06 · 본 문서는 웹 대시보드의 사용법 안내용입니다.
+    </footer>
+
+  </main>
+</div>
+
+<button class="totop" id="totop" aria-label="맨 위로">↑</button>
+
+<script>
+  // scrollspy + back-to-top
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav a'));
+  var secs  = links.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+  var totop = document.getElementById('totop');
+  function onScroll(){
+    var y = window.scrollY + 120, idx = 0;
+    for (var i=0;i<secs.length;i++){ if (secs[i] && secs[i].offsetTop <= y) idx = i; }
+    links.forEach(function(a,i){ a.classList.toggle('active', i===idx); });
+    totop.classList.toggle('show', window.scrollY > 600);
+  }
+  document.addEventListener('scroll', onScroll, {passive:true});
+  window.addEventListener('load', onScroll);
+  totop.addEventListener('click', function(){ window.scrollTo({top:0, behavior:'smooth'}); });
+<\/script>
+</body>
+</html>
+`;
+  const NAVY2 = "var(--navy2)";
+  const BLUE = "var(--blue)";
+  const STEEL = "var(--steel)";
+  const AMBER = "var(--amber)";
+  const PAPER = "var(--paper)";
+  const INK = "var(--ink)";
+  const MUT = "var(--mut)";
+  const PANEL = "var(--panel)";
+  const PANEL2 = "var(--panel2)";
+  const LINEC = "var(--linec)";
+  const FIELD = "var(--field)";
+  const STAGE = {
+    0: { c: "var(--s0)", bg: "var(--s0bg)", t: "var(--s0t)", k: "OEM" },
+    1: { c: "var(--s1)", bg: "var(--s1bg)", t: "var(--s1t)", k: "OEM" },
+    2: { c: "var(--s2)", bg: "var(--s2bg)", t: "var(--s2t)", k: "임차" },
+    2.5: { c: "var(--s25)", bg: "var(--s25bg)", t: "var(--s25t)", k: "임차+강화" },
+    3: { c: "var(--s3)", bg: "var(--s3bg)", t: "var(--s3t)", k: "JV" }
+  };
+  const PAL_LIGHT = {
+    paper: "#f4f5f7",
+    panel: "#ffffff",
+    grid: "#e2e5ea",
+    axis: "#aab0ba",
+    ink: "#1d2128",
+    mut: "#6b7280",
+    cap: "#2b313a",
+    g2: "#7a828d",
+    g1: "#9aa1ac",
+    idx: "#3a4048",
+    netPos: "#3a4048",
+    netNeg: "#8a9098",
+    zero: "#9aa1ac",
+    stage: { 0: "#c0c5cd", 1: "#9aa1ac", 2: "#6b727d", 2.5: "#545b65", 3: "#3a4048" },
+    utc: { skinv: "#3d6e8e", skinh: "#5a93b0", skins: "#6f97a8", hvac: "#5b8a72", ict: "#8a6d9e", ictp: "#b27a86", grid: "#c2925a", os: "#7a8595" }
+  };
+  const PAL_DARK = {
+    paper: "#0b0e13",
+    panel: "#141922",
+    grid: "#222933",
+    axis: "#3a414c",
+    ink: "#e7e9ee",
+    mut: "#8b919c",
+    cap: "#e7e9ee",
+    g2: "#8b919c",
+    g1: "#6b727d",
+    idx: "#c2c8d0",
+    netPos: "#c2c8d0",
+    netNeg: "#8b919c",
+    zero: "#5a616b",
+    stage: { 0: "#565d67", 1: "#787f8a", 2: "#9aa1ac", 2.5: "#b0b7c1", 3: "#c8cdd5" },
+    utc: { skinv: "#6fa3c4", skinh: "#86c0db", skins: "#8fb6c4", hvac: "#84b89c", ict: "#b29ac4", ictp: "#d6a3ad", grid: "#d9b483", os: "#a6b0c0" }
+  };
+  const stageColor = (i) => (STAGE[i] || STAGE[0]).c;
+  const DEFAULT_YEARS = ["26", "27", "28", "29", "30", "31", "32", "33", "34"];
+  const DEFAULT_ASSUM = { "caps": { "frame": { "label": "Frame", "partners": [{ "name": "다담이엔씨+대동커튼월", "cap": 2160 }, { "name": "리더스이엔씨+윈스텍", "cap": 4200 }] }, "skincv": { "label": "스킨카트리지(수직)", "partners": [{ "name": "명덕장식+준쉐이드", "cap": 7e3 }, { "name": "코인+솜피", "cap": 4800 }] }, "skinch": { "label": "스킨카트리지(수평)", "partners": [{ "name": "명덕장식+준쉐이드", "cap": 7e3 }, { "name": "코인+솜피", "cap": 4800 }] }, "hvacc": { "label": "공조카트리지", "partners": [{ "name": "삼화에이스", "cap": 720 }, { "name": "FläktGroup(電子)", "cap": null }] }, "ictc": { "label": "ICT카트리지", "partners": [{ "name": "삼일씨티에스", "cap": null }, { "name": "정원디앤비", "cap": null }] }, "ictp": { "label": "ICT 패널", "partners": [{ "name": "삼일씨티에스", "cap": null }, { "name": "정원디앤비", "cap": null }] }, "grid": { "label": "Grid", "partners": [{ "name": "말타니", "cap": 48e3 }] }, "skinc": { "label": "스킨카트리지", "partners": [{ "name": "명덕장식+준쉐이드", "cap": 7e3 }, { "name": "코인+솜피", "cap": 4800 }] } }, "gate1": 500, "gate2": 2e3, "consec": 2, "rate": 0.65, "capex": 10, "opex": 5 };
+  const UNIT_TYPES = [
+    { key: "skinv", label: "스킨유닛(수직)", desc: "Frame + 스킨카트리지(수직)" },
+    { key: "skinh", label: "스킨유닛(수평)", desc: "Frame + 스킨카트리지(수평)" },
+    { key: "skins", label: "스킨유닛(특수)", desc: "Frame 단독" },
+    { key: "hvac", label: "공조유닛", desc: "Frame + 공조카트리지" },
+    { key: "ict", label: "스킨&ICT유닛", desc: "Frame + 스킨 + ICT카트리지" },
+    { key: "ictp", label: "ICT 패널", desc: "Frame + ICT 패널" }
+  ];
+  const UKEYS = UNIT_TYPES.map((u) => u.key);
+  const VOLUME_TYPES = [
+    ...UNIT_TYPES,
+    { key: "grid", label: "GRID", desc: "별도 공급 수량" },
+    { key: "os", label: "OS", desc: "별도 공급 수량" }
+  ];
+  const VKEYS = VOLUME_TYPES.map((v) => v.key);
+  const SOLUTION_TYPES = [
+    { key: "frame", label: "FRAME", opts: ["리더스이엔씨+윈스텍", "다담이엔씨+대동커튼월"] },
+    { key: "skincv", label: "스킨카트리지(수직)", opts: ["명덕장식+준쉐이드", "솜피+코인"] },
+    { key: "skinch", label: "스킨카트리지(수평)", opts: ["명덕장식+준쉐이드", "솜피+코인"] },
+    { key: "hvacc", label: "공조카트리지", opts: ["삼화에이스", "FlackGroup+삼성전자"] },
+    { key: "ictc", label: "ICT카트리지", opts: ["삼일씨티에스", "정원디앤비"] },
+    { key: "ictp", label: "ICT 패널", opts: [] },
+    { key: "grid", label: "GRID", opts: ["말타니"] },
+    { key: "os", label: "OS", opts: ["ITDA+아스터소프트+Bynd", "b.IoT"] }
+  ];
+  const SKEYS = SOLUTION_TYPES.map((s) => s.key);
+  const SOL_NETCOST = { frame: 6433043, skincv: 375e4, skinch: 375e4, hvacc: 35e6, ictc: 137e5, ictp: 0, grid: 0, os: 0 };
+  const solYearQty = (p, sk, y) => {
+    const u = p.u || {};
+    const g = (tk) => Number(u[tk] && u[tk][y]) || 0;
+    if (sk === "frame") return g("skinv") + g("skinh") + g("skins") + g("hvac") + g("ict") + g("ictp");
+    if (sk === "skincv") return g("skinv");
+    if (sk === "skinch") return g("skinh");
+    if (sk === "hvacc") return g("hvac");
+    if (sk === "ictc") return g("ict");
+    if (sk === "ictp") return g("ictp");
+    if (sk === "grid") return g("grid");
+    if (sk === "os") return g("os");
+    return 0;
+  };
+  const solTotalQty = (p, sk, years) => years.reduce((a, y) => a + solYearQty(p, sk, y), 0);
+  const firstYear = (p, years) => {
+    let best = Infinity;
+    UKEYS.forEach((tk) => {
+      const v = p.u && p.u[tk] || {};
+      years.forEach((y) => {
+        const q = Number(v[y]) || 0;
+        if (q > 0 && Number(y) < best) best = Number(y);
+      });
+    });
+    return best;
+  };
+  const SOL_PX = (p, sk) => {
+    const b = p.sx && p.sx[sk] || {};
+    return {
+      oem: b.oem !== void 0 ? b.oem : "",
+      buy: b.buy !== void 0 ? b.buy : Math.round((SOL_NETCOST[sk] || 0) * (1 + (p.om != null ? p.om : 15) / 100)),
+      oemMode: b.oemMode || "rate",
+      oemVal: b.oemVal !== void 0 ? b.oemVal : p.om != null ? p.om : 15,
+      fitMode: b.fitMode || "rate",
+      fitVal: b.fitVal !== void 0 ? b.fitVal : 15,
+      qmode: b.qmode || "lump"
+    };
+  };
+  const solOemMargin = (p, sk) => {
+    const x = SOL_PX(p, sk);
+    const buy = Number(x.buy) || 0;
+    const r = Number(x.oemVal) || 0;
+    return x.oemMode === "rate" ? Math.round(buy * r / (100 + r)) : r;
+  };
+  const DEFAULT_PROJ = [{ "name": "성남정수장", "u": { "hvac": { "27": 7 }, "ict": { "27": 2 }, "skinv": { "26": 14, "27": 51 }, "grid": { "27": 164 }, "os": { "27": 1 } }, "om": 15, "sx": { "frame": { "oem": "다담이엔씨+대동커튼월", "buy": 1345e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": 15 }, "skincv": { "oem": "명덕장식+준쉐이드", "buy": 5428e3, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": 15 }, "hvacc": { "oem": "삼화에이스", "buy": 46e6, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": 15 }, "ictc": { "oem": "삼일씨티에스", "buy": 3537e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": 15, "qmode": "lump" }, "grid": { "oem": "말타니", "buy": 31e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": 15, "qmode": "qty" }, "os": { "oem": "아스터소프트(+ITDA)+DALI", "buy": 4652e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": 15, "qmode": "qty" } } }, { "name": "크래프톤 C3", "u": { "hvac": { "28": 29 }, "ict": { "27": "", "28": 0 }, "skinv": { "28": 78 }, "skinh": { "27": 128, "28": 64 }, "ictp": { "28": 10 }, "os": { "28": 1 } }, "om": 15, "sx": { "ictp": { "oem": "삼일씨티에스", "buy": 19e6, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "37.58" }, "hvacc": { "oem": "삼화에이스", "buy": 35e6, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "37.58" }, "skinch": { "oem": "명덕장식+준쉐이드", "buy": 129e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "37.58" }, "skincv": { "oem": "명덕장식+준쉐이드", "buy": 383e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "37.58" }, "frame": { "oem": "리더스이엔씨+윈스텍", "buy": 852e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "37.58" }, "os": { "oem": "아스터소프트(+ITDA+Bynd)", "buy": 82e6, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "37.58", "qmode": "qty" }, "grid": { "oem": "", "buy": 0, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": 15, "qmode": "qty" } } }, { "name": "ASML Ph1", "u": { "hvac": { "28": 35 }, "ict": { "28": 35 }, "skinv": { "28": 498 }, "grid": { "28": 1386 }, "os": { "28": 1 } }, "om": 10, "sx": { "frame": { "oem": "", "buy": 85e5, "oemMode": "rate", "oemVal": 10, "fitMode": "rate", "fitVal": "30", "qmode": "lump" }, "skincv": { "oem": "", "buy": 38e5, "oemMode": "rate", "oemVal": 10, "fitMode": "rate", "fitVal": "30", "qmode": "lump" }, "hvacc": { "oem": "", "buy": 35e6, "oemMode": "rate", "oemVal": 10, "fitMode": "rate", "fitVal": "30", "qmode": "lump" }, "ictc": { "oem": "", "buy": 307e5, "oemMode": "rate", "oemVal": 10, "fitMode": "rate", "fitVal": "30", "qmode": "lump" }, "os": { "oem": "", "buy": 3e8, "oemMode": "rate", "oemVal": 10, "fitMode": "rate", "fitVal": "30", "qmode": "qty" }, "grid": { "oem": "", "buy": 65e4, "oemMode": "rate", "oemVal": 10, "fitMode": "rate", "fitVal": "30", "qmode": "qty" } } }, { "name": "ASML Ph2", "u": { "hvac": { "29": 0, "34": 25 }, "ict": { "34": 25 }, "skinv": { "34": 447 }, "grid": { "34": 1e3 }, "os": { "34": 1 } }, "om": 10, "sx": { "frame": { "oem": "리더스이엔씨+윈스텍", "buy": 85e5, "oemMode": "rate", "oemVal": 10, "fitMode": "rate", "fitVal": "30", "qmode": "lump" }, "skincv": { "oem": "명덕장식+준쉐이드", "buy": 38e5, "oemMode": "rate", "oemVal": 10, "fitMode": "rate", "fitVal": "30", "qmode": "lump" }, "hvacc": { "oem": "삼화에이스", "buy": 35e6, "oemMode": "rate", "oemVal": 10, "fitMode": "rate", "fitVal": "30", "qmode": "lump" }, "ictc": { "oem": "삼일씨티에스", "buy": 307e5, "oemMode": "rate", "oemVal": 10, "fitMode": "rate", "fitVal": "30", "qmode": "lump" }, "grid": { "oem": "말타니", "buy": 65e4, "oemMode": "rate", "oemVal": 10, "fitMode": "rate", "fitVal": "30", "qmode": "qty" }, "os": { "oem": "아스터소프트(+ITDA+Bynd)", "buy": 3e8, "oemMode": "rate", "oemVal": 10, "fitMode": "rate", "fitVal": "30", "qmode": "qty" } } }, { "name": "동서울", "u": { "hvac": { "30": 488 }, "ict": {}, "skinv": { "30": 0 }, "skins": { "30": 488 } }, "om": 10, "sx": { "frame": { "oem": "리더스이엔씨+윈스텍", "buy": 32e5, "oemMode": "fixed", "oemVal": "900000", "fitMode": "fixed", "fitVal": "900000" }, "hvacc": { "oem": "FläktGroup(電子)", "buy": 35e6, "oemMode": "rate", "oemVal": "15", "fitMode": "fixed", "fitVal": "10000000" }, "grid": { "oem": "", "buy": 0, "oemMode": "rate", "oemVal": 10, "fitMode": "rate", "fitVal": 15, "qmode": "qty" }, "os": { "oem": "", "buy": 0, "oemMode": "rate", "oemVal": 10, "fitMode": "rate", "fitVal": 15, "qmode": "qty" } } }, { "name": "태평로", "u": { "hvac": { "29": 32, "30": 64, "31": "" }, "ict": { "29": 32, "30": 64, "31": "" }, "skinv": { "29": 808, "30": 1614, "31": "" }, "skins": { "29": 161, "30": 322, "31": "" }, "grid": { "29": 622, "30": 1242, "31": "" }, "os": { "30": 1, "31": "" } }, "om": 10, "sx": { "frame": { "oem": "리더스이엔씨+윈스텍", "buy": 74e5, "oemMode": "rate", "oemVal": "12", "fitMode": "rate", "fitVal": "20", "qmode": "lump" }, "skincv": { "oem": "명덕장식+준쉐이드", "buy": 328e4, "oemMode": "rate", "oemVal": "12", "fitMode": "rate", "fitVal": "20", "qmode": "lump" }, "hvacc": { "oem": "삼화에이스", "buy": 32e6, "oemMode": "rate", "oemVal": "12", "fitMode": "rate", "fitVal": "20", "qmode": "lump" }, "ictc": { "oem": "삼일씨티에스", "buy": 307e5, "oemMode": "rate", "oemVal": "12", "fitMode": "rate", "fitVal": "15", "qmode": "lump" }, "os": { "oem": "아스터소프트(+ITDA+Bynd)", "buy": 113e7, "oemMode": "rate", "oemVal": "12", "fitMode": "rate", "fitVal": 15, "qmode": "qty" }, "grid": { "oem": "말타니", "buy": 45e4, "oemMode": "rate", "oemVal": "12", "fitMode": "rate", "fitVal": 15, "qmode": "qty" } } }, { "name": "서울대탄소중립관", "u": { "skinv": { "26": 22 }, "skinh": {}, "skins": { "26": 11 }, "hvac": { "26": 4 }, "ict": {}, "ictp": { "26": 2 }, "grid": { "26": 102 }, "os": { "26": 1 } }, "om": 15, "sx": { "frame": { "oem": "다담이엔씨+대동커튼월", "buy": 482e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "16.46" }, "skincv": { "oem": "명덕장식+준쉐이드", "buy": 375e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "16.46" }, "hvacc": { "oem": "삼화에이스", "buy": 41e6, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "16.46" }, "ictp": { "oem": "삼일씨티에스", "buy": 455e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "16.46" }, "grid": { "oem": "말타니", "buy": 345e3, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "16.46", "qmode": "qty" }, "os": { "oem": "아스터소프트(+ITDA)+DALI", "buy": 7389e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "16.46", "qmode": "qty" } } }, { "name": "광명학온 RE200", "u": { "skinv": { "27": 52 }, "skinh": {}, "skins": {}, "hvac": { "27": 3 }, "ict": { "27": 7 }, "ictp": {}, "grid": { "27": 120 }, "os": { "27": 1 } }, "om": 15, "sx": { "frame": { "oem": "리더스이엔씨+윈스텍", "buy": 882e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "60", "qmode": "lump" }, "skincv": { "oem": "명덕장식+준쉐이드", "buy": 48e5, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "60", "qmode": "lump" }, "hvacc": { "oem": "삼화에이스", "buy": 35e6, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "60", "qmode": "lump" }, "ictc": { "oem": "삼일씨티에스", "buy": 307e5, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "60", "qmode": "lump" }, "grid": { "oem": "말타니", "buy": 65e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "60", "qmode": "qty" }, "os": { "oem": "아스터소프트(+ITDA+Bynd)", "buy": 59e6, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "60", "qmode": "qty" } } }, { "name": "서울역 YD816", "u": { "skinv": {}, "skinh": { "30": 85 }, "skins": { "30": 79 }, "hvac": { "30": 10 }, "ict": { "30": 20 }, "ictp": {}, "grid": {}, "os": { "30": 1 } }, "om": 15, "sx": { "frame": { "oem": "다담이엔씨+대동커튼월", "buy": 2428e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "30", "qmode": "lump" }, "skinch": { "oem": "명덕장식+준쉐이드", "buy": 1152e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "30", "qmode": "lump" }, "hvacc": { "oem": "삼화에이스", "buy": 5272e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "30", "qmode": "lump" }, "ictc": { "oem": "삼일씨티에스", "buy": 1422e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "30", "qmode": "lump" }, "os": { "oem": "아스터소프트(+ITDA+Bynd)", "buy": 2374e5, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": "30", "qmode": "qty" }, "grid": { "oem": "", "buy": 0, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": 15, "qmode": "qty" } } }, { "name": "RCC HQ", "u": { "skinv": { "27": 90, "28": 141 }, "skinh": {}, "skins": { "28": 21 }, "hvac": { "28": 9 }, "ict": { "28": 9 }, "ictp": {}, "grid": {}, "os": { "28": 1 } }, "om": 15, "sx": { "skincv": { "oem": "명덕장식+준쉐이드", "buy": 372e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": 15, "qmode": "lump" }, "frame": { "oem": "리더스이엔씨+윈스텍", "buy": 577e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": 15, "qmode": "lump" }, "hvacc": { "oem": "삼화에이스", "buy": 35e6, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": 15 }, "ictc": { "oem": "삼일씨티에스", "buy": 19e6, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": 15 }, "os": { "oem": "아스터소프트(+ITDA+Bynd)", "buy": 2476e4, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": 15, "qmode": "qty" }, "grid": { "oem": "", "buy": 0, "oemMode": "rate", "oemVal": 15, "fitMode": "rate", "fitVal": 15, "qmode": "qty" } } }];
+  const DEFAULT_OEM_OPTIONS = { "frame": ["리더스이엔씨+윈스텍", "다담이엔씨+대동커튼월"], "skincv": ["명덕장식+준쉐이드", "솜피+코인"], "skinch": ["명덕장식+준쉐이드", "솜피+코인"], "hvacc": ["삼화에이스"], "ictc": ["삼일씨티에스", "정원디앤비"], "ictp": [], "grid": ["말타니"], "os": ["핀포인트(+b.IoT+SmartThings)", "아스터소프트(+ITDA+Bynd)", "아스터소프트(+ITDA)", "아스터소프트(+ITDA)+DALI"], "skinc": ["명덕장식+준쉐이드", "솜피+코인"] };
+  const won = (n) => {
+    const v = Math.round(Number(n) || 0);
+    return v === 0 ? "–" : v.toLocaleString();
+  };
+  const f1 = (n) => n === null || n === void 0 ? "–" : n.toFixed(1);
+  const fmtNum = (n) => n === "" || n === null || n === void 0 || isNaN(Number(n)) ? "" : Number(n).toLocaleString();
+  const szOf = (v, min = 2) => Math.max(min, String(v == null ? "" : v).length) + 1;
+  const dec2 = (v) => {
+    let s = String(v).replace(/[^0-9.]/g, "");
+    const i = s.indexOf(".");
+    if (i >= 0) s = s.slice(0, i + 1) + s.slice(i + 1).split(".").join("").slice(0, 2);
+    return s;
+  };
+  function HScrollRow({ boxRef, colSpan, width }) {
+    const trackRef = React.useRef(null);
+    const thumbRef = React.useRef(null);
+    React.useEffect(() => {
+      const box = boxRef.current, track = trackRef.current, thumb = thumbRef.current;
+      if (!box || !track || !thumb) return;
+      const sync = () => {
+        const max = box.scrollWidth - box.clientWidth;
+        const tr = thumb.closest("tr");
+        if (tr) tr.style.display = max > 4 ? "" : "none";
+        if (max <= 4) return;
+        const trackW = track.clientWidth;
+        const thumbW = Math.max(40, Math.round(trackW * (box.clientWidth / box.scrollWidth)));
+        thumb.style.width = thumbW + "px";
+        thumb.style.transform = "translateX(" + box.scrollLeft / max * (trackW - thumbW) + "px)";
+      };
+      sync();
+      box.addEventListener("scroll", sync, { passive: true });
+      window.addEventListener("resize", sync);
+      return () => {
+        box.removeEventListener("scroll", sync);
+        window.removeEventListener("resize", sync);
+      };
+    });
+    const onDown = (e) => {
+      const box = boxRef.current, track = trackRef.current, thumb = thumbRef.current;
+      if (!box || !track || !thumb) return;
+      const startX = e.touches ? e.touches[0].clientX : e.clientX;
+      const startScroll = box.scrollLeft;
+      const max = box.scrollWidth - box.clientWidth;
+      const denom = track.clientWidth - thumb.offsetWidth || 1;
+      const move = (ev) => {
+        const x = ev.touches ? ev.touches[0].clientX : ev.clientX;
+        box.scrollLeft = startScroll + (x - startX) * (max / denom);
+        if (ev.cancelable) ev.preventDefault();
+      };
+      const up = () => {
+        window.removeEventListener("mousemove", move);
+        window.removeEventListener("mouseup", up);
+        window.removeEventListener("touchmove", move);
+        window.removeEventListener("touchend", up);
+        document.body.style.userSelect = "";
+      };
+      window.addEventListener("mousemove", move);
+      window.addEventListener("mouseup", up);
+      window.addEventListener("touchmove", move, { passive: false });
+      window.addEventListener("touchend", up);
+      document.body.style.userSelect = "none";
+    };
+    return /* @__PURE__ */ React.createElement("tr", { className: "no-print" }, /* @__PURE__ */ React.createElement("td", { colSpan, style: { padding: 0, background: "var(--panel)", borderTop: "1px solid var(--linec)" } }, /* @__PURE__ */ React.createElement("div", { ref: trackRef, style: { position: "sticky", left: 0, width: width || "100%", padding: "5px 0", boxSizing: "border-box", background: "var(--panel)", zIndex: 4 } }, /* @__PURE__ */ React.createElement("div", { className: "hbar-track" }, /* @__PURE__ */ React.createElement("div", { ref: thumbRef, className: "hbar-thumb", onMouseDown: onDown, onTouchStart: onDown, role: "scrollbar", "aria-label": "가로 스크롤" })))));
+  }
+  function App() {
+    const SAVED = loadSaved();
+    const [assum, setAssum] = useState(() => SAVED && SAVED.assum && SAVED.assum.caps ? { ...SAVED.assum, caps: { ...DEFAULT_ASSUM.caps, ...SAVED.assum.caps } } : DEFAULT_ASSUM);
+    const [proj, setProj] = useState(() => {
+      const base = SAVED && Array.isArray(SAVED.proj) ? SAVED.proj : DEFAULT_PROJ;
+      return base.map((p) => p.u && p.u.skin && !p.u.skinv ? { ...p, u: { ...p.u, skinv: p.u.skin } } : p);
+    });
+    const [oemOptions, setOemOptions] = useState(() => {
+      const o = {};
+      SOLUTION_TYPES.forEach((t) => {
+        o[t.key] = [...t.opts];
+      });
+      const base = { ...o, ...DEFAULT_OEM_OPTIONS };
+      return SAVED && SAVED.oemOptions ? { ...base, ...SAVED.oemOptions } : base;
+    });
+    const [YEARS, setYEARS] = useState(() => SAVED && Array.isArray(SAVED.years) && SAVED.years.length ? SAVED.years : DEFAULT_YEARS);
+    const volBoxRef = React.useRef(null);
+    const priceBoxRef = React.useRef(null);
+    const [volBoxW, setVolBoxW] = useState(0);
+    const [priceBoxW, setPriceBoxW] = useState(0);
+    useEffect(() => {
+      const m = () => {
+        if (volBoxRef.current) setVolBoxW(volBoxRef.current.clientWidth);
+        if (priceBoxRef.current) setPriceBoxW(priceBoxRef.current.clientWidth);
+      };
+      m();
+      window.addEventListener("resize", m);
+      return () => window.removeEventListener("resize", m);
+    }, []);
+    const [orient, setOrient] = useState("landscape");
+    const [xlmode, setXlmode] = useState("download");
+    const [svmode, setSvmode] = useState("load");
+    const [volLevel, setVolLevel] = useState(0);
+    const [priceLevel, setPriceLevel] = useState(0);
+    const [savedAt, setSavedAt] = useState("");
+    const [syncMsg, setSyncMsg] = useState("");
+    const [syncBusy, setSyncBusy] = useState(false);
+    const [loadOpen, setLoadOpen] = useState(false);
+    const [loadList, setLoadList] = useState([]);
+    const [guideOpen, setGuideOpen] = useState(false);
+    const [undoStack, setUndoStack] = useState([]);
+    useEffect(() => {
       try {
-        const { error } = await sb.auth.signInWithPassword({ email, password });
-        if(error){ msg.className='msg err'; msg.textContent='로그인 실패: '+error.message; }
-      } finally {
-        $('loginBtn').disabled=false; $('loginBtn').textContent='로그인';
+        window.localStorage.setItem(STORE_KEY, JSON.stringify({ v: 1, assum, proj, oemOptions, years: YEARS }));
+        const d = /* @__PURE__ */ new Date();
+        setSavedAt(("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2));
+      } catch (e) {
+      }
+    }, [assum, proj, oemOptions, YEARS]);
+    const [dark, setDark] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)").matches : true);
+    React.useEffect(() => {
+      if (!window.matchMedia) return;
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      const onChange = (e) => setDark(e.matches);
+      mq.addEventListener ? mq.addEventListener("change", onChange) : mq.addListener(onChange);
+      return () => {
+        mq.removeEventListener ? mq.removeEventListener("change", onChange) : mq.removeListener(onChange);
+      };
+    }, []);
+    const pal = dark ? PAL_DARK : PAL_LIGHT;
+    const NAME_W = useMemo(() => {
+      const wOf = (s) => {
+        let w = 0;
+        for (const ch of String(s || "")) w += ch.charCodeAt(0) > 11904 ? 1 : 0.58;
+        return w;
+      };
+      const longest = Math.max(4, ...proj.map((p) => wOf(p.name)));
+      return Math.round(Math.min(260, Math.max(100, longest * 15 + 26)));
+    }, [proj]);
+    const BUY_W = useMemo(() => {
+      let maxLen = 1;
+      proj.forEach((p) => SKEYS.forEach((sk) => {
+        const b = p.sx && p.sx[sk] || {};
+        const v = b.buy !== void 0 ? b.buy : Math.round((SOL_NETCOST[sk] || 0) * (1 + (p.om != null ? p.om : 15) / 100));
+        const len = String(fmtNum(v)).length;
+        if (len > maxLen) maxLen = len;
+      }));
+      return Math.min(170, Math.max(72, maxLen * 9 + 22));
+    }, [proj]);
+    const model = useMemo(() => {
+      var _a, _b;
+      const aProj = proj.filter((p) => p.on !== false);
+      const byType = {};
+      UKEYS.forEach((tk) => {
+        byType[tk] = YEARS.map(
+          (y) => aProj.reduce((s, p) => s + (Number(p.u && p.u[tk] && p.u[tk][y]) || 0), 0)
+        );
+      });
+      const byVol = {};
+      VKEYS.forEach((tk) => {
+        byVol[tk] = YEARS.map(
+          (y) => aProj.reduce((s, p) => s + (Number(p.u && p.u[tk] && p.u[tk][y]) || 0), 0)
+        );
+      });
+      const totals = YEARS.map(
+        (y, i) => UKEYS.reduce((s, tk) => s + byType[tk][i], 0)
+      );
+      const { gate1, gate2, consec, rate, capex, opex } = assum;
+      const capSum = (k) => (assum.caps && assum.caps[k] && assum.caps[k].partners || []).reduce((a, p) => a + (Number(p.cap) || 0), 0);
+      const cap = capSum("frame");
+      const REC_SOL = ["frame", "skincv", "skinch", "hvacc", "ictc"];
+      const recRaw = YEARS.map(
+        (y, i) => aProj.reduce((s, p) => s + REC_SOL.reduce((ss, sk) => {
+          const q = solYearQty(p, sk, y);
+          return ss + (q > 0 ? q * solOemMargin(p, sk) : 0);
+        }, 0), 0)
+      );
+      const isStage3 = (i) => {
+        for (let st = Math.max(0, i - consec + 1); st <= i; st++) {
+          const end = st + consec - 1;
+          if (end >= totals.length) continue;
+          let ok = true;
+          for (let k = st; k <= end; k++) if (totals[k] < gate2) ok = false;
+          if (ok && st <= i && i <= end) return true;
+        }
+        return false;
+      };
+      const rows = YEARS.map((y, i) => {
+        const v = totals[i];
+        let idx, label;
+        if (v === 0) {
+          idx = 0;
+          label = STAGE[0].k;
+        } else if (v < gate1) {
+          idx = 1;
+          label = STAGE[1].k;
+        } else if (v < gate2) {
+          idx = 2;
+          label = STAGE[2].k;
+        } else if (isStage3(i)) {
+          idx = 3;
+          label = STAGE[3].k;
+        } else {
+          idx = 2.5;
+          label = STAGE[2.5].k;
+        }
+        const recovery = recRaw[i] * rate / 1e8;
+        const net = recovery - opex;
+        const payback = net > 0 ? capex / net : null;
+        return {
+          year: `'${y}`,
+          vol: v,
+          util: cap ? v / cap : 0,
+          idx,
+          label,
+          recovery,
+          net,
+          payback,
+          jv: idx === 3
+        };
+      });
+      const cum = totals.reduce((a, b) => a + b, 0);
+      const totRaw = recRaw.reduce((a, b) => a + b, 0);
+      const avgMargin = cum > 0 ? totRaw / cum : 0;
+      const peak = Math.max(...totals);
+      const peakYear = (_b = (_a = rows[totals.indexOf(peak)]) == null ? void 0 : _a.year) != null ? _b : "–";
+      const s2 = rows.find((r) => r.vol >= gate1);
+      const jvRow = rows.find((r) => r.jv);
+      const compDef = [
+        ["frame", "Frame", (i) => totals[i]],
+        ["skincv", "스킨카트리지(수직)", (i) => byType.skinv[i]],
+        ["skinch", "스킨카트리지(수평)", (i) => byType.skinh[i]],
+        ["hvacc", "공조카트리지", (i) => byType.hvac[i]],
+        ["ictc", "ICT카트리지", (i) => byType.ict[i]],
+        ["ictp", "ICT 패널", (i) => byType.ictp[i]],
+        ["grid", "Grid", () => 0]
+      ];
+      const comps = compDef.map(([key, label, fn]) => {
+        const dem = YEARS.map((y, i) => fn(i));
+        const peakDem = Math.max(0, ...dem);
+        const c = capSum(key);
+        return {
+          key,
+          label,
+          cap: c,
+          peakDem,
+          util: c ? peakDem / c : 0,
+          na: key === "grid"
+        };
+      });
+      const cF = capSum("frame");
+      const cSv = capSum("skincv");
+      const cSh = capSum("skinch");
+      const cH = capSum("hvacc");
+      const cI = capSum("ictc");
+      const perTypeSum = Math.min(cF, cSv) + Math.min(cF, cSh) + Math.min(cF, cH) + Math.min(cF, cI);
+      const unitSupply = Math.min(cF, perTypeSum);
+      const yearFIT = YEARS.map((y) => {
+        let supply = 0, buy = 0, margin = 0;
+        aProj.forEach((p) => {
+          const fyRaw = firstYear(p, YEARS);
+          const fy = fyRaw === Infinity ? Number(YEARS[0]) : fyRaw;
+          SKEYS.forEach((sk) => {
+            const isGO = sk === "grid" || sk === "os";
+            const x = SOL_PX(p, sk);
+            const isLump = isGO && x.qmode !== "qty";
+            const b = Number(x.buy) || 0;
+            const fm = x.fitMode === "rate" ? Math.round(b * (Number(x.fitVal) || 0) / 100) : Number(x.fitVal) || 0;
+            const sup = b + fm;
+            if (isLump) {
+              if (sup > 0 && fy === Number(y)) {
+                buy += b;
+                margin += fm;
+                supply += sup;
+              }
+            } else {
+              const qy = solYearQty(p, sk, y);
+              if (qy > 0) {
+                buy += b * qy;
+                margin += fm * qy;
+                supply += sup * qy;
+              }
+            }
+          });
+        });
+        return { year: y, supply, buy, margin, rate: buy > 0 ? margin / buy * 100 : 0 };
+      });
+      return {
+        rows,
+        byType,
+        byVol,
+        cum,
+        peak,
+        peakYear,
+        avgMargin,
+        comps,
+        unitSupply,
+        yearFIT,
+        stage2Start: s2 ? s2.year : "미도달",
+        jvMet: !!jvRow,
+        jvFirst: jvRow ? jvRow.year : "–"
+      };
+    }, [assum, proj, YEARS]);
+    const lastIdx = model.rows.reduce((m, r, i) => r.vol > 0 ? i : m, -1);
+    const visRows = model.rows.slice(0, (lastIdx >= 0 ? lastIdx : 0) + 1);
+    const buyW = (() => {
+      let m = 9;
+      proj.forEach((p) => SKEYS.forEach((sk) => {
+        const b = Number(SOL_PX(p, sk).buy) || 0;
+        const l = b ? fmtNum(b).length : 0;
+        if (l > m) m = l;
+      }));
+      return m;
+    })();
+    const priceSummary = proj.reduce((acc, p) => {
+      SKEYS.forEach((sk) => {
+        const qty = solTotalQty(p, sk, YEARS);
+        if (qty <= 0) return;
+        const x = SOL_PX(p, sk);
+        const buy = Number(x.buy) || 0;
+        const om = solOemMargin(p, sk);
+        const fm = x.fitMode === "rate" ? Math.round(buy * (Number(x.fitVal) || 0) / 100) : Number(x.fitVal) || 0;
+        const supply = buy + fm;
+        acc.buy += buy * qty;
+        acc.fitMargin += fm * qty;
+        acc.supply += supply * qty;
+      });
+      return acc;
+    }, { buy: 0, fitMargin: 0, supply: 0 });
+    const projSupply = (p) => {
+      let tot = 0;
+      SKEYS.forEach((sk) => {
+        const isGO = sk === "grid" || sk === "os";
+        const qty = solTotalQty(p, sk, YEARS);
+        const x = SOL_PX(p, sk);
+        const isLump = isGO && x.qmode !== "qty";
+        const buy = Number(x.buy) || 0;
+        const fm = x.fitMode === "rate" ? Math.round(buy * (Number(x.fitVal) || 0) / 100) : Number(x.fitVal) || 0;
+        const supply = buy + fm;
+        const eqty = isLump ? 1 : qty;
+        if (isLump ? supply > 0 : qty > 0) tot += supply * eqty;
+      });
+      return tot;
+    };
+    const eok2 = (v) => (v / 1e8).toFixed(2);
+    const order = proj.map((_, i) => i).sort((a, b) => {
+      const fa = firstYear(proj[a], YEARS), fb = firstYear(proj[b], YEARS);
+      return fa !== fb ? fa - fb : a - b;
+    });
+    const orderedProj = order.map((i) => ({ p: proj[i], pi: i }));
+    const projStage = (p) => {
+      let mx = 0;
+      YEARS.forEach((y, i) => {
+        const has = UKEYS.some((tk) => (Number(p.u && p.u[tk] && p.u[tk][y]) || 0) > 0);
+        if (has && model.rows[i]) mx = Math.max(mx, model.rows[i].idx);
+      });
+      return mx;
+    };
+    const bandOf = (st) => st >= 3 ? 3 : st >= 2.5 ? 2.5 : st >= 2 ? 2 : st >= 1 ? 1 : 0;
+    const projBand = (p) => bandOf(projStage(p));
+    const bandTag = (b) => b === 0 ? "신규·대기" : "SCM " + b + "단계 적합";
+    const waitingProj = orderedProj.filter(({ p }) => firstYear(p, YEARS) === Infinity);
+    const withVol = orderedProj.filter(({ p }) => firstYear(p, YEARS) !== Infinity);
+    const yearStops = Array.from(new Set(withVol.map(({ p }) => firstYear(p, YEARS)))).sort((a, b) => a - b);
+    const nStops = Math.max(1, yearStops.length);
+    const volIdx = Math.min(volLevel, nStops - 1);
+    const priceIdx = Math.min(priceLevel, nStops - 1);
+    const cutOf = (idx) => yearStops.length ? yearStops[Math.min(idx, yearStops.length - 1)] : Infinity;
+    const volGroupedItems = withVol.filter(({ p }) => firstYear(p, YEARS) <= cutOf(volIdx));
+    const priceGroupedItems = withVol.filter(({ p }) => firstYear(p, YEARS) <= cutOf(priceIdx));
+    const volFull = volIdx >= nStops - 1;
+    const priceFull = priceIdx >= nStops - 1;
+    const stopLabel = (i) => i >= nStops - 1 ? "전체" : "~'" + String(yearStops[i] || "").padStart(2, "0");
+    const stkTH = (left) => ({ position: "sticky", left, top: 0, zIndex: 7, background: NAVY2 });
+    const stkTD = (left) => ({ position: "sticky", left, zIndex: 4, background: PANEL });
+    const setA = (k, v) => setAssum((a) => ({ ...a, [k]: v === "" ? 0 : Number(v) }));
+    const setCell = (pi, tk, y, v) => setProj((ps) => ps.map((p, i) => i === pi ? { ...p, u: { ...p.u, [tk]: { ...p.u && p.u[tk] || {}, [y]: v === "" ? "" : Number(v) } } } : p));
+    const setName = (pi, v) => setProj((ps) => ps.map((p, i) => i === pi ? { ...p, name: v } : p));
+    const snapshot = (label) => ({ label, at: Date.now(), proj: JSON.parse(JSON.stringify(proj)), oemOptions: JSON.parse(JSON.stringify(oemOptions)), assum: JSON.parse(JSON.stringify(assum)), years: [...YEARS] });
+    const pushUndo = (label) => {
+      const snap = snapshot(label);
+      setUndoStack((st) => [...st.slice(-19), snap]);
+    };
+    const undo = () => {
+      if (!undoStack.length) return;
+      const last = undoStack[undoStack.length - 1];
+      setProj(last.proj);
+      setOemOptions(last.oemOptions);
+      setAssum(last.assum);
+      setYEARS(last.years);
+      setUndoStack(undoStack.slice(0, -1));
+      setSyncMsg("되돌림 · " + last.label);
+    };
+    const toggleProjOn = (pi) => setProj((ps) => ps.map((p, i) => i === pi ? { ...p, on: !(p.on !== false) } : p));
+    const addRow = () => setProj((ps) => [{ name: "새 프로젝트", u: { skinv: {}, skinh: {}, skins: {}, hvac: {}, ict: {}, ictp: {}, grid: {}, os: {} }, om: 15 }, ...ps]);
+    const addYear = () => setYEARS((ys) => [...ys, String(Number(ys[ys.length - 1]) + 1).padStart(2, "0")]);
+    const removeYear = () => setYEARS((ys) => ys.length > 1 ? ys.slice(0, -1) : ys);
+    const delRow = (pi) => {
+      pushUndo("프로젝트 삭제");
+      setProj((ps) => ps.filter((_, i) => i !== pi));
+    };
+    const setPartner = (key, idx, field, v) => setAssum((a) => ({ ...a, caps: { ...a.caps, [key]: {
+      ...a.caps[key],
+      partners: a.caps[key].partners.map((p, j) => j === idx ? { ...p, [field]: field === "cap" ? v === "" ? null : Number(v) : v } : p)
+    } } }));
+    const addPartner = (key) => setAssum((a) => ({ ...a, caps: { ...a.caps, [key]: { ...a.caps[key], partners: [...a.caps[key].partners, { name: "", cap: null }] } } }));
+    const delPartner = (key, idx) => {
+      pushUndo("협력사 삭제");
+      const nm = assum.caps[key] && assum.caps[key].partners[idx] && assum.caps[key].partners[idx].name || "";
+      setAssum((a) => ({ ...a, caps: { ...a.caps, [key]: { ...a.caps[key], partners: a.caps[key].partners.filter((_, j) => j !== idx) } } }));
+      if (nm) {
+        setOemOptions((o) => ({ ...o, [key]: (o[key] || []).filter((n) => n !== nm) }));
+        setProj((ps) => ps.map((p) => p.sx && p.sx[key] && p.sx[key].oem === nm ? { ...p, sx: { ...p.sx, [key]: { ...p.sx[key], oem: "" } } } : p));
       }
     };
-    $('password').addEventListener('keydown', e=>{ if(e.key==='Enter') $('loginBtn').click(); });
-    $('logoutBtn').onclick = async () => { await sb.auth.signOut(); };
-
-    sb.auth.onAuthStateChange((event, session) => updateView(session));
-    sb.auth.getSession().then(({ data:{ session } }) => updateView(session));
-  </script>
+    const setSx = (pi, sk, field, v) => setProj((ps) => ps.map((p, i) => i === pi ? { ...p, sx: { ...p.sx || {}, [sk]: {
+      ...SOL_PX(p, sk),
+      [field]: field === "buy" ? v === "" ? 0 : Number(v) : v
+    } } } : p));
+    const addOemOption = (sk, name) => setOemOptions((o) => ({ ...o, [sk]: [...o[sk] || [], name] }));
+    const delOemOption = (sk, name) => {
+      pushUndo("OEM사 삭제");
+      setOemOptions((o) => ({ ...o, [sk]: (o[sk] || []).filter((n) => n !== name) }));
+      setAssum((a) => a.caps[sk] ? { ...a, caps: { ...a.caps, [sk]: { ...a.caps[sk], partners: a.caps[sk].partners.filter((pt) => pt.name !== name) } } } : a);
+      setProj((ps) => ps.map((p) => p.sx && p.sx[sk] && p.sx[sk].oem === name ? { ...p, sx: { ...p.sx, [sk]: { ...p.sx[sk], oem: "" } } } : p));
+    };
+    const reset = () => {
+      pushUndo("초기화 직전");
+      try {
+        window.localStorage.removeItem(STORE_KEY);
+      } catch (e) {
+      }
+      setAssum(DEFAULT_ASSUM);
+      setProj(DEFAULT_PROJ);
+      setOemOptions((() => {
+        const o = {};
+        SOLUTION_TYPES.forEach((t) => {
+          o[t.key] = [...t.opts];
+        });
+        return { ...o, ...DEFAULT_OEM_OPTIONS };
+      })());
+    };
+    const fmtTs = (s) => {
+      try {
+        return new Date(s).toLocaleString("ko-KR");
+      } catch (e) {
+        return s || "";
+      }
+    };
+    const teamPass = () => {
+      let p = "";
+      try {
+        p = window.sessionStorage.getItem("fitTeamPass") || "";
+      } catch (e) {
+      }
+      if (!p) {
+        p = window.prompt("팀 공유 비밀번호") || "";
+        if (p) {
+          try {
+            window.sessionStorage.setItem("fitTeamPass", p);
+          } catch (e) {
+          }
+        }
+      }
+      return p;
+    };
+    const applyServerState = (st) => {
+      if (!st) return;
+      if (Array.isArray(st.proj)) setProj(st.proj.map((p) => p.u && p.u.skin && !p.u.skinv ? { ...p, u: { ...p.u, skinv: p.u.skin } } : p));
+      if (st.assum && st.assum.caps) setAssum({ ...st.assum, caps: { ...DEFAULT_ASSUM.caps, ...st.assum.caps } });
+      if (st.oemOptions) setOemOptions((o) => ({ ...o, ...st.oemOptions }));
+      if (Array.isArray(st.years) && st.years.length) setYEARS(st.years);
+    };
+    const openLoadPicker = async () => {
+      const p = teamPass();
+      if (!p) return;
+      setSyncBusy(true);
+      setSyncMsg("목록 불러오는 중…");
+      try {
+        const r = await fetch("/api/data", { headers: { "x-team-pass": p } });
+        if (r.status === 401) {
+          try {
+            window.sessionStorage.removeItem("fitTeamPass");
+          } catch (e) {
+          }
+          setSyncMsg("비밀번호 오류 — 다시 시도");
+          setSyncBusy(false);
+          return;
+        }
+        const d = await r.json();
+        if (!d.ok) {
+          setSyncMsg("실패: " + (d.error || ""));
+          setSyncBusy(false);
+          return;
+        }
+        setLoadList(Array.isArray(d.list) ? d.list : []);
+        setLoadOpen(true);
+        setSyncMsg("");
+      } catch (e) {
+        setSyncMsg("네트워크 오류");
+      }
+      setSyncBusy(false);
+    };
+    const pickLoad = async (id) => {
+      const p = teamPass();
+      if (!p) return;
+      setSyncBusy(true);
+      setSyncMsg("불러오는 중…");
+      try {
+        const r = await fetch("/api/data?id=" + encodeURIComponent(id), { headers: { "x-team-pass": p } });
+        if (r.status === 401) {
+          try {
+            window.sessionStorage.removeItem("fitTeamPass");
+          } catch (e) {
+          }
+          setSyncMsg("비밀번호 오류 — 다시 시도");
+          setSyncBusy(false);
+          return;
+        }
+        const d = await r.json();
+        if (!d.ok || !d.snapshot || !d.snapshot.data) {
+          setSyncMsg("불러오기 실패 — 데이터 없음");
+          setSyncBusy(false);
+          return;
+        }
+        if (window.confirm("이 저장본을 불러오면 현재 화면 입력이 대체됩니다. 계속할까요?")) {
+          applyServerState(d.snapshot.data);
+          setSyncMsg("불러옴 · " + fmtTs(d.snapshot.savedAt) + (d.snapshot.name ? " · " + d.snapshot.name : ""));
+          setLoadOpen(false);
+        }
+      } catch (e) {
+        setSyncMsg("네트워크 오류");
+      }
+      setSyncBusy(false);
+    };
+    const deleteSnap = async (id) => {
+      if (!window.confirm("이 저장본을 삭제할까요? (되돌릴 수 없음)")) return;
+      const p = teamPass();
+      if (!p) return;
+      setSyncBusy(true);
+      setSyncMsg("삭제 중…");
+      try {
+        const r = await fetch("/api/data", { method: "POST", headers: { "content-type": "application/json", "x-team-pass": p }, body: JSON.stringify({ op: "delete", id }) });
+        const d = await r.json();
+        if (d.ok) {
+          setLoadList((l) => l.filter((e) => e.id !== id));
+          setSyncMsg("삭제됨");
+        } else setSyncMsg("삭제 실패: " + (d.error || ""));
+      } catch (e) {
+        setSyncMsg("네트워크 오류");
+      }
+      setSyncBusy(false);
+    };
+    const saveToServer = async () => {
+      const p = teamPass();
+      if (!p) return;
+      const name = (window.prompt("저장본 이름(선택, 예: 시나리오A · 2026-06 기준)") || "").slice(0, 60);
+      const by = (window.prompt("저장자 이름(선택, 기록용)") || "").slice(0, 40);
+      setSyncBusy(true);
+      setSyncMsg("저장 중…");
+      try {
+        const r = await fetch("/api/data", { method: "POST", headers: { "content-type": "application/json", "x-team-pass": p }, body: JSON.stringify({ data: { v: 1, assum, proj, oemOptions, years: YEARS }, name, by }) });
+        if (r.status === 401) {
+          try {
+            window.sessionStorage.removeItem("fitTeamPass");
+          } catch (e) {
+          }
+          setSyncMsg("비밀번호 오류 — 다시 시도");
+          setSyncBusy(false);
+          return;
+        }
+        const d = await r.json();
+        if (!d.ok) {
+          setSyncMsg("실패: " + (d.error || ""));
+          setSyncBusy(false);
+          return;
+        }
+        setSyncMsg("새 저장본 생성 · " + fmtTs(d.savedAt) + (name ? " · " + name : ""));
+      } catch (e) {
+        setSyncMsg("네트워크 오류");
+      }
+      setSyncBusy(false);
+    };
+    const printAs = (orient2) => {
+      let el = document.getElementById("print-orient");
+      if (!el) {
+        el = document.createElement("style");
+        el.id = "print-orient";
+        document.head.appendChild(el);
+      }
+      el.textContent = "@media print{@page{size:A4 " + orient2 + ";margin:8mm}}";
+      const root = document.getElementById("appRoot");
+      const MM = 3.7795, margin = 16;
+      const target = ((orient2 === "portrait" ? 210 : 297) - margin) * MM;
+      let widest = 0;
+      if (root) root.querySelectorAll("table").forEach((t) => {
+        if (t.scrollWidth > widest) widest = t.scrollWidth;
+      });
+      const scale = widest > target ? Math.max(0.4, target / widest) : 1;
+      if (root) root.style.setProperty("--print-scale", String(scale));
+      const wasDark = dark;
+      document.body.classList.add("printing");
+      if (wasDark) setDark(false);
+      const restore = () => {
+        document.body.classList.remove("printing");
+        if (wasDark) setDark(true);
+        window.removeEventListener("afterprint", restore);
+      };
+      window.addEventListener("afterprint", restore);
+      setTimeout(() => window.print(), wasDark ? 130 : 50);
+      setTimeout(restore, 6e3);
+    };
+    const stageNameOf = (idx) => idx < 2 ? "OEM 적합" : idx < 2.5 ? "임차 적합" : idx < 3 ? "임차+강화 적합" : "JV 적합";
+    const exportXlsx = () => {
+      const XL = window.XLSX;
+      if (!XL) {
+        alert("Excel 라이브러리를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.");
+        return;
+      }
+      const wb = XL.utils.book_new();
+      const land = (ws) => {
+        ws["!pageSetup"] = { orientation: "landscape", paperSize: 9, fitToWidth: 1, fitToHeight: 0, scale: 0 };
+        ws["!margins"] = { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 };
+        return ws;
+      };
+      const ok2 = (v) => Math.round(v / 1e8 * 10) / 10;
+      const a1 = [
+        ["FIT Platform SCM Matrix — 대시보드 요약"],
+        [],
+        ["지표", "값"],
+        ["누적 총물량(유닛)", model.cum],
+        ["최대 공급 시점", model.peakYear + " / " + model.peak],
+        ["2단계 시작연도", model.stage2Start],
+        ["연간 UNIT 공급능력", model.unitSupply],
+        [],
+        ["가정값", ""],
+        ["1→2단계(gate1)", assum.gate1],
+        ["2→3단계(gate2)", assum.gate2],
+        ["JV 기간(년)", assum.consec],
+        ["마진회수율", assum.rate],
+        ["생산라인 임차비용(억)", assum.capex],
+        ["생산라인 임차기간(년)", assum.opex],
+        [],
+        ["공급가·마진 요약(억)", ""],
+        ["총 FIT 공급가", ok2(priceSummary.supply)],
+        ["총 FIT 마진", ok2(priceSummary.fitMargin)],
+        ["총 OEM 매입가", ok2(priceSummary.buy)]
+      ];
+      const w1 = XL.utils.aoa_to_sheet(a1);
+      w1["!cols"] = [{ wch: 24 }, { wch: 18 }];
+      XL.utils.book_append_sheet(wb, land(w1), "요약");
+      const a2 = [["프로젝트", "유닛/솔루션유형", ...YEARS.map((y) => "'" + y), "소계"]];
+      orderedProj.forEach(({ p }) => VOLUME_TYPES.forEach((ut) => {
+        const vals = p.u && p.u[ut.key] || {};
+        a2.push([p.name, ut.label, ...YEARS.map((y) => Number(vals[y]) || 0), YEARS.reduce((s, y) => s + (Number(vals[y]) || 0), 0)]);
+      }));
+      const w2 = XL.utils.aoa_to_sheet(a2);
+      w2["!cols"] = [{ wch: 14 }, { wch: 14 }, ...YEARS.map(() => ({ wch: 7 })), { wch: 9 }];
+      XL.utils.book_append_sheet(wb, land(w2), "물량");
+      const a3 = [["프로젝트", "솔루션", "OEM사", "순제작비", "OEM방식", "OEM값", "OEM마진", "매입가", "FIT방식", "FIT값", "FIT마진액", "FIT공급가", "수량", "총공급가", "총마진(FIT)"]];
+      orderedProj.forEach(({ p }) => SOLUTION_TYPES.forEach((sol) => {
+        const sk = sol.key, qty = solTotalQty(p, sk, YEARS), x = SOL_PX(p, sk);
+        const buy = Number(x.buy) || 0, om = solOemMargin(p, sk), nc = buy - om;
+        const fm = x.fitMode === "rate" ? Math.round(buy * (Number(x.fitVal) || 0) / 100) : Number(x.fitVal) || 0;
+        const sup = buy + fm;
+        a3.push([p.name, sol.label, x.oem || "", nc, x.oemMode === "rate" ? "비율%" : "정액", Number(x.oemVal) || 0, om, buy, x.fitMode === "rate" ? "비율%" : "정액", Number(x.fitVal) || 0, fm, sup, qty, qty > 0 ? sup * qty : 0, qty > 0 ? fm * qty : 0]);
+      }));
+      const w3 = XL.utils.aoa_to_sheet(a3);
+      w3["!cols"] = [{ wch: 12 }, { wch: 12 }, { wch: 20 }, ...Array(13).fill({ wch: 11 })];
+      XL.utils.book_append_sheet(wb, land(w3), "솔루션 OEM·공급가");
+      const a4 = [["연도", "물량", "스킨", "공조", "스킨&ICT", "가동률(%)", "권고단계", "적정단계", "회수마진(억)", "순효익(억)", "회수기간(년)"]];
+      visRows.forEach((r, i) => a4.push(["'" + r.year, r.vol, model.byType.skinv[i] + model.byType.skinh[i], model.byType.hvac[i], model.byType.ict[i], Math.round(r.util * 100), r.label, stageNameOf(r.idx), +r.recovery.toFixed(1), +r.net.toFixed(1), r.payback]));
+      const w4 = XL.utils.aoa_to_sheet(a4);
+      w4["!cols"] = [{ wch: 7 }, { wch: 8 }, { wch: 7 }, { wch: 7 }, { wch: 9 }, { wch: 9 }, { wch: 16 }, { wch: 18 }, { wch: 12 }, { wch: 11 }, { wch: 11 }];
+      XL.utils.book_append_sheet(wb, land(w4), "단계판정");
+      const a5 = [["솔루션", "OEM 파트너사", "연간 생산능력"]];
+      SOLUTION_TYPES.forEach((sol) => {
+        const cap = assum.caps && assum.caps[sol.key];
+        if (!cap) return;
+        cap.partners.forEach((pt, i) => a5.push([i === 0 ? sol.label : "", pt.name, pt.cap == null || pt.cap === "" ? "확인필요" : pt.cap]));
+      });
+      const w5 = XL.utils.aoa_to_sheet(a5);
+      w5["!cols"] = [{ wch: 14 }, { wch: 22 }, { wch: 14 }];
+      XL.utils.book_append_sheet(wb, land(w5), "OEM 생산능력");
+      const wsD = XL.utils.aoa_to_sheet([["FIT_SCM_STATE_JSON — 수정하지 마세요(다른 기기 ‘Excel 불러오기’ 복원용)"], [JSON.stringify({ v: 1, assum, proj, oemOptions })]]);
+      wsD["!cols"] = [{ wch: 60 }];
+      XL.utils.book_append_sheet(wb, wsD, "_DATA");
+      XL.writeFile(wb, "FIT_Platform_SCM_Matrix.xlsx");
+    };
+    const importXlsx = (file) => {
+      const XL = window.XLSX;
+      if (!XL) {
+        alert("Excel 라이브러리를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const wb = XL.read(e.target.result, { type: "array", cellFormula: false, cellHTML: false, bookVBA: false, dense: true });
+          const ws = wb.Sheets["_DATA"];
+          if (!ws || !ws["A2"]) {
+            alert("이 파일에는 복원 데이터(_DATA 시트)가 없습니다.\n대시보드의 ‘Excel 다운로드’로 내보낸 파일을 업로드해 주세요.");
+            return;
+          }
+          const st = JSON.parse(String(ws["A2"].v), (k, v) => k === "__proto__" || k === "constructor" || k === "prototype" ? void 0 : v);
+          if (!st || typeof st !== "object" || !Array.isArray(st.proj)) {
+            alert("데이터 형식을 확인할 수 없습니다.");
+            return;
+          }
+          setProj(st.proj);
+          if (st.assum && st.assum.caps) setAssum(st.assum);
+          if (st.oemOptions) setOemOptions(st.oemOptions);
+          alert("불러오기 완료 — 입력 정보가 복원되었습니다.");
+        } catch (err) {
+          alert("불러오기 실패 — 파일이 손상되었거나 형식이 다릅니다.");
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    };
+    const card = (icon, label, value, sub, tone) => /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        className: "rounded-xl px-4 py-3 flex flex-col gap-1",
+        style: {
+          background: PANEL,
+          border: `1px solid ${tone || LINEC}`,
+          boxShadow: "0 1px 2px rgba(0,0,0,0.04), 0 6px 16px rgba(0,0,0,0.05)"
+        }
+      },
+      /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-1.5 text-xs", style: { color: MUT } }, icon, /* @__PURE__ */ React.createElement("span", { style: { fontWeight: 500 } }, label)),
+      /* @__PURE__ */ React.createElement("div", { className: "num", style: { fontSize: 20, fontWeight: 600, color: INK } }, value),
+      sub && /* @__PURE__ */ React.createElement("div", { className: "text-xs", style: { color: MUT } }, sub)
+    );
+    const Ain = (k, label, unit, step = 1, fmt = false) => /* @__PURE__ */ React.createElement("label", { className: "flex flex-col gap-1" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs", style: { color: MUT } }, label), /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        className: "flex items-stretch rounded-md overflow-hidden",
+        style: { border: `1px solid ${LINEC}`, background: FIELD }
+      },
+      fmt ? /* @__PURE__ */ React.createElement(
+        "input",
+        {
+          type: "text",
+          inputMode: "numeric",
+          value: assum[k] ? fmtNum(assum[k]) : "",
+          placeholder: "–",
+          onChange: (e) => setA(k, e.target.value.replace(/[^0-9]/g, "")),
+          className: "num text-sm outline-none",
+          style: { color: BLUE, fontWeight: 600, background: "transparent", flex: "1 1 auto", minWidth: 0, padding: "5px 8px" }
+        }
+      ) : /* @__PURE__ */ React.createElement(
+        "input",
+        {
+          type: "number",
+          step,
+          value: assum[k],
+          onChange: (e) => setA(k, e.target.value),
+          className: "num text-sm outline-none",
+          style: { color: BLUE, fontWeight: 600, background: "transparent", flex: "1 1 auto", minWidth: 0, padding: "5px 8px" }
+        }
+      ),
+      /* @__PURE__ */ React.createElement(
+        "span",
+        {
+          className: "text-xs num",
+          style: {
+            color: MUT,
+            whiteSpace: "nowrap",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "3.6rem",
+            flex: "0 0 3.6rem",
+            borderLeft: `1px solid ${LINEC}`
+          }
+        },
+        unit
+      )
+    ));
+    return /* @__PURE__ */ React.createElement("div", { id: "appRoot", style: {
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Pretendard', 'Pretendard Variable', system-ui, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif",
+      color: INK,
+      minHeight: "100vh",
+      background: PAPER,
+      backgroundImage: "radial-gradient(900px 500px at 80% -10%, var(--glow), transparent 60%),linear-gradient(var(--gridline) 1px,transparent 1px),linear-gradient(90deg,var(--gridline) 1px,transparent 1px)",
+      backgroundSize: "auto, 26px 26px, 26px 26px"
+    } }, /* @__PURE__ */ React.createElement("style", null, `@import url('https://cdnjs.cloudflare.com/ajax/libs/pretendard/1.3.9/static/pretendard.min.css');
+        .num{font-family:'Pretendard', 'Pretendard Variable', -apple-system, system-ui, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;font-variant-numeric:tabular-nums}
+        td,th{word-break:keep-all}
+        `), /* @__PURE__ */ React.createElement("div", { className: "max-w-6xl mx-auto px-5 py-7" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-end justify-between flex-wrap gap-3 mb-5" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        className: "flex items-center gap-2 text-xs tracking-widest",
+        style: { color: AMBER, fontWeight: 600 }
+      },
+      /* @__PURE__ */ React.createElement("span", { style: { width: 22, height: 2, background: AMBER } }),
+      "SUPPLY CHAIN MANAGEMENT · 최적 공급 전략 모델"
+    ), /* @__PURE__ */ React.createElement("h1", { style: { fontSize: 30, fontWeight: 600, letterSpacing: "-.025em", marginTop: 5 } }, "FIT Platform SCM Matrix"), /* @__PURE__ */ React.createElement("p", { className: "text-sm", style: { color: MUT } }, "공급물량/PJT 정보를 입력하면 SCM 단계 적정성과 추이가 실시간 산출됩니다."), /* @__PURE__ */ React.createElement("div", { className: "text-xs", style: { color: MUT, marginTop: 3 } }, "대시보드 업데이트 ", BUILD_AT)), /* @__PURE__ */ React.createElement("div", { className: "no-print tbar flex items-center gap-2 flex-wrap" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2 flex-wrap" }, /* @__PURE__ */ React.createElement("button", { onClick: () => setGuideOpen(true), className: "flex items-center gap-1.5 text-sm px-3 py-2 rounded-md", style: { border: `1px solid ${LINEC}`, background: PANEL, color: BLUE, fontWeight: 600 } }, /* @__PURE__ */ React.createElement(BookOpen, { size: 14 }), " 가이드"), /* @__PURE__ */ React.createElement("span", { className: "inline-flex items-center rounded-md overflow-hidden", style: { border: `1px solid ${LINEC}`, background: PANEL } }, /* @__PURE__ */ React.createElement("button", { onClick: () => svmode === "load" ? openLoadPicker() : saveToServer(), disabled: syncBusy, className: "flex items-center gap-1.5 text-sm pl-3 pr-2 py-2", style: { background: PANEL, color: BLUE, fontWeight: 600 } }, svmode === "load" ? /* @__PURE__ */ React.createElement(Download, { size: 14 }) : /* @__PURE__ */ React.createElement(Upload, { size: 14 }), " 서버"), /* @__PURE__ */ React.createElement("select", { value: svmode, onChange: (e) => setSvmode(e.target.value), title: "서버 동작 선택", disabled: syncBusy, className: "text-sm pr-2 py-2 outline-none", style: { background: PANEL, color: BLUE, fontWeight: 600, border: "none" } }, /* @__PURE__ */ React.createElement("option", { value: "load" }, "불러오기"), /* @__PURE__ */ React.createElement("option", { value: "save" }, "저장"))), /* @__PURE__ */ React.createElement("span", { className: "inline-flex items-center rounded-md overflow-hidden", style: { border: `1px solid ${LINEC}`, background: PANEL } }, /* @__PURE__ */ React.createElement("button", { onClick: () => printAs(orient), className: "flex items-center gap-1.5 text-sm pl-3 pr-2 py-2", style: { background: PANEL, color: BLUE, fontWeight: 600 } }, /* @__PURE__ */ React.createElement(Printer, { size: 14 }), " PDF 출력"), /* @__PURE__ */ React.createElement("select", { value: orient, onChange: (e) => setOrient(e.target.value), title: "A4 방향 선택", className: "text-sm pr-2 py-2 outline-none", style: { background: PANEL, color: BLUE, fontWeight: 600, border: "none" } }, /* @__PURE__ */ React.createElement("option", { value: "landscape" }, "가로"), /* @__PURE__ */ React.createElement("option", { value: "portrait" }, "세로"))), /* @__PURE__ */ React.createElement("span", { className: "inline-flex items-center rounded-md overflow-hidden", style: { border: `1px solid ${LINEC}`, background: PANEL } }, /* @__PURE__ */ React.createElement("button", { onClick: () => xlmode === "download" ? exportXlsx() : document.getElementById("xlsx-import").click(), className: "flex items-center gap-1.5 text-sm pl-3 pr-2 py-2", style: { background: PANEL, color: BLUE, fontWeight: 600 } }, xlmode === "download" ? /* @__PURE__ */ React.createElement(Download, { size: 14 }) : /* @__PURE__ */ React.createElement(Upload, { size: 14 }), " Excel"), /* @__PURE__ */ React.createElement("select", { value: xlmode, onChange: (e) => setXlmode(e.target.value), title: "Excel 동작 선택", className: "text-sm pr-2 py-2 outline-none", style: { background: PANEL, color: BLUE, fontWeight: 600, border: "none" } }, /* @__PURE__ */ React.createElement("option", { value: "download" }, "다운로드"), /* @__PURE__ */ React.createElement("option", { value: "upload" }, "불러오기"))), /* @__PURE__ */ React.createElement("input", { id: "xlsx-import", type: "file", accept: ".xlsx,.xls", style: { display: "none" }, onChange: (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (f) importXlsx(f);
+      e.target.value = "";
+    } })), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2 flex-wrap" }, /* @__PURE__ */ React.createElement("span", { className: "inline-flex items-center rounded-md overflow-hidden", style: { border: `1px solid ${LINEC}`, background: PANEL } }, /* @__PURE__ */ React.createElement("span", { className: "text-xs px-2 flex items-center", style: { color: "var(--netposfg)", fontWeight: 600, whiteSpace: "nowrap" } }, savedAt ? savedAt + " 자동 저장됨" : "자동 저장 전"), /* @__PURE__ */ React.createElement("button", { onClick: undo, disabled: !undoStack.length, title: undoStack.length ? "되돌리기: " + undoStack[undoStack.length - 1].label : "저장 시점 이전으로 되돌릴 작업 없음", className: "flex items-center gap-1.5 text-sm pl-2 pr-3 py-2", style: { background: PANEL, color: undoStack.length ? BLUE : MUT, borderLeft: `1px solid ${LINEC}`, opacity: undoStack.length ? 1 : 0.5, cursor: undoStack.length ? "pointer" : "default" } }, /* @__PURE__ */ React.createElement(Undo2, { size: 14 }), " 되돌리기", undoStack.length ? ` (${undoStack.length})` : "")), syncMsg && /* @__PURE__ */ React.createElement("span", { className: "text-xs px-2 py-1 rounded", style: { color: MUT, background: "var(--panel2)", fontWeight: 600 } }, syncMsg)))), /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        className: "rounded-xl px-4 py-3 mb-5 flex items-center gap-3 flex-wrap",
+        style: { background: PANEL, color: INK, border: `1px solid ${LINEC}` }
+      },
+      /* @__PURE__ */ React.createElement(Layers, { size: 18, style: { color: AMBER } }),
+      /* @__PURE__ */ React.createElement("span", { className: "text-sm", style: { lineHeight: 1.5, display: "inline-flex", flexWrap: "wrap", alignItems: "center", rowGap: 4 } }, /* @__PURE__ */ React.createElement("span", { style: { whiteSpace: "nowrap" } }, "정점 ", /* @__PURE__ */ React.createElement("b", { className: "num", style: { color: "var(--burg)" } }, model.peakYear, " · ", won(model.peak)), /* @__PURE__ */ React.createElement("b", { style: { color: "var(--burg)" } }, "유닛")), /* @__PURE__ */ React.createElement("span", { style: { color: "var(--steel)", margin: "0 9px", fontWeight: 400 } }, "│"), /* @__PURE__ */ React.createElement("span", { style: { whiteSpace: "nowrap" } }, "2단계(OEM 생산시설 임차) 권고 시작 ", /* @__PURE__ */ React.createElement("b", { className: "num", style: { color: "var(--burg)" } }, model.stage2Start)), /* @__PURE__ */ React.createElement("span", { style: { color: "var(--steel)", margin: "0 9px", fontWeight: 400 } }, "│"), /* @__PURE__ */ React.createElement("span", { style: { whiteSpace: "nowrap" } }, "JV 단계 전환(2,000·", assum.consec, "년연속)", " ", /* @__PURE__ */ React.createElement("b", { style: { color: "var(--burg)" } }, model.jvMet ? "충족" : "미충족")), /* @__PURE__ */ React.createElement("span", { style: { whiteSpace: "nowrap", flexBasis: "100%", marginTop: 2 } }, /* @__PURE__ */ React.createElement("b", { style: { color: "var(--burg)" } }, model.jvMet ? `→ JV 검토 착수 (${model.jvFirst})` : "→ OEM 생산시설 임차 유지")))
+    ), /* @__PURE__ */ React.createElement(SummaryHIG, { model, YEARS, dark, pal }), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-3 mb-6" }, card(/* @__PURE__ */ React.createElement(TrendingUp, { size: 13 }), "누적 총물량", `${won(model.cum)}`, "유닛"), card(/* @__PURE__ */ React.createElement(Gauge, { size: 13 }), "최대 공급 시점(Peak Supply)", `${won(model.peak)}`, model.peakYear, AMBER), card(/* @__PURE__ */ React.createElement(Target, { size: 13 }), "2단계 시작연도", model.stage2Start, "OEM 생산시설 임차 권고"), card(/* @__PURE__ */ React.createElement(Building2, { size: 13 }), "연간 UNIT 공급능력", `${won(model.unitSupply)}`, "OEM 최대 생산가능 물량의 합")), /* @__PURE__ */ React.createElement("div", { className: "rounded-xl p-4 mb-6", style: { background: PANEL, border: `1px solid ${LINEC}` } }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2 mb-3", style: { color: "var(--headaccent)", fontWeight: 600 } }, /* @__PURE__ */ React.createElement(Settings2, { size: 15 }), " 가정값 (Assumptions)"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-3" }, Ain("gate1", "1→2단계 전환", "유닛", 50, true), Ain("gate2", "2→3단계 전환", "유닛", 100, true), Ain("consec", "JV 기간", "년"), Ain("rate", "마진회수율", "0–1", 0.05), Ain("capex", "생산라인 임차 비용", "억원"), Ain("opex", "생산라인 임차 기간", "년")), /* @__PURE__ */ React.createElement("div", { className: "mt-4 mb-1 text-xs", style: { color: "var(--headaccent)", fontWeight: 600 } }, "솔루션별 연간 OEM 생산능력 · 파트너사 (파트너 추가/삭제 · 솔루션별 합산)"), /* @__PURE__ */ React.createElement("div", { className: "text-xs mb-2", style: { color: MUT, wordBreak: "keep-all" } }, "※ 유닛 = Frame + 카트리지 결합 · 솔루션별 수요 = Frame(전 유닛) / 스킨카트리지(스킨+스킨&ICT) / 공조카트리지(공조) / ICT카트리지(스킨&ICT) · Grid는 유닛 수량과 무관(별도). 단계 판정·가동률은 Frame 기준. 솔루션 합계 = 소속 OEM 파트너사 생산능력의 합."), /* @__PURE__ */ React.createElement("div", { className: "rounded-lg overflow-x-auto", style: { border: `1px solid ${LINEC}` } }, /* @__PURE__ */ React.createElement("table", { className: "w-full text-sm", style: { borderCollapse: "collapse" } }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", { style: { background: NAVY2, color: "var(--onnavy)" } }, /* @__PURE__ */ React.createElement("th", { className: "text-left px-3 py-2", style: { minWidth: 96, width: 96, ...stkTH(0) } }, "솔루션"), /* @__PURE__ */ React.createElement("th", { className: "text-left px-2 py-2", style: { minWidth: 204, width: 204 } }, "OEM사"), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2 num", style: { whiteSpace: "nowrap" } }, "연간 생산능력"), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2", style: { width: 30 } }), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2 num", style: { whiteSpace: "nowrap" } }, "솔루션 합계"), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2 num", style: { whiteSpace: "nowrap" } }, "연 최대 수요"), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2 num", style: { whiteSpace: "nowrap" } }, "가동률(피크)"))), /* @__PURE__ */ React.createElement("tbody", null, model.comps.map((c) => {
+      const ps = assum.caps[c.key] && assum.caps[c.key].partners || [];
+      const span = ps.length + 1;
+      return ps.map((p, idx) => /* @__PURE__ */ React.createElement(
+        "tr",
+        {
+          key: c.key + "-" + idx,
+          style: { borderTop: idx === 0 ? `2px solid ${LINEC}` : `1px solid ${PANEL2}` }
+        },
+        idx === 0 && /* @__PURE__ */ React.createElement(
+          "td",
+          {
+            className: "px-3 py-1",
+            rowSpan: span,
+            style: { color: INK, whiteSpace: "nowrap", fontWeight: 600, verticalAlign: "top", ...stkTD(0) }
+          },
+          c.label
+        ),
+        /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1" }, /* @__PURE__ */ React.createElement(
+          "input",
+          {
+            value: p.name,
+            onChange: (e) => setPartner(c.key, idx, "name", e.target.value),
+            placeholder: "OEM 파트너사명",
+            className: "px-2 py-1 rounded outline-none",
+            style: { color: BLUE, fontWeight: 600, background: FIELD, width: 188, minWidth: 188, maxWidth: 188, boxSizing: "border-box" }
+          }
+        )),
+        /* @__PURE__ */ React.createElement("td", { className: "px-1 py-1" }, /* @__PURE__ */ React.createElement(
+          "input",
+          {
+            type: "text",
+            inputMode: "numeric",
+            placeholder: "확인필요",
+            value: p.cap === null || p.cap === void 0 || p.cap === "" ? "" : fmtNum(p.cap),
+            onChange: (e) => setPartner(c.key, idx, "cap", e.target.value.replace(/[^0-9]/g, "")),
+            className: "num needcheck w-full px-2 py-1 text-right rounded outline-none",
+            style: { color: BLUE, fontWeight: 600, background: FIELD }
+          }
+        )),
+        /* @__PURE__ */ React.createElement("td", { className: "px-1 py-1 text-center" }, /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            onClick: () => delPartner(c.key, idx),
+            title: "파트너 삭제",
+            style: { color: "var(--trash)" }
+          },
+          /* @__PURE__ */ React.createElement(Trash2, { size: 14 })
+        )),
+        idx === 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
+          "td",
+          {
+            className: "px-2 py-1 num text-center",
+            rowSpan: span,
+            style: { color: c.na ? MUT : "var(--headaccent)", fontWeight: 700, verticalAlign: "top" }
+          },
+          won(c.cap)
+        ), /* @__PURE__ */ React.createElement(
+          "td",
+          {
+            className: "px-2 py-1 num text-center",
+            rowSpan: span,
+            style: { color: INK, verticalAlign: "top" }
+          },
+          c.na ? "—" : won(c.peakDem)
+        ), /* @__PURE__ */ React.createElement(
+          "td",
+          {
+            className: "px-2 py-1 num text-center",
+            rowSpan: span,
+            style: { color: c.na ? MUT : c.util > 1 ? "var(--netnegfg)" : INK, fontWeight: 600, verticalAlign: "top" }
+          },
+          c.na ? "별도" : (c.util * 100).toFixed(0) + "%"
+        ))
+      )).concat(
+        /* @__PURE__ */ React.createElement("tr", { key: c.key + "-add", style: { borderTop: `1px solid ${PANEL2}` } }, /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1", colSpan: 3 }, /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            onClick: () => addPartner(c.key),
+            className: "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs",
+            style: { color: BLUE, border: `1px dashed ${LINEC}`, background: "transparent" }
+          },
+          /* @__PURE__ */ React.createElement(Plus, { size: 13 }),
+          " 파트너 추가"
+        )))
+      );
+    }))))), /* @__PURE__ */ React.createElement("div", { className: "grid lg:grid-cols-2 gap-5 mb-6" }, /* @__PURE__ */ React.createElement(ChartCard, { title: "연도별 총유닛 vs Cap · 단계 전환", hint: "막대=총유닛(단계색) · 빨강점선=Cap · 가로선=단계 전환" }, /* @__PURE__ */ React.createElement(VolChart, { rows: visRows, assum, pal })), /* @__PURE__ */ React.createElement(ChartCard, { title: "연도별 유닛 구성 (유형별)", hint: "스킨(수직·수평) · 공조 · 스킨&ICT 누적" }, /* @__PURE__ */ React.createElement(TypeStack, { rows: visRows, byType: model.byType, pal })), /* @__PURE__ */ React.createElement(ChartCard, { title: "권고 단계지수 추이", hint: "2 미만 OEM · 2.5 미만 임차 · 3 미만 임차+강화 · 3 이상 JV" }, /* @__PURE__ */ React.createElement(StageChart, { rows: visRows, pal })), /* @__PURE__ */ React.createElement(ChartCard, { title: "OEM 생산시설 임차 연 순효익 (억원)", right: (() => {
+      const _A = APAL(pal);
+      const _tot = visRows.reduce((a, d) => a + (Number(d.net) || 0), 0);
+      const _pos = _tot >= 0;
+      return /* @__PURE__ */ React.createElement("div", { style: { textAlign: "right", lineHeight: 1.05, whiteSpace: "nowrap", flexShrink: 0 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10, color: "var(--mut)", fontWeight: 600 } }, "순효익 합계"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 16, fontWeight: 700, color: _pos ? _A.green : _A.red, fontVariantNumeric: "tabular-nums" } }, _tot.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "var(--mut)", fontWeight: 600, marginLeft: 2 } }, "억원")));
+    })(), hint: "Σ(유형·구간별 OEM마진×물량)×회수율 − 연운영 (가정)" }, /* @__PURE__ */ React.createElement(NetChart, { rows: visRows, pal }))), /* @__PURE__ */ React.createElement(SectionTitle, { kicker: "VOLUME", icon: /* @__PURE__ */ React.createElement(Building2, { size: 15 }), title: "①-1 프로젝트별 · 유닛유형별 연도 공급물량 (유닛, 편집 가능)" }), /* @__PURE__ */ React.createElement("div", { className: "text-xs mb-2", style: { color: MUT, wordBreak: "keep-all" } }, "유닛 = Frame + 카트리지 결합체 · 스킨유닛(Frame+스킨) · 공조유닛(Frame+공조) · 스킨&ICT유닛(Frame+스킨+ICT) · FIT OS/FIT Grid는 유닛 수량과 무관"), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2 mb-2 flex-wrap no-print" }, /* @__PURE__ */ React.createElement("button", { onClick: addYear, className: "flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md", style: { border: `1px dashed ${STEEL}`, color: BLUE, background: PANEL } }, /* @__PURE__ */ React.createElement(Plus, { size: 13 }), " 연도 추가"), /* @__PURE__ */ React.createElement("button", { onClick: removeYear, className: "flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md", style: { border: `1px solid ${LINEC}`, color: MUT, background: PANEL } }, /* @__PURE__ */ React.createElement(Minus, { size: 13 }), " 마지막 연도 삭제"), /* @__PURE__ */ React.createElement("span", { className: "text-xs", style: { color: MUT } }, "'", YEARS[0], "~", "'", YEARS[YEARS.length - 1], " · ", YEARS.length, "개 연도")), /* @__PURE__ */ React.createElement("div", { ref: volBoxRef, className: "rounded-xl overflow-auto scrollbox", style: { border: `1px solid ${LINEC}`, background: PANEL, scrollSnapType: "y proximity", scrollPaddingTop: 42 } }, /* @__PURE__ */ React.createElement("table", { className: "w-full text-sm stickhead", style: { borderCollapse: "separate", borderSpacing: 0 } }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", { style: { background: NAVY2, color: "var(--onnavy)" } }, /* @__PURE__ */ React.createElement("th", { className: "text-left px-3 py-2", style: { minWidth: NAME_W, width: NAME_W, ...stkTH(0) } }, "프로젝트"), /* @__PURE__ */ React.createElement("th", { className: "text-left px-2 py-2", style: { minWidth: 140, width: 140, ...stkTH(NAME_W) } }, "유닛유형"), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2 num", style: { minWidth: 64, width: 64, ...stkTH(NAME_W + 140) } }, "소계"), YEARS.map((y) => /* @__PURE__ */ React.createElement("th", { key: y, className: "px-2 py-2 num" }, "'", y)), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2" }))), /* @__PURE__ */ React.createElement("tbody", null, [...waitingProj, ...volGroupedItems].map(({ p, pi }, gi) => /* @__PURE__ */ React.createElement(React.Fragment, { key: "vg" + pi }, VOLUME_TYPES.map((ut, ti) => {
+      const vals = p.u && p.u[ut.key] || {};
+      const isOnP = p.on !== false;
+      const unitSub = ["skinv", "skinh", "skins", "hvac", "ict"].reduce((aa, k) => aa + Object.values(p.u && p.u[k] || {}).reduce((ss, vv) => ss + (Number(vv) || 0), 0), 0);
+      const gridOn = Object.values(p.u && p.u.grid || {}).reduce((ss, vv) => ss + (Number(vv) || 0), 0) > 0;
+      const osOn = Object.values(p.u && p.u.os || {}).reduce((ss, vv) => ss + (Number(vv) || 0), 0) > 0;
+      const sub = YEARS.reduce((a, y) => a + (Number(vals[y]) || 0), 0);
+      const isGOu = ut.key === "grid" || ut.key === "os";
+      const isLumpUt = isGOu && SOL_PX(p, ut.key).qmode !== "qty";
+      return /* @__PURE__ */ React.createElement(
+        "tr",
+        {
+          key: pi + "-" + ut.key,
+          className: ti === 0 && gi !== 0 ? "projsep" : "",
+          style: { scrollSnapAlign: ti === 0 ? "start" : "none", scrollSnapStop: ti === 0 ? "always" : "normal" }
+        },
+        ti === 0 && /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1", rowSpan: VOLUME_TYPES.length, style: { verticalAlign: "top", width: NAME_W, whiteSpace: "nowrap", paddingBottom: 40, ...stkTD(0) } }, /* @__PURE__ */ React.createElement(
+          "input",
+          {
+            value: p.name,
+            onChange: (e) => setName(pi, e.target.value),
+            className: "w-full py-1 rounded outline-none",
+            style: { color: isOnP ? BLUE : MUT, fontWeight: 600, background: FIELD, textAlign: "left", paddingLeft: 4, paddingRight: 6, textDecoration: isOnP ? "none" : "line-through" }
+          }
+        ), /* @__PURE__ */ React.createElement("div", { style: { marginTop: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: MUT, fontWeight: 600, whiteSpace: "normal", lineHeight: 1.2, paddingLeft: 4 } }, "공급가 합계 ", eok2(projSupply(p)), "억원"), /* @__PURE__ */ React.createElement("div", { style: { borderTop: `1px solid ${LINEC}`, margin: "5px 6px 5px 4px" } }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: MUT, fontWeight: 600, whiteSpace: "normal", lineHeight: 1.4, paddingLeft: 4 } }, "유닛 수량 ", unitSub.toLocaleString(), "유닛", /* @__PURE__ */ React.createElement("br", null), "GRID ", gridOn ? "적용" : "미적용", " · OS ", osOn ? "적용" : "미적용")), /* @__PURE__ */ React.createElement("div", { style: { marginTop: 8, paddingLeft: 4 } }, /* @__PURE__ */ React.createElement("span", { style: { display: "inline-block", padding: "1px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700, color: (STAGE[projStage(p)] || STAGE[0]).t, background: (STAGE[projStage(p)] || STAGE[0]).bg, border: `1px solid ${(STAGE[projStage(p)] || STAGE[0]).c}` } }, bandTag(projBand(p)))), /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", left: 0, bottom: 8, paddingLeft: 4 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => toggleProjOn(pi), title: "분석 추이 반영/미반영 전환", style: { display: "inline-flex", alignItems: "center", gap: 4, padding: "1px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700, cursor: "pointer", color: isOnP ? "#1e8e3e" : MUT, background: isOnP ? "#e5f8ea" : FIELD, border: `1px solid ${isOnP ? "#34c759" : LINEC}` } }, isOnP ? "● 분석 반영" : "○ 분석 제외"))),
+        /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1", style: { whiteSpace: "nowrap", width: 140, ...stkTD(NAME_W) } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement("span", { style: { width: 9, height: 9, borderRadius: 2, background: pal.utc[ut.key], display: "inline-block", flexShrink: 0 } }), /* @__PURE__ */ React.createElement("span", { style: { color: INK, fontSize: 12 } }, ut.label), isGOu && /* @__PURE__ */ React.createElement("div", { className: "inline-flex rounded overflow-hidden", style: { border: `1px solid ${LINEC}`, marginLeft: "auto" } }, /* @__PURE__ */ React.createElement("button", { onClick: () => setSx(pi, ut.key, "qmode", "qty"), className: "px-1.5 py-0.5 text-xs", style: { background: !isLumpUt ? NAVY2 : "transparent", color: !isLumpUt ? "#fff" : MUT } }, "수량"), /* @__PURE__ */ React.createElement("button", { onClick: () => setSx(pi, ut.key, "qmode", "lump"), className: "px-1.5 py-0.5 text-xs", style: { background: isLumpUt ? NAVY2 : "transparent", color: isLumpUt ? "#fff" : MUT } }, "1식")))),
+        /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1 num text-center", style: { color: INK, fontWeight: 600, width: 64, ...stkTD(NAME_W + 140) } }, isLumpUt ? "1식" : sub ? won(sub) : "–"),
+        isLumpUt ? /* @__PURE__ */ React.createElement("td", { colSpan: YEARS.length, className: "px-3 py-1", style: { color: MUT, fontSize: 12 } }, "‘1식’ 선택됨 — 연도 수량 미입력 · 가격표 매입가에 1식 총액 입력") : YEARS.map((y) => /* @__PURE__ */ React.createElement("td", { key: y, className: "px-1 py-1" }, /* @__PURE__ */ React.createElement(
+          "input",
+          {
+            type: "text",
+            inputMode: "numeric",
+            value: vals[y] || "",
+            placeholder: "",
+            size: szOf(vals[y], 3),
+            onChange: (e) => setCell(pi, ut.key, y, e.target.value.replace(/[^0-9]/g, "")),
+            className: "num px-1 py-1 text-center rounded outline-none",
+            style: { color: BLUE, background: FIELD, minWidth: 44, opacity: isOnP ? 1 : 0.4 }
+          }
+        ))),
+        ti === 0 && /* @__PURE__ */ React.createElement("td", { className: "px-2 text-center", rowSpan: VOLUME_TYPES.length, style: { verticalAlign: "top" } }, /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            onClick: () => delRow(pi),
+            title: "프로젝트 삭제",
+            style: { color: "var(--trash)" }
+          },
+          /* @__PURE__ */ React.createElement(Trash2, { size: 15 })
+        ))
+      );
+    }), /* @__PURE__ */ React.createElement(HScrollRow, { boxRef: volBoxRef, colSpan: 30, width: volBoxW }))), VOLUME_TYPES.map((ut, ti) => {
+      const tot = model.byVol[ut.key].reduce((a, b) => a + b, 0);
+      return /* @__PURE__ */ React.createElement(
+        "tr",
+        {
+          key: "sum-" + ut.key,
+          style: { borderTop: ti === 0 ? `2px solid ${LINEC}` : `1px solid ${PANEL2}`, background: PANEL2 }
+        },
+        ti === 0 && /* @__PURE__ */ React.createElement("td", { className: "px-3 py-2", rowSpan: VOLUME_TYPES.length, style: { fontWeight: 700, verticalAlign: "top", position: "sticky", left: 0, zIndex: 4, background: PANEL2, width: NAME_W } }, "유형별 합계"),
+        /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1", style: { whiteSpace: "nowrap", position: "sticky", left: NAME_W, zIndex: 4, background: PANEL2, width: 140 } }, /* @__PURE__ */ React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement("span", { style: { width: 9, height: 9, borderRadius: 2, background: pal.utc[ut.key], display: "inline-block" } }), /* @__PURE__ */ React.createElement("span", { style: { color: INK, fontSize: 12 } }, ut.label))),
+        /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1 num text-center", style: { fontWeight: tot ? 700 : 300, color: tot ? void 0 : MUT, position: "sticky", left: NAME_W + 140, zIndex: 4, background: PANEL2, width: 64 } }, won(tot)),
+        model.byVol[ut.key].map((v, i) => /* @__PURE__ */ React.createElement("td", { key: i, className: "px-2 py-1 num text-center", style: v ? void 0 : { fontWeight: 300, color: MUT } }, v ? won(v) : "–")),
+        /* @__PURE__ */ React.createElement("td", null)
+      );
+    }), /* @__PURE__ */ React.createElement("tr", { style: { borderTop: `2px solid ${LINEC}`, background: NAVY2, color: "var(--onnavy)" } }, /* @__PURE__ */ React.createElement("td", { className: "px-3 py-2", colSpan: 2, style: { fontWeight: 700, position: "sticky", left: 0, zIndex: 4, background: NAVY2 } }, "연계 제작물량(합계 · 총유닛)"), /* @__PURE__ */ React.createElement("td", { className: "px-2 py-2 num text-center", style: { fontWeight: 700, position: "sticky", left: NAME_W + 140, zIndex: 4, background: NAVY2 } }, won(model.cum)), model.rows.map((r, i) => /* @__PURE__ */ React.createElement("td", { key: i, className: "px-2 py-2 num text-center", style: { fontWeight: 700 } }, r.vol ? won(r.vol) : "–")), /* @__PURE__ */ React.createElement("td", null))))), nStops > 1 && /* @__PURE__ */ React.createElement("div", { className: "no-print ystrip", style: { display: "flex", margin: "-1px auto 16px", width: "94%", maxWidth: 460, boxShadow: "0 2px 2px rgba(0,0,0,.06)", borderRadius: "0 0 18px 18px" } }, /* @__PURE__ */ React.createElement(
+      "select",
+      {
+        value: volIdx,
+        onChange: (e) => setVolLevel(Number(e.target.value)),
+        title: "공급 착수 연도 선택",
+        "aria-label": "공급 착수 연도 선택",
+        style: { flex: "1 1 0", minWidth: 0, height: 32, padding: "0 8px", border: `1px solid ${LINEC}`, borderTop: "none", borderRadius: "0 0 0 18px", background: PANEL2, color: INK, fontWeight: 700, fontSize: 11, textAlign: "center", textAlignLast: "center", cursor: "pointer" }
+      },
+      yearStops.map((yy, i) => /* @__PURE__ */ React.createElement("option", { key: i, value: i }, i >= nStops - 1 ? "전체 착수분" : "~’" + String(yy).padStart(2, "0") + " 착수분"))
+    ), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        onClick: () => setVolLevel(0),
+        disabled: volIdx <= 0,
+        title: "접기",
+        style: { flex: "0 0 auto", height: 32, padding: "0 12px", cursor: volIdx <= 0 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", whiteSpace: "nowrap", background: PANEL2, border: `1px solid ${LINEC}`, borderTop: "none", borderLeft: "none", borderRadius: "0 0 18px 0", userSelect: "none", color: volIdx <= 0 ? MUT : INK, opacity: volIdx <= 0 ? 0.4 : 1, fontWeight: 700, fontSize: 11 }
+      },
+      "접기 ▲"
+    )), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: addRow,
+        className: "flex items-center gap-1.5 text-sm px-3 py-2 rounded-md mb-7",
+        style: { border: `1px dashed ${STEEL}`, color: BLUE, background: PANEL }
+      },
+      /* @__PURE__ */ React.createElement(Plus, { size: 15 }),
+      " 프로젝트 추가"
+    ), /* @__PURE__ */ React.createElement(SectionTitle, { kicker: "PRICING", icon: /* @__PURE__ */ React.createElement(Building2, { size: 15 }), title: "①-2 프로젝트별 솔루션 OEM · 공급가 (원/유닛)" }), /* @__PURE__ */ React.createElement("div", { className: "text-xs mb-2", style: { color: MUT, wordBreak: "keep-all" } }, "솔루션유형 6종(FRAME·스킨/공조/ICT카트리지·GRID·OS). 유닛 조합 — ", /* @__PURE__ */ React.createElement("b", { style: { color: INK } }, "스킨유닛=FRAME+스킨 / 공조유닛=FRAME+공조 / 스킨&ICT유닛=FRAME+스킨+ICT"), '. 따라서 수량 자동 파생: FRAME=전 유닛 / 스킨카트리지=스킨+스킨&ICT / 공조카트리지=공조 / ICT카트리지=스킨&ICT. GRID·OS의 ‘수량/1식’은 ①‘연도 공급물량’ 표에서 선택(가격표는 자동 반영). 수량>0 솔루션만 OEM사 풀다운 활성화 · ▾ 택1 · "+ 업체 추가…"로 신규 등록.'), /* @__PURE__ */ React.createElement("div", { ref: priceBoxRef, className: "rounded-xl overflow-auto scrollbox", style: { border: `1px solid ${LINEC}`, background: PANEL, scrollSnapType: "y proximity", scrollPaddingTop: 46 } }, /* @__PURE__ */ React.createElement("table", { className: "w-full text-sm stickhead", style: { borderCollapse: "separate", borderSpacing: 0, minWidth: 1380 } }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", { style: { background: NAVY2, color: "var(--onnavy)" } }, /* @__PURE__ */ React.createElement("th", { className: "text-left px-3 py-2", style: { minWidth: NAME_W, width: NAME_W, ...stkTH(0) } }, "프로젝트"), /* @__PURE__ */ React.createElement("th", { className: "text-left px-2 py-2", style: { minWidth: 96, width: 96, ...stkTH(NAME_W) } }, "솔루션유형"), /* @__PURE__ */ React.createElement("th", { className: "text-left px-2 py-2", style: { minWidth: 204, width: 204, ...stkTH(NAME_W + 96) } }, "OEM사"), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2 num", style: { whiteSpace: "nowrap" } }, "순제작비(역산)"), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2", style: { whiteSpace: "nowrap" } }, "OEM 마진 방식"), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2 num", style: { whiteSpace: "nowrap" } }, "OEM 마진값"), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2 num", style: { whiteSpace: "nowrap" } }, "OEM 마진"), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2 num" }, "OEM 매입가(입력)"), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2", style: { whiteSpace: "nowrap" } }, "FIT 마진 방식"), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2 num", style: { whiteSpace: "nowrap" } }, "FIT 마진값"), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2 num", style: { whiteSpace: "nowrap" } }, "FIT 마진액"), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2 num" }, "FIT 공급가"), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2 num", style: { whiteSpace: "nowrap" } }, "수량(소계)"), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2 num" }, "총 공급가"), /* @__PURE__ */ React.createElement("th", { className: "px-2 py-2 num" }, "총 마진(FIT)"))), /* @__PURE__ */ React.createElement("tbody", null, [...waitingProj, ...priceGroupedItems].map(({ p, pi }, gi) => /* @__PURE__ */ React.createElement(React.Fragment, { key: "pg" + pi }, SOLUTION_TYPES.map((sol, si) => {
+      const sk = sol.key;
+      const isGO = sk === "grid" || sk === "os";
+      const qty = solTotalQty(p, sk, YEARS);
+      const x = SOL_PX(p, sk);
+      const isLump = isGO && x.qmode !== "qty";
+      const on = isLump ? true : qty > 0;
+      const eqty = isLump ? 1 : qty;
+      const isOemRate = x.oemMode === "rate";
+      const isRate = x.fitMode === "rate";
+      let buy = Number(x.buy) || 0;
+      let oemMargin = isOemRate ? Math.round(buy * (Number(x.oemVal) || 0) / (100 + (Number(x.oemVal) || 0))) : Number(x.oemVal) || 0;
+      let nc = buy - oemMargin;
+      let fitMargin = isRate ? Math.round(buy * (Number(x.fitVal) || 0) / 100) : Number(x.fitVal) || 0;
+      let supply = buy + fitMargin;
+      if (!on) {
+        buy = 0;
+        oemMargin = 0;
+        nc = 0;
+        fitMargin = 0;
+        supply = 0;
+      }
+      const dim = on ? {} : { opacity: 0.3 };
+      const capNames = (assum.caps[sk] && assum.caps[sk].partners || []).map((pt) => pt.name).filter(Boolean);
+      const opts = [.../* @__PURE__ */ new Set([...capNames, ...oemOptions[sk] || []])];
+      return /* @__PURE__ */ React.createElement(
+        "tr",
+        {
+          key: pi + "-" + sk,
+          className: si === 0 && gi !== 0 ? "projsep" : "",
+          style: { scrollSnapAlign: si === 0 ? "start" : "none", scrollSnapStop: si === 0 ? "always" : "normal" }
+        },
+        si === 0 && /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1", rowSpan: SOLUTION_TYPES.length, style: { color: BLUE, fontWeight: 600, verticalAlign: "top", whiteSpace: "nowrap", width: NAME_W, ...stkTD(0) } }, /* @__PURE__ */ React.createElement("div", { style: { paddingLeft: 4, color: p.on !== false ? void 0 : MUT, textDecoration: p.on !== false ? "none" : "line-through" } }, p.name, p.on !== false ? "" : " · 분석 제외"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: MUT, fontWeight: 600, marginTop: 3, whiteSpace: "normal", lineHeight: 1.2, paddingLeft: 4 } }, "공급가 합계 ", eok2(projSupply(p)), "억원"), /* @__PURE__ */ React.createElement("div", { style: { marginTop: 4, paddingLeft: 4 } }, /* @__PURE__ */ React.createElement("span", { style: { display: "inline-block", padding: "1px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700, color: (STAGE[projStage(p)] || STAGE[0]).t, background: (STAGE[projStage(p)] || STAGE[0]).bg, border: `1px solid ${(STAGE[projStage(p)] || STAGE[0]).c}` } }, bandTag(projBand(p))))),
+        /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1", style: { whiteSpace: "nowrap", width: 96, ...stkTD(NAME_W) } }, /* @__PURE__ */ React.createElement("span", { style: { color: on ? INK : MUT, fontSize: 12, fontWeight: 600 } }, sol.label)),
+        /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1", style: { minWidth: 204, width: 204, ...stkTD(NAME_W + 96) } }, /* @__PURE__ */ React.createElement(
+          "select",
+          {
+            value: x.oem,
+            disabled: !on,
+            onChange: (e) => {
+              const v = e.target.value;
+              if (v === "__add__") {
+                const nm = window.prompt("OEM사 추가 — 업체명 입력");
+                if (nm) {
+                  addOemOption(sk, nm);
+                  setSx(pi, sk, "oem", nm);
+                }
+              } else if (v === "__del__") {
+                if (x.oem && window.confirm("‘" + x.oem + "’ 을(를) OEM사 목록에서 삭제할까요?")) delOemOption(sk, x.oem);
+              } else setSx(pi, sk, "oem", v);
+            },
+            className: "px-2 py-1 rounded outline-none",
+            style: { color: on ? BLUE : MUT, fontWeight: 600, background: on ? FIELD : PANEL2, border: `1px solid ${LINEC}`, width: 188, minWidth: 188, maxWidth: 188, boxSizing: "border-box", textOverflow: "ellipsis" }
+          },
+          /* @__PURE__ */ React.createElement("option", { value: "" }, on ? "선택…" : "—"),
+          opts.map((o) => /* @__PURE__ */ React.createElement("option", { key: o, value: o }, o)),
+          /* @__PURE__ */ React.createElement("option", { value: "__add__" }, "+ 업체 추가…"),
+          x.oem && /* @__PURE__ */ React.createElement("option", { value: "__del__" }, "− ‘", x.oem, "’ 삭제")
+        )),
+        /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1 num text-right", style: { color: MUT, whiteSpace: "nowrap", ...dim } }, won(nc)),
+        /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1", style: dim }, /* @__PURE__ */ React.createElement("div", { className: "inline-flex rounded overflow-hidden", style: { border: `1px solid ${LINEC}` } }, /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            disabled: !on,
+            onClick: () => setSx(pi, sk, "oemMode", "rate"),
+            className: "px-2 py-0.5 text-xs",
+            style: { background: isOemRate ? NAVY2 : "transparent", color: isOemRate ? "#fff" : MUT }
+          },
+          "비율%"
+        ), /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            disabled: !on,
+            onClick: () => setSx(pi, sk, "oemMode", "fixed"),
+            className: "px-2 py-0.5 text-xs",
+            style: { background: !isOemRate ? NAVY2 : "transparent", color: !isOemRate ? "#fff" : MUT }
+          },
+          "정액₩"
+        ))),
+        /* @__PURE__ */ React.createElement("td", { className: "px-1 py-1", style: dim }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-end gap-1" }, /* @__PURE__ */ React.createElement(
+          "input",
+          {
+            type: "text",
+            inputMode: "decimal",
+            value: isOemRate ? Number(x.oemVal) ? x.oemVal : "" : Number(x.oemVal) ? fmtNum(x.oemVal) : "",
+            placeholder: "–",
+            disabled: !on,
+            size: szOf(isOemRate ? Number(x.oemVal) ? x.oemVal : "" : Number(x.oemVal) ? fmtNum(x.oemVal) : "", 4),
+            onChange: (e) => setSx(pi, sk, "oemVal", isOemRate ? dec2(e.target.value) : e.target.value.replace(/[^0-9]/g, "")),
+            className: "num px-2 py-1 text-right rounded outline-none",
+            style: { minWidth: 48, color: BLUE, fontWeight: 600, background: on ? FIELD : PANEL2 }
+          }
+        ), /* @__PURE__ */ React.createElement("span", { className: "text-xs", style: { color: MUT } }, isOemRate ? "%" : "원"))),
+        /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1 num text-right", style: { color: MUT, whiteSpace: "nowrap", ...dim } }, won(oemMargin)),
+        /* @__PURE__ */ React.createElement("td", { className: "px-1 py-1", style: dim }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-end gap-1" }, isLump && /* @__PURE__ */ React.createElement("span", { className: "text-xs", style: { color: MUT, whiteSpace: "nowrap" } }, "1식"), /* @__PURE__ */ React.createElement(
+          "input",
+          {
+            type: "text",
+            inputMode: "numeric",
+            value: buy ? fmtNum(buy) : "",
+            placeholder: "–",
+            disabled: !on,
+            size: buyW,
+            onChange: (e) => setSx(pi, sk, "buy", e.target.value.replace(/[^0-9]/g, "")),
+            className: "num px-2 py-1 text-right rounded outline-none",
+            style: { color: BLUE, fontWeight: 600, background: on ? FIELD : PANEL2 }
+          }
+        ))),
+        /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1", style: dim }, /* @__PURE__ */ React.createElement("div", { className: "inline-flex rounded overflow-hidden", style: { border: `1px solid ${LINEC}` } }, /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            disabled: !on,
+            onClick: () => setSx(pi, sk, "fitMode", "rate"),
+            className: "px-2 py-0.5 text-xs",
+            style: { background: isRate ? NAVY2 : "transparent", color: isRate ? "#fff" : MUT }
+          },
+          "비율%"
+        ), /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            disabled: !on,
+            onClick: () => setSx(pi, sk, "fitMode", "fixed"),
+            className: "px-2 py-0.5 text-xs",
+            style: { background: !isRate ? NAVY2 : "transparent", color: !isRate ? "#fff" : MUT }
+          },
+          "정액₩"
+        ))),
+        /* @__PURE__ */ React.createElement("td", { className: "px-1 py-1", style: dim }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-end gap-1" }, /* @__PURE__ */ React.createElement(
+          "input",
+          {
+            type: "text",
+            inputMode: "decimal",
+            value: isRate ? Number(x.fitVal) ? x.fitVal : "" : Number(x.fitVal) ? fmtNum(x.fitVal) : "",
+            placeholder: "–",
+            disabled: !on,
+            size: szOf(isRate ? Number(x.fitVal) ? x.fitVal : "" : Number(x.fitVal) ? fmtNum(x.fitVal) : "", 4),
+            onChange: (e) => setSx(pi, sk, "fitVal", isRate ? dec2(e.target.value) : e.target.value.replace(/[^0-9]/g, "")),
+            className: "num px-2 py-1 text-right rounded outline-none",
+            style: { minWidth: 48, color: BLUE, fontWeight: 600, background: on ? FIELD : PANEL2 }
+          }
+        ), /* @__PURE__ */ React.createElement("span", { className: "text-xs", style: { color: MUT } }, isRate ? "%" : "원"))),
+        /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1 num text-right", style: { color: MUT, ...dim } }, won(fitMargin)),
+        /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1 num text-right", style: { color: "var(--headaccent)", fontWeight: 700, ...dim } }, won(supply)),
+        /* @__PURE__ */ React.createElement("td", { className: "px-1 py-1 num text-right" }, /* @__PURE__ */ React.createElement("span", { style: { color: on ? INK : MUT, fontWeight: 600 } }, isLump ? "1식" : qty > 0 ? won(qty) : "–")),
+        /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1 num text-right", style: { color: INK, fontWeight: 600 } }, (isLump ? supply > 0 : qty > 0) ? won(supply * eqty) : "–"),
+        /* @__PURE__ */ React.createElement("td", { className: "px-2 py-1 num text-right", style: { color: MUT } }, (isLump ? fitMargin > 0 : qty > 0) ? won(fitMargin * eqty) : "–")
+      );
+    }), /* @__PURE__ */ React.createElement(HScrollRow, { boxRef: priceBoxRef, colSpan: 30, width: priceBoxW })))))), nStops > 1 && /* @__PURE__ */ React.createElement("div", { className: "no-print ystrip", style: { display: "flex", margin: "-1px auto 16px", width: "94%", maxWidth: 460, boxShadow: "0 2px 2px rgba(0,0,0,.06)", borderRadius: "0 0 18px 18px" } }, /* @__PURE__ */ React.createElement(
+      "select",
+      {
+        value: priceIdx,
+        onChange: (e) => setPriceLevel(Number(e.target.value)),
+        title: "공급 착수 연도 선택",
+        "aria-label": "공급 착수 연도 선택",
+        style: { flex: "1 1 0", minWidth: 0, height: 32, padding: "0 8px", border: `1px solid ${LINEC}`, borderTop: "none", borderRadius: "0 0 0 18px", background: PANEL2, color: INK, fontWeight: 700, fontSize: 11, textAlign: "center", textAlignLast: "center", cursor: "pointer" }
+      },
+      yearStops.map((yy, i) => /* @__PURE__ */ React.createElement("option", { key: i, value: i }, i >= nStops - 1 ? "전체 착수분" : "~’" + String(yy).padStart(2, "0") + " 착수분"))
+    ), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        onClick: () => setPriceLevel(0),
+        disabled: priceIdx <= 0,
+        title: "접기",
+        style: { flex: "0 0 auto", height: 32, padding: "0 12px", cursor: priceIdx <= 0 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", whiteSpace: "nowrap", background: PANEL2, border: `1px solid ${LINEC}`, borderTop: "none", borderLeft: "none", borderRadius: "0 0 18px 0", userSelect: "none", color: priceIdx <= 0 ? MUT : INK, opacity: priceIdx <= 0 ? 0.4 : 1, fontWeight: 700, fontSize: 11 }
+      },
+      "접기 ▲"
+    )), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-3 gap-3 mb-7" }, card(/* @__PURE__ */ React.createElement(TrendingUp, { size: 13 }), "총 FIT 공급가", `${f1(priceSummary.supply / 1e8)}억`, "전 프로젝트·유형 합 (물량×공급가)", AMBER), card(/* @__PURE__ */ React.createElement(TrendingUp, { size: 13 }), "총 FIT 마진", `${f1(priceSummary.fitMargin / 1e8)}억`, "맞춤 설계비+기술료+관리비+이윤"), card(/* @__PURE__ */ React.createElement(Building2, { size: 13 }), "총 OEM 매입가", `${f1(priceSummary.buy / 1e8)}억`, "순제작비+OEM 마진")), /* @__PURE__ */ React.createElement(SectionTitle, { kicker: "FIT REVENUE", icon: /* @__PURE__ */ React.createElement(Building2, { size: 15 }), title: "①-3 FIT 연도별 공급가 · OEM 매입가 · 마진(평균 마진율)" }), /* @__PURE__ */ React.createElement("div", { className: "text-xs mb-2", style: { color: MUT, wordBreak: "keep-all" } }, "전 프로젝트·솔루션 합산(연도귀속 수량 기준). 평균 마진율 = FIT 마진 ÷ OEM 매입가. * GRID·OS ‘1식’은 최초 공급연도에 귀속."), /* @__PURE__ */ React.createElement("div", { className: "rounded-xl overflow-x-auto mb-7", style: { border: `1px solid ${LINEC}`, background: PANEL } }, /* @__PURE__ */ React.createElement("table", { className: "w-full text-sm", style: { borderCollapse: "collapse" } }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", { style: { background: NAVY2, color: "var(--onnavy)" } }, /* @__PURE__ */ React.createElement("th", { className: "text-left px-3 py-2", style: { whiteSpace: "nowrap", fontWeight: 700 } }, "연도"), /* @__PURE__ */ React.createElement("th", { className: "px-3 py-2 num", style: { fontWeight: 700, whiteSpace: "nowrap" } }, "FIT 공급가"), /* @__PURE__ */ React.createElement("th", { className: "px-3 py-2 num", style: { fontWeight: 700, whiteSpace: "nowrap" } }, "OEM 매입가"), /* @__PURE__ */ React.createElement("th", { className: "px-3 py-2 num", style: { fontWeight: 700, whiteSpace: "nowrap" } }, "FIT 마진"), /* @__PURE__ */ React.createElement("th", { className: "px-3 py-2 num", style: { fontWeight: 700, whiteSpace: "nowrap" } }, "평균 마진율"))), /* @__PURE__ */ React.createElement("tbody", null, model.yearFIT.map((r) => /* @__PURE__ */ React.createElement("tr", { key: r.year, style: { borderTop: `1px solid ${PANEL2}` } }, /* @__PURE__ */ React.createElement("td", { className: "px-3 py-1.5", style: { fontWeight: 600, color: INK } }, "'", r.year), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-1.5 num text-right", style: { color: "var(--headaccent)", fontWeight: 700 } }, won(r.supply)), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-1.5 num text-right", style: { color: MUT } }, won(r.buy)), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-1.5 num text-right", style: { color: INK } }, won(r.margin)), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-1.5 num text-right", style: { color: MUT } }, r.buy > 0 ? r.rate.toFixed(1) + "%" : "–"))), /* @__PURE__ */ React.createElement("tr", { style: { borderTop: `2px solid ${LINEC}`, background: NAVY2, color: "var(--onnavy)" } }, /* @__PURE__ */ React.createElement("td", { className: "px-3 py-2", style: { fontWeight: 700, fontSize: "clamp(9px, 2.6vw, 14px)", whiteSpace: "nowrap", lineHeight: 1.1 } }, "합계 / 평균"), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-2 num text-right", style: { fontWeight: 700 } }, won(model.yearFIT.reduce((a, b) => a + b.supply, 0))), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-2 num text-right", style: { fontWeight: 700 } }, won(model.yearFIT.reduce((a, b) => a + b.buy, 0))), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-2 num text-right", style: { fontWeight: 700 } }, won(model.yearFIT.reduce((a, b) => a + b.margin, 0))), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-2 num text-right", style: { fontWeight: 700 } }, (() => {
+      const tb = model.yearFIT.reduce((a, b) => a + b.buy, 0);
+      const tm = model.yearFIT.reduce((a, b) => a + b.margin, 0);
+      return tb > 0 ? (tm / tb * 100).toFixed(1) + "%" : "–";
+    })()))))), /* @__PURE__ */ React.createElement(SectionTitle, { kicker: "STAGE DECISION", icon: /* @__PURE__ */ React.createElement(Gauge, { size: 15 }), title: "② 연도별 단계 판정 결과" }), /* @__PURE__ */ React.createElement("div", { className: "rounded-xl overflow-x-auto mb-6", style: { border: `1px solid ${LINEC}`, background: PANEL } }, /* @__PURE__ */ React.createElement("table", { className: "w-full text-sm", style: { borderCollapse: "collapse" } }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", { style: { background: NAVY2, color: "var(--onnavy)" } }, ["연도", "물량", "가동률", "권고 단계", "적정 단계", "회수마진(억)", "순효익(억)", "회수기간(년)", "비고"].map((h) => /* @__PURE__ */ React.createElement("th", { key: h, className: "px-3 py-2 text-left", style: { fontWeight: 600, whiteSpace: "nowrap" } }, h)))), /* @__PURE__ */ React.createElement("tbody", null, visRows.map((r, i) => {
+      const s = STAGE[r.idx];
+      const note = r.vol === 0 ? "제작없음: 라인 워밍 필요" : r.idx === 1 ? "OEM 민첩대응 구간" : r.idx === 2 ? "전용라인 임차 적정" : r.idx === 3 ? "JV/자동화 검토 단계 전환 도달" : "고물량: OEM 생산시설 임차 강화(2년연속 미충족)";
+      return /* @__PURE__ */ React.createElement("tr", { key: i, style: { borderTop: `1px solid ${PANEL2}` } }, /* @__PURE__ */ React.createElement("td", { className: "px-3 py-2 num" }, r.year), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-2 num" }, r.vol ? won(r.vol) : "–"), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-2 num" }, (r.util * 100).toFixed(0), "%"), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-2", style: { whiteSpace: "nowrap" } }, /* @__PURE__ */ React.createElement(
+        "span",
+        {
+          className: "px-2 py-1 rounded-full text-xs",
+          style: { background: s.bg, color: s.t, fontWeight: 600, whiteSpace: "nowrap" }
+        },
+        r.label
+      )), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-2", style: { whiteSpace: "nowrap", color: s.t, fontWeight: 600 } }, r.idx < 2 ? "OEM 적합" : r.idx < 2.5 ? "임차 적합" : r.idx < 3 ? "임차+강화 적합" : "JV 적합"), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-2 num" }, r.vol ? f1(r.recovery) : "–"), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-2 num", style: { color: r.net >= 0 ? "var(--netposfg)" : "var(--netnegfg)" } }, r.vol ? f1(r.net) : "–"), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-2 num" }, f1(r.payback)), /* @__PURE__ */ React.createElement("td", { className: "px-3 py-2 text-xs", style: { color: MUT } }, note));
+    })))), /* @__PURE__ */ React.createElement(SectionTitle, { kicker: "TRANSITION LOGIC", icon: /* @__PURE__ */ React.createElement(Target, { size: 15 }), title: "단계 전환 조건 (판정 로직)" }), /* @__PURE__ */ React.createElement("div", { className: "grid md:grid-cols-4 gap-2 mb-4" }, [
+      ["OEM (지수 2 미만)", `0 < 물량 < ${assum.gate1.toLocaleString()}`, 1],
+      ["임차 (지수 2.5 미만)", `${assum.gate1.toLocaleString()} ≤ 물량 < ${assum.gate2.toLocaleString()}`, 2],
+      ["임차+강화 (지수 3 미만)", `물량 ≥ ${assum.gate2.toLocaleString()}, 연속 미충족`, 2.5],
+      ["JV (지수 3 이상)", `≥ ${assum.gate2.toLocaleString()} 가 ${assum.consec}년 연속`, 3]
+    ].map(([k, cond, idx]) => /* @__PURE__ */ React.createElement("div", { key: k, className: "rounded-lg p-3", style: { background: PANEL, border: `1px solid ${LINEC}` } }, /* @__PURE__ */ React.createElement(
+      "span",
+      {
+        className: "px-2 py-0.5 rounded-full text-xs",
+        style: { background: STAGE[idx].bg, color: STAGE[idx].t, fontWeight: 600, whiteSpace: "nowrap" }
+      },
+      k
+    ), /* @__PURE__ */ React.createElement("div", { className: "text-xs mt-2 num", style: { color: MUT } }, cond)))), /* @__PURE__ */ React.createElement("p", { className: "text-xs leading-relaxed", style: { color: MUT } }, /* @__PURE__ */ React.createElement("b", null, "필요조건"), " 확정물량 단계 전환 + 표준BOM·원가DB·불량률·납기SLA 운영성숙도 ·", /* @__PURE__ */ React.createElement("b", null, " 충분조건"), " 투자회수기간 검증 + 품질프리미엄 입증 + IP·거버넌스 + 차기 물량 가시화 ·", /* @__PURE__ */ React.createElement("b", null, " 원칙"), " OEM 생산시설 임차=되돌림가능 / JV·자체=비가역(충분조건 全충족 전 금지), 공종별 비동기 전환, 신뢰성 > 원가.", /* @__PURE__ */ React.createElement("br", null), "※ 수치는 「FIT Platform SCM 전략 rev.3」 가정 기반 — 실제 임차료·QC비·단가하락·JV지분/IP귀속을 가정값에 넣어 보정.")), guideOpen && /* @__PURE__ */ React.createElement("div", { className: "no-print", onClick: () => setGuideOpen(false), style: { position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 } }, /* @__PURE__ */ React.createElement("div", { onClick: (e) => e.stopPropagation(), style: { width: "min(980px, 96vw)", height: "92vh", background: PANEL, borderRadius: 16, overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 24px 70px rgba(0,0,0,.4)" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 16px", background: NAVY2, color: "var(--onnavy)", flex: "0 0 auto" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 14 } }, /* @__PURE__ */ React.createElement(BookOpen, { size: 16 }), " 사용 가이드북"), /* @__PURE__ */ React.createElement("button", { onClick: () => setGuideOpen(false), "aria-label": "닫기", style: { background: "transparent", border: "none", color: "var(--onnavy)", fontSize: 20, lineHeight: 1, cursor: "pointer", padding: "2px 6px" } }, "✕")), /* @__PURE__ */ React.createElement("iframe", { title: "FIT SCM 가이드북", sandbox: "allow-scripts", srcDoc: GUIDE_HTML, style: { flex: 1, width: "100%", border: "none", background: "#fff" } }))), loadOpen && /* @__PURE__ */ React.createElement("div", { onClick: () => setLoadOpen(false), style: { position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 1e3, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 } }, /* @__PURE__ */ React.createElement("div", { onClick: (e) => e.stopPropagation(), style: { background: PANEL, border: `1px solid ${LINEC}`, borderRadius: 14, width: "100%", maxWidth: 520, maxHeight: "80vh", overflow: "auto", padding: 16, boxShadow: "0 12px 40px rgba(0,0,0,.25)" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 700, color: INK, fontSize: 14 } }, "서버 저장본 선택 (", loadList.length, ")"), /* @__PURE__ */ React.createElement("button", { onClick: () => setLoadOpen(false), style: { color: MUT, fontSize: 18, lineHeight: 1, padding: "0 4px" } }, "✕")), loadList.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { color: MUT, fontSize: 13, padding: "14px 2px" } }, "저장된 데이터가 없습니다.") : loadList.map((e) => /* @__PURE__ */ React.createElement("div", { key: e.id, style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "9px 4px", borderTop: `1px solid ${PANEL2}` } }, /* @__PURE__ */ React.createElement("div", { style: { minWidth: 0 } }, /* @__PURE__ */ React.createElement("div", { style: { color: INK, fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, e.name || "(이름 없음)"), /* @__PURE__ */ React.createElement("div", { style: { color: MUT, fontSize: 11, marginTop: 1 } }, fmtTs(e.savedAt), e.by ? " · " + e.by : "")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, flexShrink: 0 } }, /* @__PURE__ */ React.createElement("button", { onClick: () => pickLoad(e.id), disabled: syncBusy, style: { fontSize: 12, fontWeight: 700, color: "#fff", background: BLUE, borderRadius: 8, padding: "6px 11px" } }, "불러오기"), /* @__PURE__ */ React.createElement("button", { onClick: () => deleteSnap(e.id), disabled: syncBusy, style: { fontSize: 12, color: MUT, border: `1px solid ${LINEC}`, borderRadius: 8, padding: "6px 9px" } }, "삭제")))), syncMsg ? /* @__PURE__ */ React.createElement("div", { style: { marginTop: 10, fontSize: 12, color: MUT } }, syncMsg) : null)), /* @__PURE__ */ React.createElement("div", { style: { marginTop: 44, paddingTop: 18, borderTop: `1px solid ${LINEC}`, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10.5, fontWeight: 700, letterSpacing: "0.18em", color: MUT } }, "FIT FUTURE SPACE PLATFORM · SAMOO ARCHITECTS & ENGINEERS"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: MUT } }, "대시보드 업데이트 ", BUILD_AT)));
+  }
+  function ChartCard({ title, hint, children, wide, right }) {
+    return /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        className: `rounded-xl p-4 ${wide ? "lg:col-span-2" : ""}`,
+        style: { background: "var(--panel)", border: "1px solid var(--linec)" }
+      },
+      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 600, color: "var(--ink)", fontSize: 14 } }, title), right || null),
+      hint && /* @__PURE__ */ React.createElement("div", { className: "text-xs mb-2", style: { color: "var(--mut)" } }, hint),
+      /* @__PURE__ */ React.createElement("div", { style: { height: 248 } }, children)
+    );
+  }
+  function SectionTitle({ icon, title, kicker }) {
+    return /* @__PURE__ */ React.createElement("div", { className: "mb-3", style: { marginTop: 8 } }, kicker && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10.5, fontWeight: 700, letterSpacing: "0.18em", color: "var(--mut)", marginBottom: 4 } }, kicker), /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2", style: { color: "var(--headaccent)", fontWeight: 600 } }, icon, /* @__PURE__ */ React.createElement("span", null, title)));
+  }
+  function SummaryHIG({ model, YEARS, dark, pal }) {
+    const C = {
+      blue: dark ? "#0A84FF" : "#007AFF",
+      green: dark ? "#30D158" : "#34C759",
+      orange: dark ? "#FF9F0A" : "#FF9500",
+      purple: dark ? "#BF5AF2" : "#AF52DE",
+      teal: dark ? "#40C8E0" : "#30B0C7",
+      ink: pal.ink,
+      mut: pal.mut,
+      grid: pal.grid,
+      card: dark ? "#171c25" : "#ffffff",
+      hair: pal.grid
+    };
+    const eok = (v) => (Number(v) || 0) / 1e8;
+    const nfmt = (v) => Math.round(Number(v) || 0).toLocaleString();
+    const yf = model.yearFIT || [];
+    const rows = model.rows || [];
+    const totSupply = yf.reduce((a, r) => a + (r.supply || 0), 0);
+    const totBuy = yf.reduce((a, r) => a + (r.buy || 0), 0);
+    const totMargin = yf.reduce((a, r) => a + (r.margin || 0), 0);
+    const marginRate = totBuy > 0 ? totMargin / totBuy * 100 : 0;
+    const vols = rows.map((r) => r.vol || 0);
+    const labels = rows.map((r) => r.year);
+    const cardStyle = {
+      background: C.card,
+      border: `1px solid ${C.hair}`,
+      borderRadius: 20,
+      padding: 18,
+      boxShadow: dark ? "0 1px 0 rgba(255,255,255,0.03) inset" : "0 1px 2px rgba(0,0,0,0.04), 0 10px 30px rgba(0,0,0,0.05)"
+    };
+    const big = { fontSize: 30, fontWeight: 700, color: C.ink, letterSpacing: "-0.03em", lineHeight: 1, fontVariantNumeric: "tabular-nums" };
+    const smooth = (pts2) => {
+      if (!pts2.length) return "";
+      if (pts2.length < 2) return `M ${pts2[0][0]} ${pts2[0][1]}`;
+      let d = `M ${pts2[0][0]} ${pts2[0][1]}`;
+      for (let i = 0; i < pts2.length - 1; i++) {
+        const p0 = pts2[i - 1] || pts2[i], p1 = pts2[i], p2 = pts2[i + 1], p3 = pts2[i + 2] || p2;
+        const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+        const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+        d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+      }
+      return d;
+    };
+    const kpi = (label, value, unit, sub, accent) => /* @__PURE__ */ React.createElement("div", { style: { ...cardStyle, padding: 16 } }, /* @__PURE__ */ React.createElement("div", { style: { width: 30, height: 5, borderRadius: 3, background: accent, marginBottom: 12 } }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.mut, fontWeight: 600 } }, label), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 4, marginTop: 5 } }, /* @__PURE__ */ React.createElement("span", { style: big }, value), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, color: C.mut, fontWeight: 600 } }, unit)), sub ? /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11.5, color: C.mut, marginTop: 7 } }, sub) : null);
+    const AW = 700, AH = 200, aL = 12, aR = 12, aT = 16, aB = 26, apw = AW - aL - aR, aph = AH - aT - aB;
+    const yMax = Math.max(1, ...vols) * 1.18;
+    const xAt = (i) => aL + (vols.length <= 1 ? apw / 2 : apw * i / (vols.length - 1));
+    const yAt = (v) => aT + aph - v / yMax * aph;
+    const pts = vols.map((v, i) => [xAt(i), yAt(v)]);
+    const linePath = smooth(pts);
+    const areaPath = vols.length ? linePath + ` L ${xAt(vols.length - 1)} ${aT + aph} L ${xAt(0)} ${aT + aph} Z` : "";
+    const peakV = Math.max(0, ...vols);
+    const peakI = vols.indexOf(peakV);
+    const BW = 700, BH = 200, bL = 12, bR = 12, bT = 16, bB = 26, bpw = BW - bL - bR, bph = BH - bT - bB;
+    const supMax = Math.max(1, ...yf.map((r) => r.supply || 0)) * 1.15;
+    const n = Math.max(1, yf.length), slot = bpw / n, bw = Math.min(34, slot - 10);
+    const ring = { r: 30, c: 2 * Math.PI * 30 };
+    const ringColor = (() => {
+      const red = dark ? [255, 69, 58] : [255, 59, 48];
+      const grn = dark ? [48, 209, 88] : [52, 199, 89];
+      const tea = dark ? [64, 200, 224] : [48, 176, 199];
+      let from, to, t;
+      if (marginRate <= 30) {
+        from = red;
+        to = grn;
+        t = Math.max(0, Math.min(1, (marginRate - 10) / 20));
+      } else {
+        from = grn;
+        to = tea;
+        t = Math.max(0, Math.min(1, (marginRate - 30) / 10));
+      }
+      const cc = from.map((v, i) => Math.round(v + (to[i] - v) * t));
+      return "rgb(" + cc[0] + "," + cc[1] + "," + cc[2] + ")";
+    })();
+    const ringFrac = Math.min(1, marginRate / 30);
+    const segColor = (idx) => idx >= 3 ? C.green : idx >= 2.5 ? C.purple : idx >= 2 ? C.teal : idx >= 1 ? C.blue : C.grid;
+    const firstReach = (cond) => {
+      const i = rows.findIndex((r) => cond(r.idx));
+      return i < 0 ? null : i;
+    };
+    const r2 = firstReach((x) => x >= 2), r25 = firstReach((x) => x >= 2.5), r3 = firstReach((x) => x >= 3);
+    const nowYY = (/* @__PURE__ */ new Date()).getFullYear() % 100;
+    let curIdx = YEARS.findIndex((y) => Number(y) >= nowYY);
+    if (curIdx < 0) curIdx = rows.length - 1;
+    const curRow = rows[curIdx] || rows[rows.length - 1] || { idx: 0, vol: 0 };
+    const curStage = curRow.idx >= 3 ? "JV" : curRow.idx >= 2.5 ? "임차+강화" : curRow.idx >= 2 ? "임차" : "OEM";
+    const legend = [["OEM", C.blue], ["임차", C.teal], ["임차+강화", C.purple], ["JV", C.green]];
+    return /* @__PURE__ */ React.createElement("section", { style: { marginBottom: 30 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 14, gap: 12, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.blue, fontWeight: 700, letterSpacing: "0.06em" } }, "KEY CONCLUSIONS"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 23, fontWeight: 700, color: C.ink, letterSpacing: "-0.02em", marginTop: 3 } }, "핵심 요약")), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.mut } }, "’", labels[0] ? String(labels[0]).replace(/'/g, "") : "", "–’", labels[labels.length - 1] ? String(labels[labels.length - 1]).replace(/'/g, "") : "", " · FIT Platform SCM")), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 lg:grid-cols-4 gap-3", style: { marginBottom: 14 } }, kpi("누적 공급물량", nfmt(model.cum), "유닛", "전 기간 누적", C.blue), kpi("총 FIT 공급가", nfmt(eok(totSupply)), "억원", "FIT 공급가 합계", C.teal), kpi("총 FIT 마진", nfmt(eok(totMargin)), "억원", "마진율 " + marginRate.toFixed(1) + "%", C.green), kpi("최대 공급", nfmt(peakV), "유닛", (labels[peakI] || "–") + " 피크", C.orange)), /* @__PURE__ */ React.createElement("div", { className: "grid lg:grid-cols-2 gap-3" }, /* @__PURE__ */ React.createElement("div", { style: cardStyle }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, fontWeight: 700, color: C.ink, letterSpacing: "-0.01em" } }, "공급 물량 추이"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11.5, color: C.mut } }, "유닛 / 년")), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.mut, marginTop: -2, marginBottom: 6 } }, "수주 · 수주예상 프로젝트 기준"), /* @__PURE__ */ React.createElement("svg", { viewBox: `0 0 ${AW} ${AH}`, style: { width: "100%", height: "auto", display: "block" } }, /* @__PURE__ */ React.createElement("defs", null, /* @__PURE__ */ React.createElement("linearGradient", { id: "hig-area", x1: "0", y1: "0", x2: "0", y2: "1" }, /* @__PURE__ */ React.createElement("stop", { offset: "0%", stopColor: C.blue, stopOpacity: dark ? 0.45 : 0.28 }), /* @__PURE__ */ React.createElement("stop", { offset: "100%", stopColor: C.blue, stopOpacity: "0" }))), [0, 0.5, 1].map((g, k) => /* @__PURE__ */ React.createElement("line", { key: k, x1: aL, x2: AW - aR, y1: aT + aph - g * aph, y2: aT + aph - g * aph, stroke: C.grid, strokeWidth: "1", opacity: k === 0 ? 1 : 0.55 })), areaPath ? /* @__PURE__ */ React.createElement("path", { d: areaPath, fill: "url(#hig-area)" }) : null, linePath ? /* @__PURE__ */ React.createElement("path", { d: linePath, fill: "none", stroke: C.blue, strokeWidth: "2.5", strokeLinejoin: "round", strokeLinecap: "round" }) : null, peakV > 0 ? /* @__PURE__ */ React.createElement("circle", { cx: xAt(peakI), cy: yAt(peakV), r: "4.5", fill: C.card, stroke: C.blue, strokeWidth: "2.5" }) : null, peakV > 0 ? /* @__PURE__ */ React.createElement("text", { x: xAt(peakI), y: yAt(peakV) - 9, textAnchor: "middle", fontSize: "11", fontWeight: "700", fill: C.ink }, nfmt(peakV)) : null, labels.map((lb, i) => /* @__PURE__ */ React.createElement("text", { key: i, x: xAt(i), y: AH - 8, textAnchor: "middle", fontSize: "10.5", fill: C.mut }, lb)))), /* @__PURE__ */ React.createElement("div", { style: cardStyle }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, fontWeight: 700, color: C.ink, letterSpacing: "-0.01em" } }, "FIT 공급가 구조"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11.5, color: C.mut, marginTop: 2 } }, "매입가 + 마진 = 공급가 (연도별)")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement("svg", { width: "64", height: "76", viewBox: "0 -14 72 86" }, /* @__PURE__ */ React.createElement("circle", { cx: "36", cy: "36", r: ring.r, fill: "none", stroke: C.grid, strokeWidth: "8" }), /* @__PURE__ */ React.createElement(
+      "circle",
+      {
+        cx: "36",
+        cy: "36",
+        r: ring.r,
+        fill: "none",
+        stroke: ringColor,
+        strokeWidth: "8",
+        strokeLinecap: "round",
+        strokeDasharray: ring.c,
+        strokeDashoffset: ring.c * (1 - ringFrac),
+        transform: "rotate(-90 36 36)"
+      }
+    ), /* @__PURE__ */ React.createElement("text", { x: "36", y: "-3", textAnchor: "middle", fontSize: "10", fontWeight: "700", fill: marginRate >= 30 ? C.green : C.mut }, marginRate >= 30 ? "✓30%" : "30%"), /* @__PURE__ */ React.createElement("circle", { cx: "36", cy: "6", r: marginRate >= 30 ? "3.2" : "2.5", fill: marginRate >= 30 ? C.green : C.mut, stroke: marginRate >= 30 ? C.card : "none", strokeWidth: marginRate >= 30 ? "1.5" : "0" }), /* @__PURE__ */ React.createElement("text", { x: "36", y: "34", textAnchor: "middle", fontSize: "16", fontWeight: "700", fill: C.ink, fontVariantNumeric: "tabular-nums" }, marginRate.toFixed(1)), /* @__PURE__ */ React.createElement("text", { x: "36", y: "49", textAnchor: "middle", fontSize: "9", fill: C.mut }, "마진율 %")))), /* @__PURE__ */ React.createElement("svg", { viewBox: `0 0 ${BW} ${BH}`, style: { width: "100%", height: "auto", display: "block" } }, /* @__PURE__ */ React.createElement("line", { x1: bL, x2: BW - bR, y1: bT + bph, y2: bT + bph, stroke: C.grid, strokeWidth: "1" }), yf.map((r, i) => {
+      const cx = bL + i * slot + slot / 2;
+      const x = cx - bw / 2;
+      const buyH = (r.buy || 0) / supMax * bph;
+      const marH = (r.margin || 0) / supMax * bph;
+      const yBuy = bT + bph - buyH;
+      const yMar = yBuy - marH;
+      return /* @__PURE__ */ React.createElement("g", { key: i }, buyH > 0 ? /* @__PURE__ */ React.createElement("rect", { x, y: yBuy, width: bw, height: buyH, rx: "4", fill: C.mut, opacity: dark ? 0.45 : 0.3 }) : null, marH > 0 ? /* @__PURE__ */ React.createElement("rect", { x, y: yMar, width: bw, height: marH + 4, rx: "4", fill: C.green }) : null, /* @__PURE__ */ React.createElement("text", { x: cx, y: BH - 8, textAnchor: "middle", fontSize: "10.5", fill: C.mut }, labels[i]));
+    })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 16, marginTop: 4 } }, /* @__PURE__ */ React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: C.mut } }, /* @__PURE__ */ React.createElement("span", { style: { width: 10, height: 10, borderRadius: 3, background: C.mut, opacity: 0.4 } }), "OEM 매입가"), /* @__PURE__ */ React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: C.mut } }, /* @__PURE__ */ React.createElement("span", { style: { width: 10, height: 10, borderRadius: 3, background: C.green } }), "FIT 마진")))), /* @__PURE__ */ React.createElement("div", { style: { ...cardStyle, marginTop: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, fontWeight: 700, color: C.ink, letterSpacing: "-0.01em" } }, "단계 전환 로드맵"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, flexWrap: "wrap" } }, legend.map(([t, c]) => /* @__PURE__ */ React.createElement("span", { key: t, style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: C.mut } }, /* @__PURE__ */ React.createElement("span", { style: { width: 10, height: 10, borderRadius: 3, background: c } }), t)))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", marginBottom: 6 } }, rows.map((r, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { flex: 1, textAlign: "center", minWidth: 0 } }, i === r2 || i === r25 || i === r3 ? /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9.5, fontWeight: 700, color: segColor(r.idx), whiteSpace: "nowrap" } }, i === r3 ? "JV ▾" : i === r25 ? "강화 ▾" : "임차 ▾") : /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9.5 } }, " ")))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", borderRadius: 11, overflow: "hidden", border: `1px solid ${C.hair}` } }, rows.map((r, i) => /* @__PURE__ */ React.createElement("div", { key: i, title: r.year + " · " + (r.label || ""), style: { flex: 1, height: 28, background: segColor(r.idx), opacity: r.idx >= 1 ? 1 : 0.5 } }))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", marginTop: 6 } }, labels.map((lb, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { flex: 1, textAlign: "center", fontSize: 10, color: C.mut, minWidth: 0 } }, lb))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("div", { style: { flex: "1 1 160px", background: dark ? "#0e131b" : "#f6f8fb", border: `1px solid ${C.hair}`, borderRadius: 14, padding: "12px 14px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11.5, color: C.mut, fontWeight: 600 } }, "임차 적합 진입"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 20, fontWeight: 700, color: C.teal, letterSpacing: "-0.02em", marginTop: 3 } }, model.stage2Start || "미도달")), /* @__PURE__ */ React.createElement("div", { style: { flex: "1 1 160px", background: dark ? "#0e131b" : "#f6f8fb", border: `1px solid ${C.hair}`, borderRadius: 14, padding: "12px 14px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11.5, color: C.mut, fontWeight: 600 } }, "’", String((/* @__PURE__ */ new Date()).getFullYear()).slice(-2), " SCM 권고 단계"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 20, fontWeight: 700, color: segColor(curRow.idx), letterSpacing: "-0.02em", marginTop: 3 } }, curStage), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10.5, color: C.mut, marginTop: 3 } }, "공급물량 ", (curRow.vol || 0).toLocaleString(), "유닛 기준")))));
+  }
+  const _dq = (pal) => pal === PAL_DARK;
+  const APAL = (pal) => ({
+    blue: _dq(pal) ? "#0A84FF" : "#007AFF",
+    green: _dq(pal) ? "#30D158" : "#34C759",
+    red: _dq(pal) ? "#FF453A" : "#FF3B30",
+    orange: _dq(pal) ? "#FF9F0A" : "#FF9500",
+    teal: _dq(pal) ? "#40C8E0" : "#30B0C7",
+    indigo: _dq(pal) ? "#7D7AFF" : "#5E5CE6",
+    purple: _dq(pal) ? "#BF5AF2" : "#AF52DE",
+    ink: pal.ink,
+    mut: pal.mut,
+    card: _dq(pal) ? "#171c25" : "#ffffff",
+    grid: _dq(pal) ? "rgba(255,255,255,0.06)" : "rgba(60,60,67,0.09)",
+    hair: _dq(pal) ? "rgba(255,255,255,0.14)" : "rgba(60,60,67,0.18)",
+    zone: _dq(pal) ? 0.12 : 0.07
+  });
+  const topRect = (x, y, w, h, r) => {
+    r = Math.max(0, Math.min(r, w / 2, h));
+    return "M" + x + "," + (y + h) + " L" + x + "," + (y + r) + " Q" + x + "," + y + " " + (x + r) + "," + y + " L" + (x + w - r) + "," + y + " Q" + (x + w) + "," + y + " " + (x + w) + "," + (y + r) + " L" + (x + w) + "," + (y + h) + " Z";
+  };
+  const botRect = (x, y, w, h, r) => {
+    r = Math.max(0, Math.min(r, w / 2, h));
+    return "M" + x + "," + y + " L" + (x + w) + "," + y + " L" + (x + w) + "," + (y + h - r) + " Q" + (x + w) + "," + (y + h) + " " + (x + w - r) + "," + (y + h) + " L" + (x + r) + "," + (y + h) + " Q" + x + "," + (y + h) + " " + x + "," + (y + h - r) + " Z";
+  };
+  function VolChart({ rows, assum, pal }) {
+    const A = APAL(pal);
+    const w = 440, h = 205, l = 42, r = 16, t = 18, b = 26, pw = w - l - r, ph = h - t - b;
+    const frameCap = (assum.caps && assum.caps.frame && assum.caps.frame.partners || []).reduce((a, p) => a + (Number(p.cap) || 0), 0);
+    const maxY = Math.max(frameCap, assum.gate2, ...rows.map((d) => d.vol), 1) * 1.08;
+    const yOf = (v) => t + ph * (1 - v / maxY);
+    const n = Math.max(1, rows.length), slot = pw / n, bw = Math.min(26, slot * 0.46);
+    const ref = (v, col, txt, left) => /* @__PURE__ */ React.createElement("g", null, /* @__PURE__ */ React.createElement("line", { x1: l, x2: w - r, y1: yOf(v), y2: yOf(v), stroke: col, strokeWidth: "1.3", strokeDasharray: "2 4", strokeLinecap: "round", opacity: "0.9" }), /* @__PURE__ */ React.createElement("text", { x: left ? l + 2 : w - r, y: yOf(v) - 4, textAnchor: left ? "start" : "end", fontSize: "8.5", fontWeight: "600", fill: col }, txt));
+    return /* @__PURE__ */ React.createElement("svg", { viewBox: `0 0 ${w} ${h}`, width: "100%", height: "100%", style: { fontFamily: "'Pretendard',sans-serif" } }, [0, 0.5, 1].map((f, i) => {
+      const y = t + ph * (1 - f);
+      return /* @__PURE__ */ React.createElement("g", { key: i }, /* @__PURE__ */ React.createElement("line", { x1: l, x2: w - r, y1: y, y2: y, stroke: A.grid }), /* @__PURE__ */ React.createElement("text", { x: l - 6, y: y + 3, textAnchor: "end", fontSize: "8.5", fill: A.mut, style: { fontVariantNumeric: "tabular-nums" } }, Math.round(maxY * f).toLocaleString()));
+    }), rows.map((d, i) => {
+      const x = l + slot * i + (slot - bw) / 2, y = yOf(d.vol), hh = Math.max(0, t + ph - y);
+      const col = stageColor(d.idx);
+      return /* @__PURE__ */ React.createElement("g", { key: i }, hh > 0.5 && /* @__PURE__ */ React.createElement("path", { d: topRect(x, y, bw, hh, Math.min(5, bw / 2)), fill: col }), d.vol > 0 && /* @__PURE__ */ React.createElement("text", { x: x + bw / 2, y: y - 4, textAnchor: "middle", fontSize: "8", fontWeight: "600", fill: A.ink, style: { fontVariantNumeric: "tabular-nums" } }, won(d.vol)), /* @__PURE__ */ React.createElement("text", { x: l + slot * i + slot / 2, y: h - b + 14, textAnchor: "middle", fontSize: "8.5", fill: A.mut }, d.year));
+    }), ref(frameCap, A.red, "Cap " + frameCap.toLocaleString(), false), ref(assum.gate2, A.green, "JV " + assum.gate2.toLocaleString(), true), ref(assum.gate1, A.teal, "임차 " + assum.gate1.toLocaleString(), true));
+  }
+  function StageChart({ rows, pal }) {
+    const A = APAL(pal);
+    const w = 440, h = 205, l = 40, r = 16, t = 16, b = 26, pw = w - l - r, ph = h - t - b, maxY = 3.2;
+    const yOf = (v) => t + ph * (1 - v / maxY);
+    const n = Math.max(1, rows.length), slot = pw / n, cx = (i) => l + slot * i + slot / 2;
+    const zones = [{ a: 0, b: 2, c: "--s1" }, { a: 2, b: 2.5, c: "--s2" }, { a: 2.5, b: 3, c: "--s25" }, { a: 3, b: maxY, c: "--s3" }];
+    let d = rows.length ? "M " + cx(0) + " " + yOf(rows[0].idx) : "";
+    for (let i = 1; i < n; i++) {
+      d += " L " + cx(i) + " " + yOf(rows[i - 1].idx) + " L " + cx(i) + " " + yOf(rows[i].idx);
+    }
+    return /* @__PURE__ */ React.createElement("svg", { viewBox: `0 0 ${w} ${h}`, width: "100%", height: "100%", style: { fontFamily: "'Pretendard',sans-serif" } }, zones.map((z, i) => {
+      const y1 = yOf(z.b), y2 = yOf(z.a);
+      return /* @__PURE__ */ React.createElement("rect", { key: i, x: l, y: y1, width: pw, height: Math.max(0, y2 - y1), fill: `var(${z.c})`, opacity: A.zone });
+    }), [0, 1, 2, 3].map((v) => {
+      const y = yOf(v);
+      return /* @__PURE__ */ React.createElement("g", { key: v }, /* @__PURE__ */ React.createElement("line", { x1: l, x2: w - r, y1: y, y2: y, stroke: A.grid }), /* @__PURE__ */ React.createElement("text", { x: l - 6, y: y + 3, textAnchor: "end", fontSize: "8.5", fill: A.mut, style: { fontVariantNumeric: "tabular-nums" } }, v));
+    }), /* @__PURE__ */ React.createElement("path", { d, fill: "none", stroke: A.ink, strokeWidth: "2.2", strokeLinejoin: "round", strokeLinecap: "round", opacity: "0.5" }), rows.map((dd, i) => /* @__PURE__ */ React.createElement("g", { key: i }, /* @__PURE__ */ React.createElement("circle", { cx: cx(i), cy: yOf(dd.idx), r: "4", fill: stageColor(dd.idx), stroke: A.card, strokeWidth: "1.6" }), /* @__PURE__ */ React.createElement("text", { x: cx(i), y: h - b + 14, textAnchor: "middle", fontSize: "8.5", fill: A.mut }, dd.year))));
+  }
+  function NetChart({ rows, pal }) {
+    const A = APAL(pal);
+    const w = 920, h = 215, l = 44, r = 16, t = 20, b = 34, pw = w - l - r, ph = h - t - b;
+    const vals = rows.map((d) => d.net);
+    const rawMax = Math.max(0, ...vals), rawMin = Math.min(0, ...vals);
+    const pad = (rawMax - rawMin || 1) * 0.18;
+    const hi = rawMax + pad, lo = rawMin - pad, span = hi - lo || 1;
+    const yOf = (v) => t + ph * (1 - (v - lo) / span);
+    const n = Math.max(1, rows.length), slot = pw / n, bw = Math.min(34, slot * 0.46), zero = yOf(0), bottom = t + ph;
+    return /* @__PURE__ */ React.createElement("svg", { viewBox: `0 0 ${w} ${h}`, width: "100%", height: "100%", style: { fontFamily: "'Pretendard',sans-serif" } }, [hi, (hi + lo) / 2, lo].map((v, i) => {
+      const y = yOf(v);
+      return /* @__PURE__ */ React.createElement("g", { key: i }, /* @__PURE__ */ React.createElement("line", { x1: l, x2: w - r, y1: y, y2: y, stroke: A.grid }), /* @__PURE__ */ React.createElement("text", { x: l - 6, y: y + 3, textAnchor: "end", fontSize: "8.5", fill: A.mut, style: { fontVariantNumeric: "tabular-nums" } }, v.toFixed(1)));
+    }), /* @__PURE__ */ React.createElement("line", { x1: l, x2: w - r, y1: zero, y2: zero, stroke: A.hair, strokeWidth: "1.2" }), rows.map((d, i) => {
+      const x = l + slot * i + (slot - bw) / 2;
+      const yv = yOf(d.net);
+      const pos = d.net >= 0;
+      const y = Math.min(yv, zero), hh = Math.max(0, Math.abs(yv - zero));
+      const path = pos ? topRect(x, y, bw, hh, Math.min(5, bw / 2)) : botRect(x, zero, bw, hh, Math.min(5, bw / 2));
+      const ly = pos ? y - 5 : Math.min(yv + 13, bottom - 2);
+      return /* @__PURE__ */ React.createElement("g", { key: i }, /* @__PURE__ */ React.createElement("path", { d: path, fill: pos ? A.green : A.red }), /* @__PURE__ */ React.createElement("text", { x: x + bw / 2, y: ly, textAnchor: "middle", fontSize: "8.5", fontWeight: "600", fill: pos ? A.ink : A.red, style: { fontVariantNumeric: "tabular-nums" } }, f1(d.net)));
+    }), rows.map((d, i) => /* @__PURE__ */ React.createElement("text", { key: "y" + i, x: l + slot * i + slot / 2, y: h - b + 16, textAnchor: "middle", fontSize: "8.5", fill: A.mut }, d.year)));
+  }
+  function TypeStack({ rows, byType, pal }) {
+    const A = APAL(pal);
+    const w = 440, h = 205, l = 42, r = 16, t = 24, b = 26, pw = w - l - r, ph = h - t - b;
+    const keys = ["skinv", "skinh", "hvac", "ict"];
+    const col = { skinv: A.blue, skinh: A.teal, hvac: A.green, ict: A.indigo };
+    const totals = rows.map((d, i) => keys.reduce((a, k) => a + (byType[k][i] || 0), 0));
+    const maxY = Math.max(1, ...totals) * 1.12;
+    const yOf = (v) => t + ph * (1 - v / maxY);
+    const n = Math.max(1, rows.length), slot = pw / n, bw = Math.min(26, slot * 0.46);
+    const lab = { skinv: "스킨(수직)", skinh: "스킨(수평)", hvac: "공조", ict: "스킨&ICT" };
+    return /* @__PURE__ */ React.createElement("svg", { viewBox: `0 0 ${w} ${h}`, width: "100%", height: "100%", style: { fontFamily: "'Pretendard',sans-serif" } }, [0, 0.5, 1].map((f, i) => {
+      const y = t + ph * (1 - f);
+      return /* @__PURE__ */ React.createElement("g", { key: i }, /* @__PURE__ */ React.createElement("line", { x1: l, x2: w - r, y1: y, y2: y, stroke: A.grid }), /* @__PURE__ */ React.createElement("text", { x: l - 6, y: y + 3, textAnchor: "end", fontSize: "8.5", fill: A.mut, style: { fontVariantNumeric: "tabular-nums" } }, Math.round(maxY * f).toLocaleString()));
+    }), rows.map((d, i) => {
+      const x = l + slot * i + (slot - bw) / 2;
+      let acc = 0;
+      const segs = keys.map((k) => {
+        const v = byType[k][i] || 0;
+        const o = { k, v, acc };
+        acc += v;
+        return o;
+      }).filter((o) => o.v > 0);
+      const top = segs.length ? segs[segs.length - 1] : null;
+      return /* @__PURE__ */ React.createElement("g", { key: i }, segs.map((o) => {
+        const y0 = yOf(o.acc), y1 = yOf(o.acc + o.v);
+        const hh = Math.max(0, y0 - y1);
+        const isTop = top && o.k === top.k;
+        return isTop ? /* @__PURE__ */ React.createElement("path", { key: o.k, d: topRect(x, y1, bw, hh, Math.min(5, bw / 2)), fill: col[o.k] }) : /* @__PURE__ */ React.createElement("rect", { key: o.k, x, y: y1, width: bw, height: hh, fill: col[o.k] });
+      }), /* @__PURE__ */ React.createElement("text", { x: l + slot * i + slot / 2, y: h - b + 14, textAnchor: "middle", fontSize: "8.5", fill: A.mut }, d.year));
+    }), keys.map((k, i) => /* @__PURE__ */ React.createElement("g", { key: "lg" + k }, /* @__PURE__ */ React.createElement("rect", { x: l + i * 92, y: 6, width: 9, height: 9, rx: "3", fill: col[k] }), /* @__PURE__ */ React.createElement("text", { x: l + i * 92 + 13, y: 14, fontSize: "8.5", fill: A.mut }, lab[k]))));
+  }
+  try {
+    if (!window.React || !window.ReactDOM) throw new Error("React 로드 실패 (CDN 차단 가능성).");
+    ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(App, null));
+  } catch (e) {
+    var root = document.getElementById("root");
+    root.textContent = "";
+    var box = document.createElement("div");
+    box.style.cssText = "max-width:760px;margin:40px auto;padding:20px;border:1px solid var(--linec);border-radius:12px;background:var(--panel);color:var(--ink);font-family:system-ui,malgun gothic,sans-serif;line-height:1.6";
+    var t1 = document.createElement("div");
+    t1.style.cssText = "color:var(--ink);font-weight:700;margin-bottom:8px";
+    t1.textContent = "대시보드를 불러오지 못했습니다";
+    var t2 = document.createElement("div");
+    t2.style.cssText = "color:var(--blue);font-size:14px";
+    t2.textContent = e && e.message ? String(e.message) : String(e);
+    var t3 = document.createElement("div");
+    t3.style.cssText = "color:var(--mut);font-size:12px;margin-top:10px";
+    t3.textContent = "F12 → Console의 첫 에러 메시지를 확인해 주세요.";
+    box.appendChild(t1);
+    box.appendChild(t2);
+    box.appendChild(t3);
+    root.appendChild(box);
+    console.error(e);
+  }
+})();
+</script>
 </body>
 </html>

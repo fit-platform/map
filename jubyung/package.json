@@ -1,0 +1,8 @@
+{
+  "name": "fit-platform-scm-matrix",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@netlify/blobs": "10.7.8"
+  }
+}

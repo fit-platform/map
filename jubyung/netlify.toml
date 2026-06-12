@@ -1,0 +1,35 @@
+[build]
+  command = "echo no-build"
+  publish = "."
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# ──────────────────────────────────────────────────────────────
+# ★보안: 전 경로 공통 응답 보안 헤더
+#  - HTTP 응답 헤더 CSP는 <meta> 방식보다 견고합니다(frame-ancestors 등 지원).
+#  - script-src: 'unsafe-inline' 제거. 인라인 스크립트(앱 IIFE + 가이드 srcdoc)는 sha256 해시로
+#    명시 허용하고, 외부는 cdnjs/sheetjs 호스트만 화이트리스트합니다(주입 표면 최소화).
+#    ※ index.html 재빌드 시 해시가 바뀌므로 `node tools/gen-csp-hashes.mjs`로 재생성 후 이 값을 교체하세요.
+#    ※ Netlify Asset optimization(HTML/JS 압축)이 켜져 있으면 서빙 바이트가 바뀌어 해시 불일치 → 반드시 끄세요.
+#  - style-src: React 런타임 스타일 특성상 'unsafe-inline' 유지(위험 낮음). 추가 강화는 style 해시로 가능.
+#  - 최초 배포 시에는 Content-Security-Policy 대신 Content-Security-Policy-Report-Only로
+#    한두 번 검증(콘솔 위반 로그 확인) 후 enforce 전환을 권장합니다.
+# ──────────────────────────────────────────────────────────────
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'sha256-yE1/v4SOdiCjqSAQ+T/m7CL/kiPY/syFAfVE+kaetdg=' 'sha256-RXcthKHsBUrmEvFJsS89iFa1DDLNbNuWGswaBqXtutw=' https://cdnjs.cloudflare.com https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com data:; img-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+
+# API 응답은 캐시 금지(인증·데이터 노출 방지)
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store"
+    X-Content-Type-Options = "nosniff"
