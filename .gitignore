@@ -1,0 +1,8 @@
+# 민감 파일 — 절대 공개 레포에 올리지 않음 (배포.bat가 건너뜀)
+githubidpw.txt
+*idpw*
+*비번*
+*password*
+secrets.txt
+.env
+*.env

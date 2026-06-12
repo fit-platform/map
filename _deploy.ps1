@@ -29,10 +29,17 @@ git commit -m $msg
 
 Write-Host ""
 Write-Host "[4/4] GitHub로 업로드(push) 중..."
-git push origin main
-if ($LASTEXITCODE -ne 0) {
+$ok = $false
+for ($n = 1; $n -le 3; $n++) {
+    if ($n -gt 1) { Write-Host ""; Write-Host "연결 재시도 $n/3 ..." -ForegroundColor Yellow; Start-Sleep -Seconds 2 }
+    git push origin main
+    if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+}
+
+if (-not $ok) {
     Write-Host ""
-    Write-Host "[오류] push에 실패했습니다. 위 메시지를 확인하세요." -ForegroundColor Red
+    Write-Host "[오류] push에 실패했습니다." -ForegroundColor Red
+    Write-Host "인터넷 연결이 불안정하면 잠시 후 다시 실행하세요. (커밋은 이미 저장돼 있어 다시 배포.bat만 누르면 됩니다)" -ForegroundColor Red
     Read-Host "`n엔터를 누르면 창이 닫힙니다"
     exit 1
 }
