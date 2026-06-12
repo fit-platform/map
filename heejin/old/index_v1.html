@@ -5,12 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>엄희진 앱 — FIT Platform</title>
 <link rel="stylesheet" href="../shared/style.css">
-<style>
-  /* 풀스크린 앱(iframe)용 레이아웃 */
-  #appView{height:100vh;display:flex;flex-direction:column;}
-  #appView header.bar{margin:10px;flex:0 0 auto;}
-  #appFrame{flex:1 1 auto;width:100%;border:0;display:block;}
-</style>
 </head>
 <body>
 
@@ -27,13 +21,19 @@
   </section>
 
   <section id="appView" hidden>
-    <header class="bar">
-      <a class="back" href="../">← 메인으로</a>
-      <div class="who">로그인됨: <b id="userEmail"></b></div>
-      <button class="logout" id="logoutBtn">로그아웃</button>
-    </header>
-    <!-- 매싱 앱(VWORLD 3D)은 별도 문서 app.html — 로그인 후 iframe으로 로드 -->
-    <iframe id="appFrame" title="VWORLD 매싱 스튜디오"></iframe>
+    <div class="wrap">
+      <header class="bar">
+        <a class="back" href="../">← 메인으로</a>
+        <div class="who">로그인됨: <b id="userEmail"></b></div>
+        <button class="logout" id="logoutBtn">로그아웃</button>
+      </header>
+
+      <!-- ✏️ 엄희진: 여기서부터 앱 내용을 작성하세요 -->
+      <h2>엄희진 앱</h2>
+      <p style="color:var(--muted)">아직 개발 중입니다.</p>
+      <!-- ✏️ 여기까지 -->
+
+    </div>
   </section>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -44,16 +44,11 @@
 
     function updateView(session){
       currentUser = session ? session.user : null;
-      const frame = $('appFrame');
       if(session){
         $('loginView').hidden = true; $('appView').hidden = false;
         $('userEmail').textContent = session.user.email;
-        // 로그인 후에만 무거운 앱을 로드(중복 로드 방지)
-        if(frame && !frame.src){ frame.src = 'app.html'; }
       } else {
         $('appView').hidden = true; $('loginView').hidden = false;
-        // 로그아웃 시 앱 언로드
-        if(frame && frame.src){ frame.removeAttribute('src'); }
       }
     }
 
