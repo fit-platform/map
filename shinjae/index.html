@@ -7,7 +7,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+KR:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html,body{min-height:100%;background:#F5F3EF;font-family:'Noto Sans KR',sans-serif;}
+html,body{min-height:100%;background:#F5F3EF;font-family:'Noto Sans KR',sans-serif;font-size:13px;line-height:1.6;color:#0F0F0D;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+/* 디자인 시스템: Bebas Neue=라틴 코드/헤더 전용(한글은 Noto로 폴백), Noto Sans KR=본문, DM Mono=수치 */
+p{line-height:1.65;}
 ::-webkit-scrollbar{height:6px;width:6px;}::-webkit-scrollbar-thumb{background:#D8D5CE;border-radius:3px;}
 table{border-collapse:collapse;width:100%;}
 input[type=number]{-moz-appearance:textfield;}
@@ -30,7 +32,7 @@ const {useState,useMemo,useCallback,useEffect,useRef}=React;
 
 /* ═══ TOKENS ═══ */
 const C={white:'#FFFFFF',bg:'#F5F3EF',panel:'#EEECE8',border:'#D8D5CE',
-  borderDark:'#B8B4AB',ink:'#0F0F0D',sub:'#5C5955',light:'#A8A49E',
+  borderDark:'#B8B4AB',ink:'#0F0F0D',sub:'#54514D',light:'#8C887F',
   green:'#2A5B3B',greenLt:'#EEF5F0',amber:'#7A4F2A',amberLt:'#F5EDE5',
   blue:'#1E3D62',blueLt:'#E8EDF5',red:'#8B2A2A',redLt:'#FDF0F0',
   gray:'#E8E6E2'};
@@ -245,6 +247,16 @@ function frameSection(f){
   return{H1,H2,H3,H4,visionH:H3,outerGlassH:f.frameHeight,needsSplit:f.frameHeight>6000,thickness:f.floors>10?'17.52T':'13.52T'};
 }
 
+/* 공조시스템 해석: A 공조카트리지(cart, 바닥형/천장형 = 공사범위) / B 중앙(central) / C EHP(ehp) / D 기타(etc) = 비교견적(총공사비 제외).
+   legacy(이전 버전 floor/ceiling 최상위)도 cart로 흡수. cartKind=floor/ceiling, floor는 floorType(iso 등압→FTU / pres 가압→circ·front). */
+function hvacKind(crt){
+  if(!crt||!crt.hasHvac)return{sys:null,isCart:false,ceil:false,kind:null};
+  let s=crt.hvacSys||'cart';
+  if(s==='floor')return{sys:'cart',isCart:true,ceil:false,kind:'floor'};     /* legacy */
+  if(s==='ceiling')return{sys:'cart',isCart:true,ceil:true,kind:'ceiling'};  /* legacy */
+  if(s==='cart'){const k=crt.cartKind||'floor';return{sys:'cart',isCart:true,ceil:k==='ceiling',kind:k};}
+  return{sys:s,isCart:false,ceil:false,kind:null};                            /* central/ehp/etc */
+}
 function zoneAgg(zones,floorZones,frames,crt,grd,os,E,P,FD,zonePer){
   const zPer=zonePer||165; /* 존당 기준 바닥면적(㎡) — 공조·제어조닝 존수량 */
   const ef=(FD&&FD.energy_factors)||{};
@@ -265,8 +277,9 @@ function zoneAgg(zones,floorZones,frames,crt,grd,os,E,P,FD,zonePer){
   const envFac=outerSpec.id==='high_spec'?(ef.env_high??0.105):(ef.env_std??0.096);
   const skinOk=crt.hasSkin&&repFr.depth>=skinSpec.minD;
   const shadeFac=skinOk?skinSpec.shade/100:0;
-  const hvacOk=crt.hasHvac&&repFr.depth>=1000;
-  const rHvac=hvacOk?rHvacFull:0;
+  const hk=hvacKind(crt);                                         /* A 카트리지(공사범위) / B 중앙·C EHP·D 기타(비교견적·제외) */
+  const hvacOk=hk.isCart&&repFr.depth>=1000;                       /* 카트리지(바닥/천장)는 이중외피 깊이 1,000mm↑에서만 */
+  const rHvac=hvacOk?rHvacFull:0;                                 /* 에너지 절감계수는 카트리지에만 적용(중앙·EHP·기타 제외) */
   /* 층구간(floorZones) → 바닥면적·존수량 */
   const fz=Array.isArray(floorZones)?floorZones:[];
   let totalM2=0,zoneCount=0;
@@ -274,7 +287,20 @@ function zoneAgg(zones,floorZones,frames,crt,grd,os,E,P,FD,zonePer){
   const skinN=skinOk?modTotal:0;
   const cSkin=skinN*skinP(skinSpec,FD);
   const hvacN=hvacOk?zoneCount:0;
-  const cHvac=hvacN*P.pHvac;
+  const hvBaseP=hk.ceil?(P.pHvacCeil||P.pHvac):P.pHvac;
+  let cHvac=hvacN*hvBaseP;                                        /* 분산공조기 base (존수량×단가) */
+  if(hvacOk){
+    const o=crt.hvacOpts||{};                                     /* 옵션: 전열교환기/가습/UV — 존수량 기준 가산 */
+    if(o.erv)cHvac+=hvacN*(P.pErv||0);
+    if(o.humid)cHvac+=hvacN*(P.pHumid||0);
+    if(o.uv)cHvac+=hvacN*(P.pUv||0);
+    if(hk.kind==='floor'){                                        /* 바닥공조 취출 방식 — 바닥면적(㎡) 기준 별도 가산 */
+      const ft=crt.floorType||'iso';
+      if(ft==='iso')cHvac+=totalM2*(P.pFtu||0);                   /* 등압식 → FTU */
+      else cHvac+=totalM2*((crt.presDiff||'circ')==='front'?(P.pDiffFront||0):(P.pDiffCirc||0)); /* 가압식: 전면취출/원형디퓨져 */
+    }
+  }
+  const hvacCompare=hk.sys==='ehp'?totalM2*(P.pEhp||0):hk.sys==='central'?totalM2*(P.pCentral||0):hk.sys==='etc'?totalM2*(P.pEtc||0):0; /* 중앙·EHP·기타 = 공사범위 제외 비교견적 (total 미포함) */
   const cGrid=grd.hasGrid?(P.pGrid+(grd.daylight?P.pDaylight:0)+(grd.dimming?P.pDimming:0))*modTotal:0;
   let conventional=0;
   zones.forEach(z=>{const fr=zoneFrame(z,frames);conventional+=(fr.frameWidth/1000)*(fr.frameHeight/1000)*(z.moduleCount||0)*P.pConv;});
@@ -284,20 +310,21 @@ function zoneAgg(zones,floorZones,frames,crt,grd,os,E,P,FD,zonePer){
   const total=frameGlass+cSkin+cHvac+cGrid+osFlat;
   const savedFrac=baseline?saved/baseline:0;
   const payback=annualSave>0?(total-conventional)/annualSave:null;
-  return{total,frameGlass,cSkin,cHvac,cGrid,osFlat,baseline,saved,annualSave,co2,conventional,savedFrac,payback,optimized:baseline-saved,zoneCount,modTotal,totalM2,zonePer:zPer};
+  return{total,frameGlass,cSkin,cHvac,hvacCompare,hvSys:hk.sys,cGrid,osFlat,baseline,saved,annualSave,co2,conventional,savedFrac,payback,optimized:baseline-saved,zoneCount,modTotal,totalM2,zonePer:zPer};
 }
 
 
 /* ═══ UI ATOMS ═══ */
-const Lbl=({ch,caps=true})=><span style={{display:'block',fontSize:11,fontWeight:600,color:C.light,letterSpacing:caps?'.12em':'.04em',textTransform:caps?'uppercase':'none',marginBottom:7,fontFamily:"'Bebas Neue',sans-serif"}}>{ch}</span>;
+const FF={disp:"'Bebas Neue','Noto Sans KR',sans-serif",body:"'Noto Sans KR',sans-serif",mono:"'DM Mono',monospace"}; /* 폰트 체계 단일 출처 */
+const Lbl=({ch,caps=true})=><span style={{display:'block',fontSize:11.5,fontWeight:600,color:C.sub,letterSpacing:caps?'.1em':'.03em',textTransform:caps?'uppercase':'none',marginBottom:7,fontFamily:FF.disp}}>{ch}</span>;
 const HR=()=><div style={{height:1,background:C.border,margin:'18px 0'}}/>;
 /* 입력/산출 구분 칩 — tag="input"(테두리)·"result"(녹색 채움) */
 const TagChip=({t})=>t==='input'
-  ?<span style={{fontSize:9,padding:'2px 8px',border:`1px solid ${C.ink}`,color:C.ink,letterSpacing:'.08em',whiteSpace:'nowrap',fontFamily:"'Bebas Neue',sans-serif"}}>입력 INPUT</span>
+  ?<span style={{fontSize:9.5,padding:'2px 8px',border:`1px solid ${C.ink}`,color:C.ink,letterSpacing:'.06em',whiteSpace:'nowrap',fontFamily:FF.disp}}>입력 INPUT</span>
   :t==='result'
-  ?<span style={{fontSize:9,padding:'2px 8px',background:C.green,color:C.white,letterSpacing:'.08em',whiteSpace:'nowrap',fontFamily:"'Bebas Neue',sans-serif"}}>자동 산출 RESULT</span>
+  ?<span style={{fontSize:9.5,padding:'2px 8px',background:C.green,color:C.white,letterSpacing:'.06em',whiteSpace:'nowrap',fontFamily:FF.disp}}>자동 산출 RESULT</span>
   :null;
-const SH=({code,sub,tag})=><div style={{display:'flex',alignItems:'baseline',gap:12,marginBottom:18}}><span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:'.1em',color:C.ink}}>{code}</span>{sub&&<span style={{fontSize:11,color:C.light}}>{sub}</span>}<TagChip t={tag}/></div>;
+const SH=({code,sub,tag})=><div style={{display:'flex',alignItems:'baseline',gap:12,marginBottom:18}}><span style={{fontFamily:FF.disp,fontSize:19,letterSpacing:'.08em',color:C.ink}}>{code}</span>{sub&&<span style={{fontSize:12.5,color:C.sub}}>{sub}</span>}<TagChip t={tag}/></div>;
 
 const NF=({label,value,onChange,unit,step=1,min=0,max})=>{
   /* 사용자 입력 중 버퍼 — 전부 지우거나 "-"/"."만 남은 상태에선 commit하지 않아 결과·렌더 폭주 방지 */
@@ -357,8 +384,8 @@ const ChoiceGrid=({options,value,onChange,cols=2})=>(
         border:`1.5px solid ${on?C.ink:disabled?C.border:C.border}`,
         background:on?C.ink:disabled?C.panel:'transparent',
         opacity:disabled?0.4:1,cursor:disabled?'not-allowed':'pointer',transition:'all .15s'}}>
-        <span style={{display:'block',fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:'.06em',color:on?C.white:C.ink}}>{o.label}</span>
-        {o.sub&&<span style={{display:'block',fontSize:9.5,color:on?'#aaa':C.light,marginTop:2,fontFamily:"'DM Mono',monospace"}}>{o.sub}</span>}
+        <span style={{display:'block',fontFamily:FF.disp,fontSize:13.5,letterSpacing:'.04em',color:on?C.white:C.ink}}>{o.label}</span>
+        {o.sub&&<span style={{display:'block',fontSize:10.5,color:on?'#cfccc6':C.sub,marginTop:2,fontFamily:FF.mono}}>{o.sub}</span>}
         {o.badge&&<span style={{display:'inline-block',marginTop:4,fontSize:9,padding:'1px 5px',background:o.badgeColor||C.green,color:C.white,fontFamily:"'DM Mono',monospace"}}>{o.badge}</span>}
       </button>;
     })}
@@ -396,7 +423,7 @@ function SectionSVG({f,crt}){
   const y2=top, y3=top+h2, y4=top+h2+h3, y1=top+h2+h3+h4;
   const skinCart=SKIN_CARTS.find(c=>c.id===crt.skinType);
   const skinOk=crt.hasSkin&&skinCart&&f.depth>=skinCart.minD&&f.depth<=skinCart.maxD;
-  const hvacOk=crt.hasHvac&&f.depth>=1000;
+  const hvacOk=hvacKind(crt).isCart&&f.depth>=1000; /* 단면 캐비티 AIR HANDLING 표시는 카트리지(바닥/천장)만 */
 
   const insHatch=(x,y,w,h)=>{
     const lines=[];
@@ -674,7 +701,7 @@ function PlatformTab({zones,setZones,zonePer,setZonePer,floorZones,setFloorZones
         <Lbl ch="SMART X GREEN PLUS"/>
         {[{l:'DOUBLE SKIN FACADE',v:OUTER_GLASS.find(g=>g.id===cFrame.outerGlassType)?.id==='high_spec'?10.5:9.6,on:true},
           {l:`SKIN CARTRIDGE (${SKIN_CARTS.find(c=>c.id===cCrt.skinType)?.en||''})`,v:SKIN_CARTS.find(c=>c.id===cCrt.skinType)?.shade||0,on:cCrt.hasSkin&&cFrame.depth>=(SKIN_CARTS.find(c=>c.id===cCrt.skinType)?.minD||999)},
-          {l:'AIR HANDLING CARTRIDGE',v:8.5,on:cCrt.hasHvac&&cFrame.depth>=1000},
+          {l:'AIR HANDLING CARTRIDGE',v:8.5,on:hvacKind(cCrt).isCart&&cFrame.depth>=1000},
           {l:'GRID — 채광 센서',v:1,on:cGrd.hasGrid&&cGrd.daylight},
           {l:'OS — SUN TRACKING',v:1.5,on:cOs.hasOs&&cOs.sunTrack}].map(r=>(
           <div key={r.l} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6,opacity:r.on?1:0.28}}>
@@ -724,7 +751,7 @@ function FrameTab({f,setF,crt,frames,activeFrameId,setActiveFrameId,setFrames,pl
         <button onClick={delType} style={{background:'transparent',color:C.red,border:`1px solid ${C.border}`,padding:'6px 12px',fontSize:12}}>타입 삭제</button>
       </div>
       {planMeta&&f.name&&f.name.indexOf('PLAN')===0&&(
-        <div style={{padding:'9px 14px',background:C.blueLt,border:`1px solid ${C.blue}`,marginBottom:16,fontSize:11,color:C.blue,lineHeight:1.6}}>
+        <div style={{padding:'9px 14px',background:C.blueLt,borderLeft:`3px solid ${C.blue}`,marginBottom:16,fontSize:11,color:C.blue,lineHeight:1.6}}>
           ⧉ 이 프레임은 <b>{planMeta.name}</b>에서 생성되었습니다 (모듈 {fmt(planMeta.moduleW)}mm · 층고 {fmt(planMeta.floorH)}mm · H분절 자동 산정). 여기서 치수를 수정하면 PLAN 수량 산정과 달라질 수 있으며, PLAN 탭에서 재적용하면 덮어써집니다.
         </div>
       )}
@@ -745,7 +772,7 @@ function FrameTab({f,setF,crt,frames,activeFrameId,setActiveFrameId,setFrames,pl
         </div>
 
         {/* derived */}
-        <div style={{background:C.greenLt,border:`1px solid ${C.green}`,padding:'12px 14px',marginBottom:20}}>
+        <div style={{background:C.greenLt,borderLeft:`3px solid ${C.green}`,padding:'12px 14px',marginBottom:20}}>
           <Lbl ch="자동 산출 결과 (견적 엔진)"/>
           {[{l:'외부접합 높이 (H)',v:`${fmt(sec.outerGlassH)} mm`},{l:'비전 H3',v:`${fmt(sec.H3)} mm`},{l:'스팬드럴 H2 / H4',v:`${fmt(sec.H2)} / ${fmt(sec.H4)} mm`},{l:'유리 두께 (층수 기준)',v:sec.thickness}].map(r=>(
             <div key={r.l} style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
@@ -753,8 +780,8 @@ function FrameTab({f,setF,crt,frames,activeFrameId,setActiveFrameId,setFrames,pl
               <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,fontWeight:600,color:C.green}}>{r.v}</span>
             </div>
           ))}
-          {sec.H3<=0&&<div style={{marginTop:8,padding:'6px 10px',background:C.redLt,border:`1px solid ${C.red}`,fontSize:11,color:C.red}}>⚠ H1+H2+H4 합이 H를 초과 — 비전(H3)이 음수입니다. 값을 조정하세요.</div>}
-          {sec.needsSplit&&<div style={{marginTop:8,padding:'6px 10px',background:C.redLt,border:`1px solid ${C.red}`,fontSize:11,color:C.red}}>⚠ 높이 6m 초과 — 내·외부 유리 높이 방향 2분절 필요</div>}
+          {sec.H3<=0&&<div style={{marginTop:8,padding:'6px 10px',background:C.redLt,borderLeft:`3px solid ${C.red}`,fontSize:11,color:C.red}}>⚠ H1+H2+H4 합이 H를 초과 — 비전(H3)이 음수입니다. 값을 조정하세요.</div>}
+          {sec.needsSplit&&<div style={{marginTop:8,padding:'6px 10px',background:C.redLt,borderLeft:`3px solid ${C.red}`,fontSize:11,color:C.red}}>⚠ 높이 6m 초과 — 내·외부 유리 높이 방향 2분절 필요</div>}
         </div>
 
         <HR/>
@@ -843,33 +870,74 @@ function SkinTab({frames,crt,setCrt,FD}){
   );
 }
 
-/* ═══ AIR HANDLING CARTRIDGE TAB ═══ */
+/* ═══ AIR HANDLING (공조시스템) TAB ═══ */
+/* radioRow/checkRow는 컴포넌트가 아니라 JSX를 반환하는 헬퍼(직접 호출) — 내부 컴포넌트 정의 금지 규약 위배 아님(remount 없음) */
+function hvRadioRow(checked,label,sub,onClick,disabled,indent){
+  return(
+    <div onClick={disabled?undefined:onClick} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'10px 12px',marginLeft:(indent||0)*22,marginTop:6,border:`1px solid ${checked?C.green:C.border}`,background:checked?C.greenLt:C.panel,cursor:disabled?'not-allowed':'pointer',opacity:disabled?0.45:1}}>
+      <div style={{width:16,height:16,borderRadius:'50%',border:`2px solid ${checked?C.green:C.borderDark}`,flexShrink:0,marginTop:1,display:'flex',alignItems:'center',justifyContent:'center'}}>{checked&&<div style={{width:8,height:8,borderRadius:'50%',background:C.green}}/>}</div>
+      <div style={{flex:1}}>
+        <div style={{fontSize:13,fontWeight:600,color:C.ink}}>{label}</div>
+        {sub&&<div style={{fontSize:10.5,color:C.sub,marginTop:2,lineHeight:1.5}}>{sub}</div>}
+      </div>
+    </div>
+  );
+}
+function hvCheckRow(checked,label,onClick){
+  return(
+    <div onClick={onClick} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 11px',border:`1px solid ${checked?C.green:C.border}`,background:checked?C.greenLt:C.panel,cursor:'pointer'}}>
+      <div style={{width:15,height:15,border:`2px solid ${checked?C.green:C.borderDark}`,background:checked?C.green:'transparent',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:10,lineHeight:1}}>{checked?'✓':''}</div>
+      <span style={{fontSize:12,color:C.ink}}>{label}</span>
+    </div>
+  );
+}
 function HvacTab({frames,crt,setCrt}){
   const pc=k=>v=>setCrt(s=>({...s,[k]:v}));
-  const anyOk=frames.some(fr=>fr.depth>=1000);
+  const o=crt.hvacOpts||{};
+  const toggleOpt=k=>setCrt(s=>({...s,hvacOpts:{...(s.hvacOpts||{}),[k]:!((s.hvacOpts||{})[k])}}));
+  const anyOk=frames.some(fr=>fr.depth>=1000);  /* 카트리지(바닥/천장) 적용 가능 깊이 타입 존재 여부 */
+  const sys=crt.hvacSys||'cart', ck=crt.cartKind||'floor', ft=crt.floorType||'iso', pd=crt.presDiff||'circ';
   return(
     <div style={{maxWidth:900,margin:'0 auto',padding:'28px 32px'}}>
-      <SH code="AIR HANDLING CARTRIDGE" sub="공조카트리지 — 분산 공조 시스템" tag="input"/>
-      <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:20}}>
+      <SH code="AIR HANDLING" sub="공조시스템" tag="input"/>
+      <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:16}}>
         {frames.map(fr=>{const ok=fr.depth>=1000;return(
           <div key={fr.id} style={{padding:'8px 12px',border:`1px solid ${ok?C.green:C.border}`,background:ok?C.greenLt:C.panel}}>
             <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:12,letterSpacing:'.04em',color:C.ink}}>{fr.name}</span>
             <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.sub,marginLeft:8}}>D{fr.depth}</span>
-            <span style={{fontSize:9,marginLeft:8,color:ok?C.green:C.red}}>{ok?'적용가능':'1,000mm↑ 필요'}</span>
+            <span style={{fontSize:9,marginLeft:8,color:ok?C.green:C.red}}>{ok?'카트리지 적용가능':'1,000mm↑ 필요'}</span>
           </div>);})}
       </div>
-      {!anyOk
-        ?<div style={{padding:'14px 16px',background:C.redLt,border:`1px solid ${C.red}`,fontSize:11,color:C.red}}>⚠ 공조카트리지는 이중외피 깊이 1,000mm 이상에서만 적용 가능합니다. FRAME 탭에서 해당 타입의 깊이를 늘려주세요.</div>
-        :<div>
-          <Toggle on={crt.hasHvac} onClick={()=>pc('hasHvac')(!crt.hasHvac)} label="공조카트리지 적용" sub="50평당 1대 기준 분산 배치 · 깊이 1,000mm 이상 타입의 존에만 적용"/>
-          {crt.hasHvac&&<div style={{marginTop:14,padding:'14px',background:C.greenLt,border:`1px solid ${C.green}`}}>
-            <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
-              {[{l:'적용 깊이 범위',v:'1,000 ~ 1,500mm'},{l:'공조 면적 기준',v:'전용면적 50평당 1대'},{l:'카트리지 배치',v:'외피 내 분산'}].map(r=>(
-                <div key={r.l}><Lbl ch={r.l}/><div style={{fontFamily:"'DM Mono',monospace",fontSize:13,color:C.green}}>{r.v}</div></div>
-              ))}
-            </div>
-          </div>}
-        </div>}
+      <Toggle on={crt.hasHvac} onClick={()=>pc('hasHvac')(!crt.hasHvac)} label="공조시스템 적용" sub="아래에서 시스템 유형을 선택 — 견적·에너지 절감에 반영"/>
+      {crt.hasHvac&&<div style={{marginTop:14}}>
+        {/* A. 공조카트리지 (바닥형/천장형 = 공사범위) */}
+        {hvRadioRow(sys==='cart','A. 공조카트리지','바닥형/천장형 분산 공조 — 전열교환기·가습·UV필터 선택옵션'+(anyOk?'':' · 현재 적용 가능 깊이 타입 없음'),()=>pc('hvacSys')('cart'),false,0)}
+        {sys==='cart'&&<>
+          {hvRadioRow(ck==='floor','바닥형 공조카트리지','이중외피 깊이 1,000mm↑'+(anyOk?'':' (적용 불가)'),()=>pc('cartKind')('floor'),!anyOk,1)}
+          {ck==='floor'&&<>
+            {hvRadioRow(ft==='iso','등압식 바닥공조','견적에 FTU 추가',()=>pc('floorType')('iso'),false,2)}
+            {hvRadioRow(ft==='pres','가압식 바닥공조','취출 방식 선택',()=>pc('floorType')('pres'),false,2)}
+            {ft==='pres'&&<>
+              {hvRadioRow(pd==='circ','원형디퓨져','견적에 추가',()=>pc('presDiff')('circ'),false,3)}
+              {hvRadioRow(pd==='front','전면취출 바닥공조','견적에 항목 추가',()=>pc('presDiff')('front'),false,3)}
+            </>}
+          </>}
+          {hvRadioRow(ck==='ceiling','천장형 공조카트리지','이중외피 깊이 1,000mm↑'+(anyOk?'':' (적용 불가)'),()=>pc('cartKind')('ceiling'),!anyOk,1)}
+          {/* 전열교환기/가습/UV 옵션 — 바닥형·천장형 공통 */}
+          <div style={{marginLeft:44,marginTop:8,display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+            <span style={{fontSize:10.5,color:C.light,letterSpacing:'.04em',marginRight:2}}>선택옵션</span>
+            {hvCheckRow(!!o.erv,'전열교환기',()=>toggleOpt('erv'))}
+            {hvCheckRow(!!o.humid,'가습',()=>toggleOpt('humid'))}
+            {hvCheckRow(!!o.uv,'UV 필터',()=>toggleOpt('uv'))}
+          </div>
+          {!anyOk&&<div style={{marginLeft:22,marginTop:10,padding:'12px 14px',background:C.redLt,borderLeft:`3px solid ${C.red}`,fontSize:11,color:C.red,lineHeight:1.6}}>⚠ 공조카트리지(바닥/천장)는 이중외피 깊이 1,000mm 이상에서만 적용됩니다. FRAME 탭에서 깊이를 늘리거나, 중앙공조·EHP·기타(비교견적)를 선택하세요.</div>}
+        </>}
+        {/* B·C·D. 비교견적용 (공사범위 제외) */}
+        {hvRadioRow(sys==='central','B. 중앙공조','공사범위 제외 · 비교견적용',()=>pc('hvacSys')('central'),false,0)}
+        {hvRadioRow(sys==='ehp','C. EHP + 전열교환기','공사범위 제외 · 비교견적용',()=>pc('hvacSys')('ehp'),false,0)}
+        {hvRadioRow(sys==='etc','D. 기타','공사범위 제외 · 비교견적용 (ADMIN 단가 기준)',()=>pc('hvacSys')('etc'),false,0)}
+        {(sys==='central'||sys==='ehp'||sys==='etc')&&<div style={{marginTop:10,padding:'10px 14px',background:C.panel,borderLeft:`3px solid ${C.borderDark}`,fontSize:11.5,color:C.sub,lineHeight:1.6}}>※ 이 시스템은 <b>공사범위 제외</b> 항목입니다 — 총공사비에 포함되지 않고 COST 탭에 <b>비교견적</b>으로만 표시되며, 에너지 절감 계수도 적용되지 않습니다. (바닥면적 × ADMIN 단가)</div>}
+      </div>}
     </div>
   );
 }
@@ -888,7 +956,7 @@ function PlaceholderTab({code,sub,items,note}){
           </div>
         ))}
       </div>
-      <div style={{padding:'12px 16px',background:C.greenLt,border:`1px solid ${C.green}`,fontSize:11,color:C.green,lineHeight:1.7}}>{note}</div>
+      <div style={{padding:'12px 16px',background:C.greenLt,borderLeft:`3px solid ${C.green}`,fontSize:11,color:C.green,lineHeight:1.7}}>{note}</div>
     </div>
   );
 }
@@ -907,7 +975,7 @@ function PerspectiveTab({renders,projectName,aiRenderView,renderBusy,canRender})
   return(
     <div style={{maxWidth:1100,margin:'0 auto',padding:'28px 32px'}}>
       <SH code="PERSPECTIVE" sub="AI 렌더 투시도 — 뷰별 대화형 생성·다운로드" tag="result"/>
-      {!canRender&&<div style={{padding:'10px 14px',background:C.amberLt,border:`1px solid ${C.amber}`,fontSize:11,color:C.amber,marginBottom:16,lineHeight:1.6}}>⚠ PLAN 탭에서 매스 옵션을 먼저 생성·선택해야 렌더를 생성할 수 있습니다. (외부 투시는 PLAN의 SIMULATION 하단에서 먼저 생성하는 것을 권장)</div>}
+      {!canRender&&<div style={{padding:'10px 14px',background:C.amberLt,borderLeft:`3px solid ${C.amber}`,fontSize:11,color:C.amber,marginBottom:16,lineHeight:1.6}}>⚠ PLAN 탭에서 매스 옵션을 먼저 생성·선택해야 렌더를 생성할 수 있습니다. (외부 투시는 PLAN의 SIMULATION 하단에서 먼저 생성하는 것을 권장)</div>}
       {r.time&&<p style={{fontSize:10.5,color:C.light,marginBottom:14}}>최근 생성: {r.time}{r.label?` · ${r.label}`:''}{r.usedBase?' · VWorld 3D 베이스 반영':''} · AI 렌더는 개략 시각화로 실제 설계와 다를 수 있습니다.</p>}
       <div style={{display:'flex',flexDirection:'column',gap:18}}>
         {VIEWS.map(v=>{
@@ -993,7 +1061,7 @@ function GridTab({grd,setGrd}){
           </div>
           <HR/>
           <div><Lbl ch="색온도 (Color Temperature)"/><ChoiceGrid options={ctemps.map(t=>({id:t.id,label:t.label,sub:t.sub}))} value={grd.colorTemp||4000} onChange={pg('colorTemp')} cols={5}/></div>
-          <div style={{marginTop:12,padding:'12px 16px',background:C.greenLt,border:`1px solid ${C.green}`,fontSize:11,color:C.green,lineHeight:1.7}}>
+          <div style={{marginTop:12,padding:'12px 16px',background:C.greenLt,borderLeft:`3px solid ${C.green}`,fontSize:11,color:C.green,lineHeight:1.7}}>
             {grd.daylight&&'✓ 채광 센서 연동으로 조명 에너지 약 5% 추가 절감'}<br/>
             {grd.dimming&&'✓ 조광 제어로 최대 30% 추가 절약 가능'}<br/>
             {grd.zoneCtrl&&'✓ 구역 제어로 불필요한 점등 최소화'}
@@ -1030,7 +1098,7 @@ function OsTab({os,setOs}){
             <Toggle on={os.scheduler} onClick={()=>po('scheduler')(!os.scheduler)} label="스케줄 & 프리셋 모드" sub={`쾌적·절약·스케줄 모드 — ${OS_MODES.map(m=>m.label).join(' / ')}`}/>
           </div>
           <HR/>
-          <div style={{padding:'14px 16px',background:C.greenLt,border:`1px solid ${C.green}`}}>
+          <div style={{padding:'14px 16px',background:C.greenLt,borderLeft:`3px solid ${C.green}`}}>
             <Lbl ch="OS 통합 효과"/>
             {[{on:os.sunTrack,t:'태양 추적 → 차양 최적화 → 냉방 에너지 3% 추가 절감'},
               {on:os.energy,t:'에너지 모니터링 → 이상 소비 조기 감지 → 운영비 절감'},
@@ -1059,15 +1127,34 @@ function costLines(zones,floorZones,frames,crt,grd,os,P,FD,zonePer){
   const mc=zones.reduce((s,z)=>s+(z.moduleCount||0),0);
   const repFr=(zones[0]&&zoneFrame(zones[0],frames))||frames[0]||{};
   const skinOk=crt.hasSkin&&repFr.depth>=skinSpec.minD;
-  const hvacOk=crt.hasHvac&&repFr.depth>=1000;
+  const hk=hvacKind(crt);
+  const hvacOk=hk.isCart&&repFr.depth>=1000;
   const fz=Array.isArray(floorZones)?floorZones:[];
-  let zoneCount=0; fz.forEach(g=>{const nf=Math.max(1,(g.to||1)-(g.from||1)+1);zoneCount+=Math.max(1,Math.ceil(Math.max(0,g.areaM2||0)/zPer))*nf;});
+  let zoneCount=0,totalM2=0; fz.forEach(g=>{const nf=Math.max(1,(g.to||1)-(g.from||1)+1);const a=Math.max(0,g.areaM2||0);zoneCount+=Math.max(1,Math.ceil(a/zPer))*nf;totalM2+=a*nf;});
   const skinN=skinOk?mc:0, hvacN=hvacOk?zoneCount:0;
   let conventional=0; zones.forEach(z=>{const fr=zoneFrame(z,frames);conventional+=(fr.frameWidth/1000)*(fr.frameHeight/1000)*(z.moduleCount||0)*P.pConv;});
   const cart=[];
   if(skinN>0)cart.push({item:'스킨카트리지',spec:skinSpec.label,unit:'대',qty:skinN,price:skinP(skinSpec,FD),amt:skinN*skinP(skinSpec,FD)});
-  if(hvacN>0)cart.push({item:'공조카트리지',spec:`분산 공조기 (${zPer}㎡/존)`,unit:'대',qty:hvacN,price:P.pHvac,amt:hvacN*P.pHvac});
+  if(hvacN>0){
+    const baseP=hk.ceil?(P.pHvacCeil||P.pHvac):P.pHvac;
+    cart.push({item:hk.ceil?'천장형 공조카트리지':'바닥형 공조카트리지',spec:`분산 공조기 (${zPer}㎡/존)`,unit:'대',qty:hvacN,price:baseP,amt:hvacN*baseP});
+    const o=crt.hvacOpts||{};
+    if(o.erv)cart.push({item:'전열교환기',spec:'선택옵션',unit:'대',qty:hvacN,price:P.pErv||0,amt:hvacN*(P.pErv||0)});
+    if(o.humid)cart.push({item:'가습',spec:'선택옵션',unit:'대',qty:hvacN,price:P.pHumid||0,amt:hvacN*(P.pHumid||0)});
+    if(o.uv)cart.push({item:'UV 필터',spec:'선택옵션',unit:'대',qty:hvacN,price:P.pUv||0,amt:hvacN*(P.pUv||0)});
+    if(hk.kind==='floor'){
+      const ft=crt.floorType||'iso';
+      if(ft==='iso')cart.push({item:'FTU (등압식)',spec:'바닥 취출',unit:'㎡',qty:Math.round(totalM2),price:P.pFtu||0,amt:totalM2*(P.pFtu||0)});
+      else if((crt.presDiff||'circ')==='front')cart.push({item:'전면취출 바닥공조 (가압식)',spec:'전면 취출구',unit:'㎡',qty:Math.round(totalM2),price:P.pDiffFront||0,amt:totalM2*(P.pDiffFront||0)});
+      else cart.push({item:'원형디퓨져 (가압식)',spec:'원형 디퓨저',unit:'㎡',qty:Math.round(totalM2),price:P.pDiffCirc||0,amt:totalM2*(P.pDiffCirc||0)});
+    }
+  }
   const cartSub=cart.reduce((s,x)=>s+x.amt,0);
+  const compare=[]; /* B 중앙 · C EHP · D 기타 = 공사범위 제외 · 비교견적 (total 미포함) */
+  if(hk.sys==='ehp')compare.push({item:'EHP + 전열교환기',spec:'공사범위 제외 · 비교견적',unit:'㎡',qty:Math.round(totalM2),price:P.pEhp||0,amt:totalM2*(P.pEhp||0)});
+  if(hk.sys==='central')compare.push({item:'중앙공조',spec:'공사범위 제외 · 비교견적',unit:'㎡',qty:Math.round(totalM2),price:P.pCentral||0,amt:totalM2*(P.pCentral||0)});
+  if(hk.sys==='etc')compare.push({item:'기타 공조',spec:'공사범위 제외 · 비교견적',unit:'㎡',qty:Math.round(totalM2),price:P.pEtc||0,amt:totalM2*(P.pEtc||0)});
+  const compareSub=compare.reduce((s,x)=>s+x.amt,0);
   const grid=[];
   if(grd.hasGrid){const gp=P.pGrid+(grd.daylight?P.pDaylight:0)+(grd.dimming?P.pDimming:0);grid.push({item:'GRID 조명 모듈',spec:[grd.daylight&&'채광센서',grd.dimming&&'조광'].filter(Boolean).join('+')||'기본 LED',unit:'모듈',qty:mc,price:gp,amt:mc*gp});}
   const gridSub=grid.reduce((s,x)=>s+x.amt,0);
@@ -1080,7 +1167,7 @@ function costLines(zones,floorZones,frames,crt,grd,os,P,FD,zonePer){
   }
   const osSub=osArr.reduce((s,x)=>s+x.amt,0);
   const total=frameGlassTotal+cartSub+gridSub+osSub;
-  return{byType,frameGlassTotal,samooDeliver,samooConstr,cart,cartSub,grid,gridSub,os:osArr,osSub,total,conventional,mc,hvacN,skinN,zoneCount};
+  return{byType,frameGlassTotal,samooDeliver,samooConstr,cart,cartSub,compare,compareSub,hvSys:hk.sys,grid,gridSub,os:osArr,osSub,total,conventional,mc,hvacN,skinN,zoneCount};
 }
 
 
@@ -1115,7 +1202,7 @@ function CostTab({zones,frames,crt,grd,os,P,setP,FD,setFD,committed,planMeta}){
       <SH code="COST DETAIL" sub="세부 공사비 견적 — FIT 견적 엔진" tag="result"/>
 
       {planMeta&&(
-        <div style={{padding:'10px 14px',background:C.blueLt,border:`1px solid ${C.blue}`,marginBottom:16,fontSize:11,color:C.blue,lineHeight:1.7}}>
+        <div style={{padding:'10px 14px',background:C.blueLt,borderLeft:`3px solid ${C.blue}`,marginBottom:16,fontSize:11,color:C.blue,lineHeight:1.7}}>
           ⧉ <b>PLAN 연동</b> — {planMeta.name} 적용분 ({planMeta.time}) · 모듈 {fmt(planMeta.moduleW)}×{fmt(planMeta.floorH)}mm · {fmt(planMeta.total)}EA · 적용층 {planMeta.from}~{planMeta.to}F. 수량·매스 변경은 PLAN 탭에서 수정 후 재적용하세요.
         </div>
       )}
@@ -1178,6 +1265,16 @@ function CostTab({zones,frames,crt,grd,os,P,setP,FD,setFD,committed,planMeta}){
         </div>
       </>}
 
+      {L.compare&&L.compare.length>0&&<>
+        <p style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:'.08em',color:C.sub,marginBottom:8}}>비교견적 (공사범위 제외 · 총공사비 미포함)</p>
+        <div style={{border:`1px dashed ${C.borderDark}`,marginBottom:20,overflowX:'auto'}}>
+          <table>
+            <thead><tr style={{borderBottom:`1.5px solid ${C.borderDark}`}}>{[['항목','left'],['규격','left'],['수량','right'],['단가','right'],['금액','right']].map(([h,a])=><th key={h} style={{padding:'8px 12px',textAlign:a,fontSize:10,fontFamily:"'Bebas Neue',sans-serif",letterSpacing:'.06em',color:C.sub,fontWeight:400}}>{h}</th>)}</tr></thead>
+            <tbody>{L.compare.map((x,i)=><ARow key={i} x={x}/>)}</tbody>
+          </table>
+        </div>
+      </>}
+
       <div style={{background:C.ink,color:C.white,padding:'16px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
         <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:'.08em'}}>FIT 총 공사비</span>
         <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:24}}>{won(L.total)}</span>
@@ -1190,7 +1287,7 @@ function CostTab({zones,frames,crt,grd,os,P,setP,FD,setFD,committed,planMeta}){
         <div style={{padding:'14px',border:`1px solid ${C.green}`,background:C.greenLt}}><Lbl ch="삼우 공사가 (Frame 계)"/><div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,color:C.green}}>{won(L.samooConstr)}</div></div>
       </div>
 
-      {L.byType.some(t=>t.est&&t.est.warnings.length>0)&&<div style={{padding:'12px 16px',background:C.redLt,border:`1px solid ${C.red}`,marginTop:12}}>
+      {L.byType.some(t=>t.est&&t.est.warnings.length>0)&&<div style={{padding:'12px 16px',background:C.redLt,borderLeft:`3px solid ${C.red}`,marginTop:12}}>
         {L.byType.flatMap(t=>t.est?t.est.warnings:[]).map((wn,i)=><p key={i} style={{fontSize:11,color:C.red,lineHeight:1.6}}>{wn}</p>)}
       </div>}
 
@@ -1221,7 +1318,7 @@ function EnergyTab({zones,frames,f,crt,grd,os,E,P,FD,committed}){
   const ef=(FD&&FD.energy_factors)||{};
   const envFac=outerSpec.id==='high_spec'?(ef.env_high??0.105):(ef.env_std??0.096);
   const shadeFac=C_.crt.hasSkin&&cFrame.depth>=skinSpec.minD?skinSpec.shade/100:0;
-  const hvacFac=C_.crt.hasHvac&&cFrame.depth>=1000?(ef.hvac??0.085):0;
+  const hvacFac=(hvacKind(C_.crt).isCart&&cFrame.depth>=1000)?(ef.hvac??0.085):0; /* 에너지 절감계수는 카트리지(바닥/천장)만, 중앙·EHP·기타 제외 */
   const gridFac=C_.grd.hasGrid?((C_.grd.daylight?(ef.grid_daylight??0.01):0)+(C_.grd.dimming?(ef.grid_dimming??0.01):0)):0;
   const osFac=C_.os.hasOs?((C_.os.sunTrack?(ef.os_suntrack??0.015):0)+(C_.os.energy?(ef.os_energy??0.01):0)):0;
 
@@ -1248,7 +1345,7 @@ function EnergyTab({zones,frames,f,crt,grd,os,E,P,FD,committed}){
         FIT 시스템은 <b style={{color:C.ink}}>외피 단열 · 능동 차양 · 분산 공조 · 스마트 조명 · 운영 최적화</b>가 연계되어 에너지를 절감합니다.
         각 시스템의 절감 기여를 중첩 보정(overlap)하여 산정하며, 시스템을 더할수록 절감 효과가 누적됩니다.
       </p>
-      <p style={{fontSize:11,color:C.green,marginBottom:8,lineHeight:1.7,padding:'8px 12px',background:C.greenLt,border:`1px solid ${C.green}`}}>
+      <p style={{fontSize:11,color:C.green,marginBottom:8,lineHeight:1.7,padding:'8px 12px',background:C.greenLt,borderLeft:`3px solid ${C.green}`}}>
         ✓ 절감 계수는 <b>태평로빌딩 EnergyPlus 시뮬레이션(설계설명서 rev-05, 총 36 시나리오)</b>의 마진 효과를 곱셈 중첩식으로 역산한 값입니다 — 스마트 합리화모델 대비 FIT Frame -9.6%, Skin Cartridge -0.9~1.5%p, AH Cartridge+FTU -5.8%p, 전열교환기 -2.6%p, Grid Dimming -0.4%p 등을 기반으로 보정.
       </p>
 
@@ -1375,11 +1472,11 @@ function defaultProject(){
     zonePer:165,
     floorZones:[{id:'low',part:'저층부',from:2,to:3,areaM2:660},{id:'std',part:'기준층',from:4,to:8,areaM2:660},{id:'high',part:'고층부',from:9,to:10,areaM2:660}],
     zones:[{id:1,name:'정면 입면',face:'F',moduleCount:24,frameId:'A'},{id:2,name:'우측면 입면',face:'R',moduleCount:14,frameId:'A'}],
-    crt:{hasSkin:true,skinType:'venetian',hasHvac:true},
+    crt:{hasSkin:true,skinType:'venetian',hasHvac:true,hvacSys:'cart',cartKind:'floor',floorType:'iso',presDiff:'circ',hvacOpts:{erv:false,humid:false,uv:false}},
     grd:{hasGrid:false,type:'integrated',daylight:false,dimming:false,zoneCtrl:false,emergency:false,colorTemp:4000},
     os:{hasOs:false,interface:'app',sunTrack:false,energy:false,comfort:false,bms:false,scheduler:false},
     E:{eui:250,elec:130},
-    P:{pFrame:85000,pSheet:60000,pHvac:12000000,pConv:700000,pGrid:500000,pDaylight:200000,pDimming:100000,pOsBase:80000000,pOsSun:30000000,pOsEnergy:20000000,pOsBms:50000000},
+    P:{pFrame:85000,pSheet:60000,pHvac:12000000,pHvacCeil:14000000,pFtu:80000,pDiffCirc:60000,pDiffFront:90000,pErv:3000000,pHumid:1500000,pUv:800000,pEhp:250000,pCentral:300000,pEtc:200000,pConv:700000,pGrid:500000,pDaylight:200000,pDimming:100000,pOsBase:80000000,pOsSun:30000000,pOsEnergy:20000000,pOsBms:50000000},
     FD:FIT_DATA_DEFAULT
   };
 }
@@ -1407,7 +1504,7 @@ function projectOverview(p){
 }
 
 /* ═══ PROJECT LIST TAB ═══ */
-function ProjectListTab({projects,setProjects,sel,setSel,current,loadFromList,saveCurrentToList,toast}){
+function ProjectListTab({projects,setProjects,sel,setSel,current,loadFromList,saveCurrentToList,toast,newProject,saveProject,loadProject,onCreatePlan}){
   const rows=projects.map(p=>({p,r:projectResults(p),o:projectOverview(p)}));
   const selected=rows.filter(x=>sel.includes(x.p.id));
   const toggle=id=>setSel(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);
@@ -1470,10 +1567,15 @@ function ProjectListTab({projects,setProjects,sel,setSel,current,loadFromList,sa
     <div style={{maxWidth:1100,margin:'0 auto',padding:'28px 32px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',flexWrap:'wrap',gap:12,marginBottom:18}}>
         <SH code="PROJECTS" sub="프로젝트 리스트 · 비교 분석"/>
-        <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
-          <button onClick={saveCurrentToList} style={{background:C.ink,color:C.white,border:'none',padding:'7px 14px',fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:'.06em'}}>＋ 현재 프로젝트 추가</button>
-          <button onClick={loadListFile} style={{background:'transparent',color:C.sub,border:`1px solid ${C.border}`,padding:'7px 12px',fontSize:12}}>리스트 열기</button>
-          <button onClick={saveListFile} style={{background:'transparent',color:C.sub,border:`1px solid ${C.border}`,padding:'7px 12px',fontSize:12}}>리스트 저장</button>
+        <div style={{display:'flex',gap:7,flexWrap:'wrap',alignItems:'center'}}>
+          {onCreatePlan&&<button onClick={onCreatePlan} style={{background:C.green,color:C.white,border:'none',padding:'7px 16px',fontFamily:"'Bebas Neue','Noto Sans KR',sans-serif",fontSize:13,letterSpacing:'.04em'}}>＋ 계획안 생성</button>}
+          {newProject&&<button onClick={newProject} style={{background:C.ink,color:C.white,border:'none',padding:'7px 14px',fontFamily:"'Bebas Neue','Noto Sans KR',sans-serif",fontSize:13,letterSpacing:'.04em'}}>새 프로젝트</button>}
+          <button onClick={saveCurrentToList} style={{background:C.white,color:C.ink,border:`1px solid ${C.ink}`,padding:'7px 14px',fontSize:12.5}}>＋ 현재 프로젝트 추가</button>
+          {saveProject&&<button onClick={saveProject} style={{background:'transparent',color:C.sub,border:`1px solid ${C.border}`,padding:'7px 12px',fontSize:12.5}}>프로젝트 저장</button>}
+          {loadProject&&<button onClick={loadProject} style={{background:'transparent',color:C.sub,border:`1px solid ${C.border}`,padding:'7px 12px',fontSize:12.5}}>프로젝트 열기</button>}
+          <span style={{width:1,height:22,background:C.border}}/>
+          <button onClick={loadListFile} style={{background:'transparent',color:C.light,border:`1px solid ${C.border}`,padding:'7px 12px',fontSize:12.5}}>리스트 열기</button>
+          <button onClick={saveListFile} style={{background:'transparent',color:C.light,border:`1px solid ${C.border}`,padding:'7px 12px',fontSize:12.5}}>리스트 저장</button>
         </div>
       </div>
 
@@ -1538,7 +1640,7 @@ function ProjectListTab({projects,setProjects,sel,setSel,current,loadFromList,sa
           </table>
         </div>
       )}
-      <p style={{fontSize:10,color:C.light,marginTop:12,lineHeight:1.7}}>※ 행 체크 → 평균값과 비교 보고서(PDF·Excel) 추출 · 「편집」으로 해당 프로젝트를 편집기로 불러옴 · 리스트는 이 브라우저에 자동 저장되어 새로고침 후에도 유지됩니다. 다른 PC·브라우저로 옮기거나 백업하려면 <b>리스트 저장</b>으로 JSON 파일을 받아두세요.</p>
+      <p style={{fontSize:11.5,color:C.sub,marginTop:12,lineHeight:1.7}}>행 체크 시 평균·비교 보고서 추출 · 「편집」으로 편집기에 불러오기 · 리스트는 브라우저에 자동 저장(백업은 <b>리스트 저장</b>).</p>
     </div>
   );
 }
@@ -2001,6 +2103,7 @@ function ParcelMapSVG({parcels,vworldKey,mass,drawEnabled,onDrawComplete,onSetFr
   /* ── 공통 변환 ── */
   const rad=rot*Math.PI/180,cosR=Math.cos(rad),sinR=Math.sin(rad);
   const rotP=([x,y])=>{const dx=x-W/2,dy=y-H/2;return[W/2+dx*cosR-dy*sinR,H/2+dx*sinR+dy*cosR];};
+  const depthOf=([x,y])=>(x-W/2)*sinR+(y-H/2)*cosR; /* 회전(방위)만 반영한 카메라 전후 깊이 — 클수록 시점에 가까움. 높이·틸트 무관 → 면단위 painter 정렬 키 */
   const sax=Math.sqrt(Math.max(0.02,1-tilt*tilt)),cax=tilt;
   const proj=([x,y],h)=>{
     const X=x-W/2,Y=y-H/2;
@@ -2101,37 +2204,28 @@ function ParcelMapSVG({parcels,vworldKey,mass,drawEnabled,onDrawComplete,onSetFr
         }
       }
       const midY=g3([mx+nx*dp,my+ny*dp],0)[1];
-      panels.push({near:midY>=massMidY,depth:midY,els:<g key={'pn'+ei}>{els}</g>});
+      panels.push({depth:(depthOf(ao)+depthOf(bo))/2,els:<g key={'pn'+ei}>{els}</g>}); /* depth=돌출 외곽선 중점의 카메라 전후 깊이 — 부착된 매스 벽보다 dp만큼 앞 → 매스 면 위에 정상 표시 */
     }
     return panels;
   })();
-  const bldgPrism=(b,key)=>{
-    const foot=b.ring.map(q=>toPx(q[0],q[1]));
-    const hM=Math.max(3,b.floors*3.3)/mpp;
+  /* 직육면체(footprint 압출)를 면(벽 N + 지붕 1) 단위로 분해 → [{depth,node}].
+     depth=footprint 깊이(depthOf): 벽=두 밑변 꼭짓점 평균, 지붕=footprint 최전방. 높이 무관 →
+     건물·매스·패널의 모든 면을 한 리스트에 모아 전역 정렬할 수 있다. col={wall,wallD,roof,stroke,sw,op,rstroke,rsw,rop} */
+  const prismFaces=(foot,hM,col,kp)=>{
     const base=foot.map(q=>g3(q,0)), top=foot.map(q=>g3(q,hM));
-    const wall=b.site?'#c9a896':'#9aa0a8', wallD=b.site?'#b8927e':'#868c94', roof=b.site?'#ddc4b4':'#c2c8d0';
-    const edges=foot.map((q,i)=>i).sort((a,c)=>Math.max(base[a][1],base[(a+1)%foot.length][1])-Math.max(base[c][1],base[(c+1)%foot.length][1]));
-    return(<g key={key}>
-      {edges.map(i=>{const j=(i+1)%foot.length;const sh=(base[j][0]-base[i][0])>0?wallD:wall;return<polygon key={i} points={P2([base[i],base[j],top[j],top[i]])} fill={sh} stroke="rgba(40,44,52,.6)" strokeWidth="0.5" opacity="0.9"/>;})}
-      <polygon points={P2(top)} fill={roof} stroke="rgba(40,44,52,.7)" strokeWidth="0.7" opacity="0.95"/>
-    </g>);
+    const fc=[];
+    for(let i=0;i<foot.length;i++){
+      const j=(i+1)%foot.length;
+      const sh=(base[j][0]-base[i][0])>0?col.wallD:col.wall;
+      fc.push({depth:(depthOf(foot[i])+depthOf(foot[j]))/2,
+        node:<polygon key={kp+'w'+i} points={P2([base[i],base[j],top[j],top[i]])} fill={sh} stroke={col.stroke} strokeWidth={col.sw} opacity={col.op}/>});
+    }
+    fc.push({depth:Math.max.apply(null,foot.map(depthOf)), /* 지붕은 footprint 최전방 깊이 → 자기 벽들보다 뒤에 그려지지 않음(항상 위에 덮음) */
+      node:<polygon key={kp+'rf'} points={P2(top)} fill={col.roof} stroke={col.rstroke} strokeWidth={col.rsw} opacity={col.rop}/>});
+    return fc;
   };
   const bldgInView=(b)=>{const[x,y]=toPx(b.gcx!=null?b.gcx:b.ring[0][0],b.gcy!=null?b.gcy:b.ring[0][1]);return x>-500&&x<W+500&&y>-500&&y<H+500;};
   const bldgList=(bldgs||[]).filter(b=>(b.site?showBS:showBC)&&bldgInView(b));
-  const prism=(foot,key)=>{
-    const hp=massGeom.hM*(view==='3d'?Math.sqrt(Math.max(0.02,1-tilt*tilt))/Math.sqrt(1-0.3025):1);
-    const base=foot.map(q=>g3(q,0)), top=foot.map(q=>g3(q,view==='3dp'?massGeom.hM:0));
-    const top2=view==='3dp'?top:foot.map((q,i)=>[base[i][0],base[i][1]-hp]);
-    const edges=foot.map((q,i)=>i).sort((a,b)=>Math.max(base[a][1],base[(a+1)%foot.length][1])-Math.max(base[b][1],base[(b+1)%foot.length][1]));
-    return(<g key={key}>
-      {edges.map(i=>{
-        const j=(i+1)%foot.length;
-        const shade=(base[j][0]-base[i][0])>0?'#8da9c9':'#b3c7df';
-        return<polygon key={i} points={P2([base[i],base[j],top2[j],top2[i]])} fill={shade} stroke={C.ink} strokeWidth="0.7" opacity="0.94"/>;
-      })}
-      <polygon points={P2(top2)} fill="#dde8f3" stroke={C.ink} strokeWidth="1" opacity="0.97"/>
-    </g>);
-  };
   const TBtn=({on,onClick,ch,title,w})=><button title={title} onClick={onClick} style={{minWidth:w||30,height:30,border:`1px solid ${on?C.ink:C.borderDark}`,background:on?C.ink:C.white,color:on?C.white:C.ink,fontSize:12,cursor:'pointer',lineHeight:1,padding:'0 6px'}}>{ch}</button>;
   const groundTr=view==='3d'?`translate(0,${OFF}) scale(1,${tilt}) rotate(${rot} ${W/2} ${H/2})`:undefined;
   const Pcss=PV*(boxW/W);
@@ -2229,16 +2323,22 @@ function ParcelMapSVG({parcels,vworldKey,mass,drawEnabled,onDrawComplete,onSetFr
             const pp=r.map(q=>proj(toPx(q[0],q[1]),0));
             return<polygon key={'b'+i+'_'+k2} points={P2(pp)} fill="rgba(255,224,130,0.14)" stroke="#FFD54A" strokeWidth="2"/>;
           }))}
-          {view!=='2d'&&(()=>{ /* 주변·현황 건물끼리는 painter 정렬(배경), 계획 매스+FIT 패널은 항상 전경 */
-            const out=[];
-            const bs=bldgList.map((b,i)=>({d:Math.max(...b.ring.map(q=>g3(toPx(q[0],q[1]),0)[1])),el:bldgPrism(b,'bd'+i)})).sort((a,b)=>a.d-b.d);
-            bs.forEach((x,i)=>out.push(<g key={'bg'+i}>{x.el}</g>));
+          {view!=='2d'&&(()=>{ /* 면(폴리곤) 단위 painter 정렬 — 주변·현황 건물·계획 매스·FIT 패널의 모든 면을 한 리스트에 모아
+                                  카메라 전후 깊이(depthOf) 순으로 렌더. 높이와 무관하게 가까운 면이 먼 면을 덮음 → 매스-건물 겹침 정상화
+                                  (객체단위 정렬의 '매스 전경 고정 vs 통합정렬 가림' 딜레마를 면단위로 근본 해소) */
+            let faces=[];
+            bldgList.forEach((b,i)=>{
+              const col=b.site
+                ?{wall:'#c9a896',wallD:'#b8927e',roof:'#ddc4b4',stroke:'rgba(40,44,52,.6)',sw:0.5,op:0.9,rstroke:'rgba(40,44,52,.7)',rsw:0.7,rop:0.95}
+                :{wall:'#9aa0a8',wallD:'#868c94',roof:'#c2c8d0',stroke:'rgba(40,44,52,.6)',sw:0.5,op:0.9,rstroke:'rgba(40,44,52,.7)',rsw:0.7,rop:0.95};
+              faces=faces.concat(prismFaces(b.ring.map(q=>toPx(q[0],q[1])),Math.max(3,b.floors*3.3)/mpp,col,'bd'+i+'_'));
+            });
             if(massGeom){
-              out.push(<g key="mass">{prism(massGeom.foot,'mass')}</g>);
-              const pn=(framePanels||[]).slice().sort((a,b)=>(a.depth||0)-(b.depth||0));
-              pn.forEach((p2,i)=>out.push(<g key={'pn'+i}>{p2.els}</g>));
+              faces=faces.concat(prismFaces(massGeom.foot,massGeom.hM,{wall:'#b3c7df',wallD:'#8da9c9',roof:'#dde8f3',stroke:C.ink,sw:0.7,op:0.94,rstroke:C.ink,rsw:1,rop:0.97},'mass_'));
+              (framePanels||[]).forEach((p2,i)=>faces.push({depth:p2.depth,node:<g key={'png'+i}>{p2.els}</g>})); /* FIT 패널 = 면 1개 단위(유리+분할선 한 묶음)로 동일 리스트에 합류 */
             }
-            return out.length?out:null;
+            faces.sort((a,b)=>a.depth-b.depth); /* 먼 면(작은 depth) 먼저, 가까운 면(큰 depth) 나중 */
+            return faces.length?faces.map((f,i)=><g key={'f'+i}>{f.node}</g>):null;
           })()}
           {massGeom&&mass&&mass.label&&<text x={W/2} y={24} textAnchor="middle" style={{fontSize:12,fill:'#fff',fontFamily:"'DM Mono',monospace",paintOrder:'stroke',stroke:'rgba(0,0,0,.8)',strokeWidth:3}}>{mass.label}{massGeom.clampScale<0.999?` · ⚠ 경계 1m 이격 맞춤 ${Math.round(massGeom.clampScale*100)}%`:''}</text>}
           {view!=='2d'&&!mass&&<text x={W/2} y={24} textAnchor="middle" style={{fontSize:11,fill:'#ddd',paintOrder:'stroke',stroke:'rgba(0,0,0,.7)',strokeWidth:3}}>③에서 매스 옵션을 선택하면 입체 매스가 표시됩니다</text>}
@@ -2412,7 +2512,7 @@ function ParcelModal({open,onCancel,onAdd,confmKey,onSetKey,vworldKey}){
             )}
             {res&&res.total>10&&<p style={{fontSize:10,color:C.light,marginTop:6}}>총 {fmt(res.total)}건 중 10건 표시 — 검색어를 더 구체적으로 입력하면 좁혀집니다.</p>}
             {isTestKey&&(
-              <div style={{marginTop:10,padding:'10px 12px',background:C.amberLt,border:`1px solid ${C.amber}`}}>
+              <div style={{marginTop:10,padding:'10px 12px',background:C.amberLt,borderLeft:`3px solid ${C.amber}`}}>
                 <p style={{fontSize:10.5,color:C.amber,fontWeight:700,marginBottom:6}}>⚠ 테스트키 사용 중 — 샘플 검색어 "강남대로 12길"만 조회됩니다</p>
                 <p style={{fontSize:10,color:C.amber,lineHeight:1.6,marginBottom:8}}>모든 주소를 검색하려면 business.juso.go.kr에서 검색API 승인키를 발급받아 등록하세요 (개발승인키는 본인인증 없이 즉시 발급).</p>
                 <div style={{display:'flex',gap:6}}>
@@ -2483,11 +2583,11 @@ const PlanStep=({n,title,sub,mode,children})=>(
   </div>
 );
 
-function PlanTab({plan,setPlan,FD,setFD,applyPlan,toast,activeFrame,renders,setTab,aiRenderView,renderBusy,onRegisterCapture}){
+function PlanTab({plan,setPlan,FD,setFD,applyPlan,toast,activeFrame,renders,setTab,aiRenderView,renderBusy,onRegisterCapture,autoStart,onAutoConsumed}){
   const st=plan.site,tg=plan.targets,fit=plan.fit;
   const [planExtra,setPlanExtra]=useState('');
   const upd=(grp,k)=>v=>setPlan(p=>({...p,[grp]:{...p[grp],[k]:v}}));
-  const [showParcel,setShowParcel]=useState(false);
+  const [showParcel,setShowParcel]=useState(()=>!!autoStart); /* 리스트 '계획안 생성' 진입 시 마운트 즉시 필지모달 오픈 */
   const parcels=Array.isArray(st.parcels)?st.parcels:[];
   const parcelArea=parcels.reduce((s,p)=>s+(Number(p.area)||0),0);
   const addParcel=(pc)=>{
@@ -2495,6 +2595,24 @@ function PlanTab({plan,setPlan,FD,setFD,applyPlan,toast,activeFrame,renders,setT
     toast(`필지를 추가했습니다 — ${pc.addr}${pc.area>0?` (${fmt(pc.area)}㎡)`:''}`);
   };
   const delParcel=(id)=>setPlan(p=>({...p,site:{...p.site,parcels:(Array.isArray(p.site.parcels)?p.site.parcels:[]).filter(x=>x.id!==id)}}));
+  /* 리스트 '계획안 생성' 진입: 마운트 시 autoGen=true → 첫 필지 추가 즉시 기본모델(Option A) 자동생성 */
+  const [autoGen,setAutoGen]=useState(()=>!!autoStart);
+  useEffect(()=>{if(autoStart&&onAutoConsumed)onAutoConsumed();},[]); /* 마운트 후 부모 플래그 해제(모달은 useState 초기값으로 이미 오픈) — 일반 재진입 시 재오픈 방지 */
+  const addParcelAndGenerate=(pc)=>{
+    setPlan(p=>{
+      const newParcels=[...(Array.isArray(p.site.parcels)?p.site.parcels:[]),pc];
+      const newSite={...p.site,parcels:newParcels};
+      const dims=siteDims(newSite);                                    /* 용도지역 → 건폐율/용적률 한도 자동 */
+      const newTargets={...p.targets,far:dims.far,floorH:4500,floors:0}; /* 기본모델: 용적률 한도·층고 4.5m·층수 자동(=⌈용적률/건폐율⌉) */
+      const ops=genPlanOptions(newSite,newTargets);                    /* 바닥면적=대지×건폐율(maxFoot) 기준 */
+      const A=ops.find(o=>o.id==='A')||ops[0];
+      const newFit={...p.fit,moduleW:1200,corner:'corner',depth:1200,skinType:'str_louver',hasSkin:true,floorFrom:1,floorTo:A?A.floors:p.fit.floorTo}; /* FIT 기본 셋팅: 1.2m 깊이·1.2m 코너이형·전동수직루버 String */
+      return{...p,site:newSite,targets:newTargets,options:ops,selected:'A',fit:newFit};
+    });
+    setShowParcel(false);
+    toast('기본 계획안(Option A)을 자동 생성했습니다 — 시뮬레이션 확인 후 ⑥ 적용 시 종합분석으로 이동합니다');
+  };
+  const handleAddParcel=(pc)=>{if(autoGen){setAutoGen(false);addParcelAndGenerate(pc);}else addParcel(pc);};
   const opt=plan.options.find(o=>o.id===plan.selected)||null;
   const qty=useMemo(()=>planQty(opt,fit),[opt,fit]);
   const est=useMemo(()=>planEstimate(opt,fit,qty,FD),[opt,fit,qty,FD]);
@@ -2553,8 +2671,8 @@ function PlanTab({plan,setPlan,FD,setFD,applyPlan,toast,activeFrame,renders,setT
         {(()=>{const dims=siteDims(st);return(<>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:'14px 18px',marginBottom:8}}>
             {dims.derived?(<>
-              <div><Lbl ch="건폐율 한도 — 공공데이터"/><div style={{padding:'8px 10px',background:C.greenLt,border:`1px solid ${C.green}`,borderLeft:`3px solid ${C.green}`}}><span style={{fontFamily:"'DM Mono',monospace",fontSize:15,color:C.green}}>{dims.cov}</span><span style={{fontSize:11,color:C.light}}> %</span></div></div>
-              <div><Lbl ch="용적률 한도 — 공공데이터"/><div style={{padding:'8px 10px',background:C.greenLt,border:`1px solid ${C.green}`,borderLeft:`3px solid ${C.green}`}}><span style={{fontFamily:"'DM Mono',monospace",fontSize:15,color:C.green}}>{fmt(dims.far)}</span><span style={{fontSize:11,color:C.light}}> %</span></div></div>
+              <div><Lbl ch="건폐율 한도 — 공공데이터"/><div style={{padding:'8px 10px',background:C.greenLt,borderLeft:`3px solid ${C.green}`,borderLeft:`3px solid ${C.green}`}}><span style={{fontFamily:"'DM Mono',monospace",fontSize:15,color:C.green}}>{dims.cov}</span><span style={{fontSize:11,color:C.light}}> %</span></div></div>
+              <div><Lbl ch="용적률 한도 — 공공데이터"/><div style={{padding:'8px 10px',background:C.greenLt,borderLeft:`3px solid ${C.green}`,borderLeft:`3px solid ${C.green}`}}><span style={{fontFamily:"'DM Mono',monospace",fontSize:15,color:C.green}}>{fmt(dims.far)}</span><span style={{fontSize:11,color:C.light}}> %</span></div></div>
             </>):(<>
               <NF label="건폐율 한도 (가상 대지)" unit="%" value={st.coverage} step={5} onChange={upd('site','coverage')}/>
               <NF label="용적률 한도 (가상 대지)" unit="%" value={st.far} step={50} onChange={upd('site','far')}/>
@@ -2567,7 +2685,7 @@ function PlanTab({plan,setPlan,FD,setFD,applyPlan,toast,activeFrame,renders,setT
             {` 산정 대지 치수(자동): 약 ${fmt(Math.round(dims.sw))} × ${fmt(Math.round(dims.sd))} m${dims.pArea>0?` · 면적 ${fmt(Math.round(dims.pArea))}㎡`:''}`}
           </p>
         </>);})()}
-        <div style={{padding:'10px 14px',background:C.amberLt,border:`1px solid ${C.amber}`,fontSize:10.5,color:C.amber,lineHeight:1.7}}>
+        <div style={{padding:'10px 14px',background:C.amberLt,borderLeft:`3px solid ${C.amber}`,fontSize:10.5,color:C.amber,lineHeight:1.7}}>
           ⓘ 실제 필지는 주소 선택 시 <b>연속지적도(V-World) 경계·계산면적·지목·용도지역</b>이 자동 조회됩니다. 연속지적도는 측량 성과가 아닌 참조용 도면이며, 공부상 면적(토지대장)은 API 제약으로 미연동 — 계산면적은 <b>계획 검토용 참고치</b>이므로 공부상 면적을 알면 직접 수정하세요. 건축물대장 연동은 2차 범위입니다.<Conf level="중간" note="연속지적도 참고치"/>
         </div>
       </Step>
@@ -2710,7 +2828,7 @@ function PlanTab({plan,setPlan,FD,setFD,applyPlan,toast,activeFrame,renders,setT
                   ))}
                   {fit.hasSkin&&!est.skinOk&&<p style={{fontSize:10,color:C.red,marginTop:6}}>⚠ 선택 스킨카트리지가 적용 깊이 범위를 벗어나 견적 제외됨</p>}
                 </div>
-                <div style={{padding:'10px 14px',background:C.greenLt,border:`1px solid ${C.green}`,fontSize:10.5,color:C.green,lineHeight:1.7}}>외피 적용면적 약 {fmt(qty.facadeArea)}㎡ · ⑦에서 프로젝트에 적용하면 COST·ENERGY 탭에서 정밀 분석으로 이어집니다.</div>
+                <div style={{padding:'10px 14px',background:C.greenLt,borderLeft:`3px solid ${C.green}`,fontSize:10.5,color:C.green,lineHeight:1.7}}>외피 적용면적 약 {fmt(qty.facadeArea)}㎡ · ⑦에서 프로젝트에 적용하면 COST·ENERGY 탭에서 정밀 분석으로 이어집니다.</div>
               </>:<p style={{fontSize:11,color:C.light}}>견적 엔진 오류 — 모듈 폭·층고를 확인하세요.</p>}
             </div>
           </div>
@@ -2743,7 +2861,7 @@ function PlanTab({plan,setPlan,FD,setFD,applyPlan,toast,activeFrame,renders,setT
       </Step>
       </>}
 
-      <ParcelModal open={showParcel} onCancel={()=>setShowParcel(false)} onAdd={addParcel} confmKey={FD.juso_confm_key||'TESTJUSOGOKR'} vworldKey={FD.vworld_key||''}
+      <ParcelModal open={showParcel} onCancel={()=>{setShowParcel(false);setAutoGen(false);}} onAdd={handleAddParcel} confmKey={FD.juso_confm_key||'TESTJUSOGOKR'} vworldKey={FD.vworld_key||''}
         onSetKey={k=>{if(setFD){setFD(d=>({...d,juso_confm_key:k}));toast('승인키를 등록했습니다 — 다시 검색해 보세요');}}}/>
     </div>
   );
@@ -2861,7 +2979,17 @@ function AdminTab({FD,setFD,toast,P,setP}){
       <AdminSec open={open.extra} onToggle={tog('extra')} title="부가 단가 (카트리지·조명·OS)" sub="견적 엔진 외 항목 — COST 탭에서 이관">
         {P?(
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:'14px 18px'}}>
-            <NF label="공조카트리지" value={P.pHvac} step={500000} onChange={v=>setP(s=>({...s,pHvac:v}))} unit="원/대"/>
+            <NF label="바닥형 공조카트리지" value={P.pHvac} step={500000} onChange={v=>setP(s=>({...s,pHvac:v}))} unit="원/대"/>
+            <NF label="천장형 공조카트리지" value={P.pHvacCeil} step={500000} onChange={v=>setP(s=>({...s,pHvacCeil:v}))} unit="원/대"/>
+            <NF label="FTU (등압식 바닥)" value={P.pFtu} step={5000} onChange={v=>setP(s=>({...s,pFtu:v}))} unit="원/㎡"/>
+            <NF label="원형디퓨져 (가압식)" value={P.pDiffCirc} step={5000} onChange={v=>setP(s=>({...s,pDiffCirc:v}))} unit="원/㎡"/>
+            <NF label="전면취출 (가압식)" value={P.pDiffFront} step={5000} onChange={v=>setP(s=>({...s,pDiffFront:v}))} unit="원/㎡"/>
+            <NF label="전열교환기 (옵션)" value={P.pErv} step={100000} onChange={v=>setP(s=>({...s,pErv:v}))} unit="원/대"/>
+            <NF label="가습 (옵션)" value={P.pHumid} step={100000} onChange={v=>setP(s=>({...s,pHumid:v}))} unit="원/대"/>
+            <NF label="UV 필터 (옵션)" value={P.pUv} step={100000} onChange={v=>setP(s=>({...s,pUv:v}))} unit="원/대"/>
+            <NF label="EHP+전열 (비교견적)" value={P.pEhp} step={10000} onChange={v=>setP(s=>({...s,pEhp:v}))} unit="원/㎡"/>
+            <NF label="중앙공조 (비교견적)" value={P.pCentral} step={10000} onChange={v=>setP(s=>({...s,pCentral:v}))} unit="원/㎡"/>
+            <NF label="기타 공조 (비교견적)" value={P.pEtc} step={10000} onChange={v=>setP(s=>({...s,pEtc:v}))} unit="원/㎡"/>
             <NF label="기존 커튼월 (비교용)" value={P.pConv} step={50000} onChange={v=>setP(s=>({...s,pConv:v}))} unit="원/㎡"/>
             <NF label="GRID 기본" value={P.pGrid} step={50000} onChange={v=>setP(s=>({...s,pGrid:v}))} unit="원/모듈"/>
             <NF label="채광센서 추가" value={P.pDaylight} step={50000} onChange={v=>setP(s=>({...s,pDaylight:v}))} unit="원/모듈"/>
@@ -3101,7 +3229,7 @@ function FitPlatform(){
     site:{parcels:[],width:60,depth:40,coverage:60,far:800},
     targets:{use:'업무시설',far:400,gfa:12000,floors:10,floorH:4500},
     options:[],selected:null,
-    fit:{faces:{F:true,R:true,B:false,L:true},frontEdge:0,floorFrom:2,floorTo:10,moduleW:1500,corner:'corner',depth:1200,hasSkin:true,skinType:'venetian'},
+    fit:{faces:{F:true,R:true,B:false,L:true},frontEdge:0,floorFrom:1,floorTo:10,moduleW:1200,corner:'corner',depth:1200,hasSkin:true,skinType:'str_louver'},
     render:null,versions:[]
   };
   const [plan,setPlan]=useState(()=>{
@@ -3139,6 +3267,8 @@ function FitPlatform(){
 
   /* ═══ COMMITTED STATE — 적용 버튼을 누른 시점의 입력값. 결과 계산은 이 값을 사용 ═══ */
   const [showNewModal,setShowNewModal]=useState(false);
+  const [showReport,setShowReport]=useState(false);
+  const [planAutoStart,setPlanAutoStart]=useState(false); /* 리스트 '계획안 생성' → PLAN 탭 마운트 시 필지모달 자동 오픈+기본모델 생성(one-shot) */
   const [committed,setCommitted]=useState(()=>({
     zones:_dp.zones, frames:_dp.frames, crt:_dp.crt, grd:_dp.grd,
     os:_dp.os, E:_dp.E, P:_dp.P, overview:_dp.overview, zonePer:_dp.zonePer||165, floorZones:_dp.floorZones
@@ -3232,6 +3362,14 @@ function FitPlatform(){
   };
 
   const newProject=()=>setShowNewModal(true);
+  /* 리스트에서 '계획안 생성' → 새 계획안으로 초기화하고 PLAN 탭으로 이동, 필지모달 자동 오픈(addParcel 후 기본모델 자동생성) */
+  const createPlanFromList=()=>{
+    setPlan({...PLAN_DEFAULT,site:{...PLAN_DEFAULT.site,parcels:[]},targets:{...PLAN_DEFAULT.targets},options:[],selected:null,fit:{...PLAN_DEFAULT.fit,faces:{...PLAN_DEFAULT.fit.faces}},versions:[],render:null});
+    setPlanMeta(null);
+    setTab('PLAN');
+    setPlanAutoStart(true);
+    toast('새 계획안 — 대지를 검색해 추가하면 기본 모델이 자동 생성됩니다');
+  };
   const startNewProject=(info)=>{
     const d=defaultProject();
     const ovIn=Object.fromEntries(Object.entries(info||{}).filter(([k])=>k!=='projectName'));
@@ -3273,8 +3411,9 @@ function FitPlatform(){
     const summary=[
       ['FIT PLATFORM 견적·에너지 요약'],['프로젝트',projectName],['건물명',ov.building||''],['대지위치',ov.location||''],['용도',ov.use||''],['규모',`지상 ${fmt(ov.floorsAbove)||'-'}F / 지하 ${fmt(ov.floorsBelow)||'-'}F`],['대지면적(㎡)',ov.siteArea?numParse(ov.siteArea):''],['연면적(㎡)',ov.gfa?numParse(ov.gfa):''],['생성일',new Date().toLocaleString('ko-KR')],[],
       ['── 공사비 ──'],
-      ['총 공사비(원)',L.total],['  FRAME + GLASS',L.frameGlassTotal],['  스킨카트리지',agg.cSkin],['  공조카트리지',agg.cHvac],['  조명(GRID)',agg.cGrid],['  OS',agg.osFlat],
-      ['기존 커튼월(참고)',L.conventional],['추가 투자',Math.max(0,L.total-L.conventional)],['삼우 납품가(계)',L.samooDeliver],['삼우 공사가(계)',L.samooConstr],[],
+      ['총 공사비(원)',L.total],['  FRAME + GLASS',L.frameGlassTotal],['  스킨카트리지',agg.cSkin],['  공조시스템',agg.cHvac],['  조명(GRID)',agg.cGrid],['  OS',agg.osFlat],
+      ['기존 커튼월(참고)',L.conventional],['추가 투자',Math.max(0,L.total-L.conventional)],['삼우 납품가(계)',L.samooDeliver],['삼우 공사가(계)',L.samooConstr],
+      ...((agg.hvacCompare||0)>0?[['비교견적(공사범위 제외)',agg.hvacCompare]]:[]),[],
       ['── 에너지 ──'],
       ['에너지 절감율(%)',+(agg.savedFrac*100).toFixed(1)],['기준 에너지(kWh/년)',Math.round(agg.baseline)],['절감 후(kWh/년)',Math.round(agg.optimized)],
       ['연간 절감액(원)',Math.round(agg.annualSave)],['CO₂ 절감(kg/년)',Math.round(agg.co2)],['투자 회수기간(년)',agg.payback>0?+agg.payback.toFixed(1):'즉시'],
@@ -3291,6 +3430,7 @@ function FitPlatform(){
     const mr=[['입면','모듈수','프레임타입'],...zones.map(z=>[FACE_KO[z.face]||z.name,z.moduleCount,(zoneFrame(z,frames)||{}).name||''])];
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(mr),'MODULES_입면');
     const sr=[['항목','규격','수량','단가(원)','금액(원)'],...[...L.cart,...L.grid,...L.os].map(x=>[x.item,x.spec,`${x.qty}${x.unit}`,x.price,x.amt])];
+    if((L.compare||[]).length){sr.push([],['[비교견적 — 공사범위 제외 · 총공사비 미포함]'],...L.compare.map(x=>[x.item,x.spec,`${x.qty}${x.unit}`,x.price,x.amt]));}
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sr),'추가시스템');
     XLSX.writeFile(wb,`${sanitizeName(projectName)}_견적.xlsx`);
     toast('Excel 파일을 내보냈습니다');
@@ -3325,10 +3465,11 @@ function FitPlatform(){
       <div style="font-family:'Bebas Neue';font-size:15px;letter-spacing:.08em;margin-bottom:6px">공사비 구성</div>
       ${row('FRAME + GLASS (견적 엔진)',won(L.frameGlassTotal))}
       ${agg.cSkin>0?row('스킨카트리지',won(agg.cSkin)):''}
-      ${agg.cHvac>0?row('공조카트리지',won(agg.cHvac)):''}
+      ${agg.cHvac>0?row('공조시스템',won(agg.cHvac)):''}
       ${agg.cGrid>0?row('조명 (GRID)',won(agg.cGrid)):''}
       ${agg.osFlat>0?row('OS 시스템',won(agg.osFlat)):''}
       ${row('총 공사비',won(L.total),true)}
+      ${(agg.hvacCompare||0)>0?row('공조 비교견적 (공사범위 제외)',won(agg.hvacCompare)):''}
       ${row('기존 커튼월 (참고)',won(L.conventional))}
       ${row('삼우 납품가 / 공사가 (계)',`${won(L.samooDeliver)} / ${won(L.samooConstr)}`)}
       <div style="font-family:'Bebas Neue';font-size:15px;letter-spacing:.08em;margin:18px 0 6px">프레임 타입별</div>
@@ -3357,7 +3498,7 @@ function FitPlatform(){
     finally{document.body.removeChild(node);}
   };
   const TB=({onClick,label,accent})=>(
-    <button onClick={onClick} style={{background:accent?C.ink:'transparent',color:accent?C.white:C.sub,border:`1px solid ${accent?C.ink:C.border}`,padding:'5px 11px',fontFamily:"'Bebas Neue',sans-serif",fontSize:12,letterSpacing:'.06em',whiteSpace:'nowrap'}}>{label}</button>
+    <button onClick={onClick} style={{background:accent?C.ink:'transparent',color:accent?C.white:C.sub,border:`1px solid ${accent?C.ink:C.border}`,padding:'6px 14px',fontFamily:FF.disp,fontSize:13,letterSpacing:'.04em',whiteSpace:'nowrap'}}>{label}</button>
   );
 
   const TABS=[
@@ -3368,7 +3509,7 @@ function FitPlatform(){
     {id:'ENERGY',label:'ENERGY',sub:'에너지 절감',grp:2,ico:<V s={14} ch={<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>}/>},
     {id:'FRAME',label:'FRAME',sub:'프레임',grp:3,ico:<V s={14} ch={<rect x="3" y="3" width="18" height="18" rx="1"/>}/>},
     {id:'SKIN',label:'SKIN',sub:'스킨카트리지',grp:3,ico:<IcoWn s={14}/>},
-    {id:'HVAC',label:'HVAC',sub:'공조카트리지',grp:3,ico:<IcoWn s={14}/>},
+    {id:'HVAC',label:'HVAC',sub:'공조시스템',grp:3,ico:<IcoWn s={14}/>},
     {id:'GRID',label:'GRID',sub:'조명',grp:3,ico:<IcoLt s={14}/>},
     {id:'OS',label:'OS',sub:'운영 시스템',grp:3,ico:<IcoOs s={14}/>},
     {id:'DRAWINGS',label:'DRAWINGS',sub:'도면',grp:4,ico:<V s={14} ch={<><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></>}/>},
@@ -3386,16 +3527,10 @@ function FitPlatform(){
             <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:'.12em'}}>FIT</span>
             <span style={{fontSize:11,color:C.light,letterSpacing:'.08em'}}>FUTURE SPACE PLATFORM</span>
           </div>
-          <div style={{display:'flex',alignItems:'center',gap:7,overflowX:'auto'}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,overflowX:'auto'}}>
             <input value={projectName} onChange={e=>setProjectName(e.target.value)} placeholder="프로젝트명"
-              style={{border:`1px solid ${C.border}`,background:C.panel,padding:'5px 10px',fontSize:12,color:C.ink,width:150,outline:'none',flexShrink:0}}/>
-            <TB onClick={newProject} label="새 프로젝트"/>
-            <TB onClick={saveCurrentToList} label="＋리스트"/>
-            <TB onClick={saveProject} label="저장"/>
-            <TB onClick={loadProject} label="불러오기"/>
-            <span style={{width:1,height:20,background:C.border,flexShrink:0}}/>
-            <TB onClick={exportExcel} label="EXCEL" accent/>
-            <TB onClick={exportPDF} label="PDF" accent/>
+              style={{border:`1px solid ${C.border}`,background:C.panel,padding:'6px 11px',fontSize:13,color:C.ink,width:170,outline:'none',flexShrink:0,fontFamily:"'Noto Sans KR',sans-serif"}}/>
+            <TB onClick={()=>setShowReport(true)} label="보고서" accent/>
           </div>
         </div>
         {/* tab bar with group separators */}
@@ -3411,8 +3546,8 @@ function FitPlatform(){
                   cursor:'pointer',whiteSpace:'nowrap',transition:'all .15s',flexShrink:0}}>
                   <span style={{color:on?C.ink:C.light}}>{t.ico}</span>
                   <span>
-                    <span style={{display:'block',fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:'.1em',color:on?C.ink:C.sub}}>{t.label}</span>
-                    <span style={{display:'block',fontSize:9,color:C.light,letterSpacing:'.02em'}}>{t.sub}</span>
+                    <span style={{display:'block',fontFamily:FF.disp,fontSize:13.5,letterSpacing:'.09em',color:on?C.ink:C.sub}}>{t.label}</span>
+                    <span style={{display:'block',fontSize:10,color:on?C.sub:C.light,letterSpacing:'.02em'}}>{t.sub}</span>
                   </span>
                 </button>
               </React.Fragment>
@@ -3421,8 +3556,8 @@ function FitPlatform(){
         </div>
       </nav>
 
-      {tab==='LIST'     &&<ProjectListTab projects={projects} setProjects={setProjects} sel={sel} setSel={setSel} current={{id:activeProjectId,projectName,zones,frames,crt,grd,os,E,P,FD}} loadFromList={loadFromList} saveCurrentToList={saveCurrentToList} toast={toast}/>}
-      {tab==='PLAN'     &&<PlanTab plan={plan} setPlan={setPlan} FD={FD} setFD={setFD} applyPlan={applyPlanToProject} toast={toast} activeFrame={f} renders={renders} setTab={setTab} aiRenderView={aiRenderView} renderBusy={renderBusy} onRegisterCapture={captureRegister}/>}
+      {tab==='LIST'     &&<ProjectListTab projects={projects} setProjects={setProjects} sel={sel} setSel={setSel} current={{id:activeProjectId,projectName,zones,frames,crt,grd,os,E,P,FD}} loadFromList={loadFromList} saveCurrentToList={saveCurrentToList} toast={toast} newProject={newProject} saveProject={saveProject} loadProject={loadProject} onCreatePlan={createPlanFromList}/>}
+      {tab==='PLAN'     &&<PlanTab plan={plan} setPlan={setPlan} FD={FD} setFD={setFD} applyPlan={applyPlanToProject} toast={toast} activeFrame={f} renders={renders} setTab={setTab} aiRenderView={aiRenderView} renderBusy={renderBusy} onRegisterCapture={captureRegister} autoStart={planAutoStart} onAutoConsumed={()=>setPlanAutoStart(false)}/>}
       {tab==='PLATFORM' &&<>
         <PlatformTab zones={zones} setZones={setZones} zonePer={zonePer} setZonePer={setZonePer} floorZones={floorZones} setFloorZones={setFloorZones} frames={frames} f={f} crt={crt} grd={grd} os={os} E={E} setE={setE} P={P} FD={FD} overview={overview} setOverview={setOverview} committed={committed} plan={plan}/>
         <ApplyBar dirty={isDirty(['zones','floorZones','overview','E','zonePer'])} onApply={()=>applyKeys(['zones','floorZones','overview','E','zonePer'],'PLATFORM')} onRevert={()=>revertKeys(['zones','floorZones','overview','E','zonePer'])} label="PLATFORM (존·개요·에너지 파라미터)" live={liveAgg}/>
@@ -3439,7 +3574,7 @@ function FitPlatform(){
       </>}
       {tab==='HVAC'     &&<>
         <HvacTab frames={frames} crt={crt} setCrt={setCrt}/>
-        <ApplyBar dirty={isDirty(['crt'])} onApply={()=>applyKeys(['crt'],'SKIN/HVAC')} onRevert={()=>revertKeys(['crt'])} label="HVAC CARTRIDGE" live={liveAgg}/>
+        <ApplyBar dirty={isDirty(['crt'])} onApply={()=>applyKeys(['crt'],'SKIN/HVAC')} onRevert={()=>revertKeys(['crt'])} label="공조시스템" live={liveAgg}/>
       </>}
       {tab==='GRID'     &&<>
         <GridTab grd={grd} setGrd={setGrd}/>
@@ -3457,11 +3592,31 @@ function FitPlatform(){
 
       <NewProjectModal open={showNewModal} onCancel={()=>setShowNewModal(false)} onStart={startNewProject} confmKey={FD.juso_confm_key} vworldKey={FD.vworld_key||''}/>
 
+      {showReport&&(
+        <div onClick={()=>setShowReport(false)} style={{position:'fixed',inset:0,zIndex:300,background:'rgba(15,15,13,.45)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:C.white,width:420,maxWidth:'100%',padding:'26px 28px',boxShadow:'0 12px 40px rgba(0,0,0,.25)'}}>
+            <div style={{fontFamily:"'Bebas Neue','Noto Sans KR',sans-serif",fontSize:20,letterSpacing:'.08em',color:C.ink,marginBottom:4}}>보고서 추출</div>
+            <p style={{fontSize:12.5,color:C.sub,lineHeight:1.6,marginBottom:20}}>현재 프로젝트의 견적·에너지 결과를 추출할 형식을 선택하세요.</p>
+            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+              <button onClick={()=>{setShowReport(false);exportExcel();}} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,background:C.greenLt,borderLeft:`3px solid ${C.green}`,padding:'14px 16px',textAlign:'left',cursor:'pointer'}}>
+                <span><span style={{display:'block',fontSize:14,fontWeight:600,color:C.green}}>EXCEL</span><span style={{display:'block',fontSize:11.5,color:C.sub,marginTop:2}}>견적·존·모듈·시스템 시트 (.xlsx)</span></span>
+                <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:C.green}}>→</span>
+              </button>
+              <button onClick={()=>{setShowReport(false);exportPDF();}} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,background:C.panel,border:`1px solid ${C.borderDark}`,padding:'14px 16px',textAlign:'left',cursor:'pointer'}}>
+                <span><span style={{display:'block',fontSize:14,fontWeight:600,color:C.ink}}>PDF</span><span style={{display:'block',fontSize:11.5,color:C.sub,marginTop:2}}>요약 보고서 (개요·공사비·에너지)</span></span>
+                <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:C.ink}}>→</span>
+              </button>
+            </div>
+            <button onClick={()=>setShowReport(false)} style={{marginTop:18,width:'100%',background:'transparent',border:'none',color:C.light,fontSize:12.5,padding:'6px',cursor:'pointer'}}>취소</button>
+          </div>
+        </div>
+      )}
+
       {flash&&<div style={{position:'fixed',bottom:24,left:'50%',transform:'translateX(-50%)',background:C.ink,color:C.white,padding:'10px 22px',fontSize:13,letterSpacing:'.02em',zIndex:200,boxShadow:'0 4px 20px rgba(0,0,0,.18)'}}>{flash}</div>}
 
       <footer style={{position:'fixed',bottom:0,left:0,right:0,zIndex:90,borderTop:`1.5px solid ${C.border}`,background:C.white,padding:'12px 32px',display:'flex',justifyContent:'space-between',fontSize:10,color:C.light,flexWrap:'wrap',gap:8,boxShadow:'0 -2px 8px rgba(0,0,0,.04)'}}>
-        <span>© FIT Platform Consulting Tool — SAMOO Architects &amp; Engineers</span>
-        <span>※ 에너지 계수는 태평로빌딩 EnergyPlus 시뮬레이션(설계설명서 rev-05)으로 보정 / 단가는 fit_data.json 적용 시 실제 금액으로 갱신</span>
+        <span>© FIT Platform — SAMOO Architects &amp; Engineers</span>
+        <span>에너지 계수: 태평로빌딩 EnergyPlus(rev-05) 보정 · 단가: fit_data.json 적용 시 실제값</span>
       </footer>
     </div>
   );
