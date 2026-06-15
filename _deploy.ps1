@@ -9,23 +9,29 @@ Write-Host ""
 Write-Host "[1/5] 변경된 파일 확인 중..."
 git add -A
 git diff --cached --quiet
-if ($LASTEXITCODE -eq 0) {
+if ($LASTEXITCODE -ne 0) {
     Write-Host ""
-    Write-Host "변경된 내용이 없습니다. 배포할 것이 없어요."
-    Read-Host "`n엔터를 누르면 창이 닫힙니다"
-    exit 0
+    Write-Host "[2/5] 변경 내용:"
+    git status --short
+    Write-Host ""
+    if ($args.Count -gt 0) { $msg = $args -join " " }
+    else { $msg = "update " + (Get-Date -Format "yyyy-MM-dd HH:mm") }
+    Write-Host "[3/5] 커밋 중... (메시지: $msg)"
+    git commit -m $msg
+} else {
+    # 새로 바뀐 파일은 없지만, 지난번에 push 못 한 커밋이 남아있는지 확인
+    $ahead = (git rev-list --count "origin/main..HEAD" 2>$null)
+    if ($null -eq $ahead) { $ahead = "0" }
+    $ahead = "$ahead".Trim()
+    if ($ahead -eq "" -or $ahead -eq "0") {
+        Write-Host ""
+        Write-Host "변경된 내용이 없습니다. 배포할 것이 없어요."
+        Read-Host "`n엔터를 누르면 창이 닫힙니다"
+        exit 0
+    }
+    Write-Host ""
+    Write-Host "[2~3/5] 새로 바뀐 건 없지만, 지난번에 못 올린 작업($ahead건)이 있어 이어서 올립니다..." -ForegroundColor Yellow
 }
-
-Write-Host ""
-Write-Host "[2/5] 변경 내용:"
-git status --short
-Write-Host ""
-
-if ($args.Count -gt 0) { $msg = $args -join " " }
-else { $msg = "update " + (Get-Date -Format "yyyy-MM-dd HH:mm") }
-
-Write-Host "[3/5] 커밋 중... (메시지: $msg)"
-git commit -m $msg
 
 Write-Host ""
 Write-Host "[4/5] 최신본 받아 합치는 중... (다른 팀원 작업 먼저 반영 → push 실패 방지)"
@@ -34,7 +40,6 @@ for ($n = 1; $n -le 3; $n++) {
     if ($n -gt 1) { Write-Host ""; Write-Host "연결 재시도 $n/3 ..." -ForegroundColor Yellow; Start-Sleep -Seconds 2 }
     git pull --rebase origin main
     if ($LASTEXITCODE -eq 0) { $pulled = $true; break }
-    # 충돌로 멈춘 경우(리베이스 진행 중)면 재시도해도 소용없으니 즉시 중단
     if ((Test-Path ".git\rebase-merge") -or (Test-Path ".git\rebase-apply")) { break }
 }
 
