@@ -6,3 +6,10 @@ githubidpw.txt
 secrets.txt
 .env
 *.env
+
+# === 대외비/비공개 — 절대 GitHub에 안 올라감 (각자 PC에만 보관) ===
+# 폴더 이름이 '_secret' 이면 그 안의 모든 파일이 비공개 (예: heejin/_secret/)
+_secret/
+**/_secret/
+# 파일·폴더 이름에 '대외비'가 들어가면 비공개
+*대외비*
