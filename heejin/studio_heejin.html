@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="utf-8">
-    <title>희진 · 수신 뷰어 (상은 FIT 모델)</title>
+    <title>render studio · 수신 뷰어 (massing studio FIT 모델)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&display=swap');
         :root{
@@ -152,7 +152,7 @@
             word-break:keep-all; }
         .rs-row.hl .rs-v{ font-size:14px; font-weight:800; }
 
-        /* === 상은 톤 매칭(orange accent) + VWORLD 미니아이콘 숨김 === */
+        /* === massing studio 톤 매칭(orange accent) + VWORLD 미니아이콘 숨김 === */
         #naviTopPannel3d{ display:none !important; }
         .brand .logo{ background:var(--accent); }
         .label .dot, #coveragePanel .cov-title .dot{ background:var(--accent); }
@@ -183,6 +183,25 @@
         #cbSaveBtn{ width:100%; background:var(--ink); color:#fff; font-size:12px; font-weight:600; border:none; border-radius:9px; padding:8px; cursor:pointer; }
         #cbSaveBtn:hover{ background:var(--accent); }
         #cbSaveBtn:disabled{ background:#c9c9c4; cursor:not-allowed; }
+
+        /* AI 변환 전후 비교 팝업 */
+        #cmpModal{ position:fixed; inset:0; z-index:100000; display:none; align-items:center; justify-content:center; }
+        #cmpModal .cmp-backdrop{ position:absolute; inset:0; background:rgba(10,10,12,0.74); }
+        #cmpModal .cmp-box{ position:relative; z-index:1; width:50vw; max-width:50vw; display:flex; flex-direction:column; gap:10px; }
+        #cmpModal .cmp-close{ position:absolute; top:-14px; right:-14px; width:30px; height:30px; border-radius:50%;
+            border:none; background:#1a1a1a; color:#fff; font-size:18px; line-height:30px; padding:0; cursor:pointer; z-index:2; }
+        #cmpModal .cmp-wrap{ position:relative; line-height:0; border-radius:10px; overflow:hidden;
+            box-shadow:0 24px 70px rgba(0,0,0,0.55); background:#000; max-height:82vh; }
+        #cmpModal .cmp-img{ display:block; }
+        #cmpModal #cmpAfter{ width:100%; height:auto; }
+        #cmpModal #cmpBefore{ position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; }
+        #cmpModal .cmp-divider{ position:absolute; top:0; bottom:0; left:50%; width:2px; background:var(--accent); transform:translateX(-1px); pointer-events:none; }
+        #cmpModal .cmp-divider::after{ content:""; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+            width:26px; height:26px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 3px rgba(255,255,255,0.65); }
+        #cmpModal .cmp-tag{ position:absolute; top:8px; font-size:11px; font-weight:700; color:#fff;
+            background:rgba(26,26,26,0.7); padding:3px 8px; border-radius:4px; }
+        #cmpModal .cmp-tag-l{ left:8px; } #cmpModal .cmp-tag-r{ right:8px; }
+        #cmpModal #cmpRange{ width:100%; accent-color:var(--accent); }
     </style>
     <script src="https://map.vworld.kr/js/webglMapInit.js.do?version=3.0&apiKey=B5CEDD7D-84D6-314E-875C-9B5BF7E1233A"></script>
 </head>
@@ -225,10 +244,10 @@
         <div class="hint">모드 — <span id="modeLabel">건물 선택(투명)</span></div>
     </div>
 
-    <!-- 상은 모델 배치 (이동·회전) -->
+    <!-- massing studio 모델 배치 (이동·회전) -->
     <div class="card">
-        <div class="label"><span class="dot"></span>상은 모델 배치</div>
-        <div class="hint">수신된 상은 모델을 대지 위에서 이동·회전합니다.</div>
+        <div class="label"><span class="dot"></span>massing studio 모델 배치</div>
+        <div class="hint">수신된 massing studio 모델을 대지 위에서 이동·회전합니다.</div>
         <div class="row" style="margin-top:8px;">
             <span class="field">가로(X)</span>
             <input id="impOffX" type="range" min="-200" max="200" value="0" step="1" oninput="onImportOffX()" onchange="commitImportPlace()">
@@ -250,16 +269,16 @@
     </div>
     </div><!-- /tabA -->
 
-    <!-- ===== 탭 B: 상은에서 수신한 FIT 모델 ===== -->
+    <!-- ===== 탭 B: massing studio에서 수신한 FIT 모델 ===== -->
     <div class="tabpane" id="tabB" style="display:none;">
     <!-- 수신 모델 -->
     <div class="card">
-        <div class="label"><span class="dot"></span>수신된 FIT 모델 (상은 → 희진)</div>
-        <div class="hint">왼쪽 상은 앱에서 ‘→ 희진으로 보내기’를 누르면, 완성된 3D 모델이 이 지도 위(대지 중심)에 박스로 재현됩니다. 다시 보내면 갱신됩니다.</div>
+        <div class="label"><span class="dot"></span>수신된 FIT 모델 (massing studio → render studio)</div>
+        <div class="hint">왼쪽 massing studio 앱에서 ‘→ render studio으로 보내기’를 누르면, 완성된 3D 모델이 이 지도 위(대지 중심)에 박스로 재현됩니다. 다시 보내면 갱신됩니다.</div>
         <div class="rs-row hl" style="margin-top:10px;"><span class="rs-k">상태</span><span class="rs-v" id="impStatus">대기 중 — 아직 수신 없음</span></div>
         <div class="rs-row"><span class="rs-k">규모</span><span class="rs-v" id="impMass">–</span></div>
         <div class="rs-row"><span class="rs-k">FIT 모듈</span><span class="rs-v" id="impMods">–</span></div>
-        <div class="hint">이동·회전 배치는 ‘위치·대지’ 탭의 ‘상은 모델 배치’에서 조절합니다.</div>
+        <div class="hint">이동·회전 배치는 ‘위치·대지’ 탭의 ‘massing studio 모델 배치’에서 조절합니다.</div>
         <label class="check" style="margin-top:10px;">
             <input type="checkbox" id="impMassOn" checked onchange="rerenderImported()">
             규모·코어 박스 표시
@@ -360,12 +379,12 @@
         <div id="aiStatus">화면을 캡쳐하거나 이미지를 업로드한 뒤 변환하세요.</div>
 
         <div id="aiSrcWrap" style="display:none;">
-            <div class="ai-caption">원본 (캡쳐)</div>
-            <img id="aiSrcImg" class="ai-img" alt="">
+            <div class="ai-caption">원본 (캡쳐) · 클릭하면 크게 비교</div>
+            <img id="aiSrcImg" class="ai-img" alt="" onclick="openCompare()" style="cursor:zoom-in;">
         </div>
         <div id="aiResWrap" style="display:none;">
-            <div class="ai-caption">변환 결과</div>
-            <img id="aiResImg" class="ai-img" alt="">
+            <div class="ai-caption">변환 결과 · 클릭하면 크게 비교</div>
+            <img id="aiResImg" class="ai-img" alt="" onclick="openCompare()" style="cursor:zoom-in;">
             <div class="row" style="margin-top:8px;">
                 <button class="btn-ghost" onclick="downloadAiResult()">결과 다운로드</button>
             </div>
@@ -385,7 +404,7 @@
                oninput="updateCoverage()"><span class="cov-unit">m²</span></span>
     </div>
     <div class="cov-row">
-        <span class="cov-label">수평투영면적<span class="cov-sub">(상은 모델 기준)</span></span>
+        <span class="cov-label">수평투영면적<span class="cov-sub">(massing studio 모델 기준)</span></span>
         <span class="cov-val"><span id="projArea">–</span><span class="cov-unit">m²</span></span>
     </div>
     <div class="cov-row total">
@@ -399,6 +418,22 @@
     <div class="cb-title"><span class="dot"></span>카메라 뷰</div>
     <div id="cbSlots"></div>
     <button id="cbSaveBtn" onclick="saveCamView()">+ 현재 뷰 저장 (0/5)</button>
+</div>
+
+<!-- AI 변환 전후 비교 팝업 -->
+<div id="cmpModal">
+    <div class="cmp-backdrop" onclick="closeCompare()"></div>
+    <div class="cmp-box">
+        <button class="cmp-close" onclick="closeCompare()">×</button>
+        <div class="cmp-wrap" id="cmpWrap">
+            <img id="cmpAfter" class="cmp-img" alt="">
+            <img id="cmpBefore" class="cmp-img" alt="">
+            <div class="cmp-divider" id="cmpDivider"></div>
+            <span class="cmp-tag cmp-tag-l">변환 전</span>
+            <span class="cmp-tag cmp-tag-r">변환 후</span>
+        </div>
+        <input id="cmpRange" type="range" min="0" max="100" value="50" oninput="onCmpSlide(this.value)">
+    </div>
 </div>
 
 <div id="vmap"></div>
@@ -587,7 +622,7 @@
             await new Promise(function (r) { setTimeout(r, 300); }); // 렌더/숨김 반영 대기
             var vw2 = video.videoWidth, vh = video.videoHeight;
             if (!vw2 || !vh) throw new Error("프레임 크기를 읽지 못했습니다.");
-            // 분할 화면일 때: 캡쳐 프레임에서 '희진 패널'(이 iframe) 영역만 잘라 상은 화면을 제외.
+            // 분할 화면일 때: 캡쳐 프레임에서 'render studio 패널'(이 iframe) 영역만 잘라 massing studio 화면을 제외.
             var sx = 0, sy = 0, sw = vw2, sh = vh, fe = null;
             try { fe = window.frameElement; } catch (e) { fe = null; }
             if (fe && window.parent && window.parent.innerWidth) {
@@ -854,7 +889,7 @@
     }
 
     // ====================================================================
-    // 신축 매스 (상은 모델 이식) — 대지 위 파라메트릭 직육면체 footprint 생성.
+    // 신축 매스 (massing studio 모델 이식) — 대지 위 파라메트릭 직육면체 footprint 생성.
     // drawCoords(사각형 4꼭짓점)만 만들고, 기존 rebuildDraft()/rebuildPaneling()이
     // 솔리드 + FIT 입면 모듈(frame/cart PNG)을 그대로 그린다.
     // ====================================================================
@@ -2544,19 +2579,19 @@
                 var st = getStory(), elevStr = elevateMeter > 0 ? ", 띄우기 " + elevateMeter.toFixed(1) + "m" : "";
                 s.textContent = "건물: " + st.floors + "층 × " + st.h + "m = " + (st.h * st.floors).toFixed(1) + "m" + elevStr + " · 모듈 " + getModuleW() + "m · 투명 " + transparentList.length + "개.";
             } else {
-                s.textContent = "투명 건물 " + transparentList.length + "개. 왼쪽 상은 앱에서 모델을 보내면 지도 위에 나타납니다.";
+                s.textContent = "투명 건물 " + transparentList.length + "개. 왼쪽 massing studio 앱에서 모델을 보내면 지도 위에 나타납니다.";
             }
         }
     }
 
     // ====================================================================
-    // 상은 → 희진 수신/렌더 (split-screen 브리지)
-    //  - 상은이 postMessage로 보낸 명시적 모듈 지오메트리를 대지 중심에 박스로 재현.
-    //  - 좌표: 상은 로컬(미터, x=가로, z=세로, y=높이) → 대지 중심 기준 lon/lat. z→남쪽.
+    // massing studio → render studio 수신/렌더 (split-screen 브리지)
+    //  - massing studio이 postMessage로 보낸 명시적 모듈 지오메트리를 대지 중심에 박스로 재현.
+    //  - 좌표: massing studio 로컬(미터, x=가로, z=세로, y=높이) → 대지 중심 기준 lon/lat. z→남쪽.
     // ====================================================================
     var importEnts = [];
     var lastModel = null;
-    var importedProjArea = 0;     // 상은 모델 수평투영면적(㎡) — 건폐율 계산용
+    var importedProjArea = 0;     // massing studio 모델 수평투영면적(㎡) — 건폐율 계산용
     var importRotDeg = 0;
     var importOffX = 0, importOffY = 0;   // 배치 이동(동서 m, 남북 m)
     var massBright = 235;                 // 매스 밝기(0~255 그레이)
@@ -2619,7 +2654,7 @@
         if (!viewer || !m) return;
         var cen = importBaseLonLat();
         if (!cen) { var st0 = document.getElementById("impStatus"); if (st0) st0.textContent = "지도/대지 준비 필요 — 먼저 ‘위치·대지’에서 주소를 검색하세요"; return; }
-        if (importOffX || importOffY) {   // 배치 이동 — 상은 모델의 로컬 x/z 축에 일치(회전 따라감)
+        if (importOffX || importOffY) {   // 배치 이동 — massing studio 모델의 로컬 x/z 축에 일치(회전 따라감)
             var th = importRotDeg * Math.PI / 180, c2 = Math.cos(th), s2 = Math.sin(th);
             var dx = importOffX, dz = -importOffY;          // +X=모델 가로(+x), +Y=모델 세로(0°에서 북)
             var rx = dx * c2 - dz * s2, rz = dx * s2 + dz * c2;   // toLL 과 동일한 회전 규약
@@ -2823,6 +2858,30 @@
         if (btn) { btn.disabled = camViews.length >= 5; btn.textContent = "+ 현재 뷰 저장 (" + camViews.length + "/5)"; }
     }
     renderCamSlots();
+
+    // ===== AI 변환 전후 비교 팝업 (원본/결과 이미지 클릭) =====
+    function openCompare() {
+        var before = aiSourceDataURL, after = aiResultDataURL;
+        if (!before && !after) return;
+        if (window.parent && window.parent !== window) {   // 분할 화면: 호스트에서 '화면 절반' 크기로 띄움
+            window.parent.postMessage({ type: "compare", before: before || after, after: after || before, hasBoth: !!(before && after) }, "*");
+            return;
+        }
+        var hasBoth = !!(before && after);
+        document.getElementById("cmpBefore").src = before || after;
+        document.getElementById("cmpAfter").src = after || before;
+        document.getElementById("cmpRange").style.display = hasBoth ? "block" : "none";
+        document.getElementById("cmpDivider").style.display = hasBoth ? "block" : "none";
+        document.querySelectorAll("#cmpWrap .cmp-tag").forEach(function(t) { t.style.display = hasBoth ? "block" : "none"; });
+        document.getElementById("cmpRange").value = 50; onCmpSlide(50);
+        document.getElementById("cmpModal").style.display = "flex";
+    }
+    function closeCompare() { document.getElementById("cmpModal").style.display = "none"; }
+    function onCmpSlide(v) {
+        document.getElementById("cmpBefore").style.clipPath = "inset(0 " + (100 - v) + "% 0 0)";
+        document.getElementById("cmpDivider").style.left = v + "%";
+    }
+    window.addEventListener("keydown", function(e) { if (e.key === "Escape") closeCompare(); });
 </script>
 </body>
 </html>

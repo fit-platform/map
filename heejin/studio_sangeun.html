@@ -3489,7 +3489,7 @@ window.FitCalcApp = App;
 })();
 </script>
 
-<!-- ===== 희진 앱으로 모델 내보내기 (split-screen 브리지) ===== -->
+<!-- ===== render studio 앱으로 모델 내보내기 (split-screen 브리지) ===== -->
 <script>
 (function(){
   // sangeun 상단 스코프의 전역(tHalfW…, facesGeo/effType…)을 그대로 읽어 명시적 모듈 지오메트리를 만든다.
@@ -3526,7 +3526,7 @@ window.FitCalcApp = App;
         }
       }
     });
-    var r1 = function(v){ return Math.round(v * 10) / 10; };   // 규모 값 소수점 첫째자리까지(상은과 동일)
+    var r1 = function(v){ return Math.round(v * 10) / 10; };   // 규모 값 소수점 첫째자리까지(massing studio과 동일)
     return {
       type:'fitModel', ts: Date.now(),
       floors: tFloors, floorH: r1(floorHm),
@@ -3549,7 +3549,7 @@ window.FitCalcApp = App;
   function inject(){
     if(document.getElementById('toHeejinBtn')) return;
     var b = document.createElement('button');
-    b.id = 'toHeejinBtn'; b.textContent = '→ 희진으로 보내기';
+    b.id = 'toHeejinBtn'; b.textContent = '→ render studio으로 보내기';
     b.style.cssText = 'position:fixed;top:14px;right:14px;z-index:99999;padding:10px 16px;'
       + 'background:#1a1a1a;color:#e68d39;border:1px solid #e68d39;border-radius:4px;'
       + "font:600 13px/1 'IBM Plex Sans KR',sans-serif;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.18);";
