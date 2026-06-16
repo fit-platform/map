@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 860 680" xmlns="http://www.w3.org/2000/svg">
+  <title>매싱 스튜디오 아키텍처 다이어그램</title>
+  <desc>VWORLD 3D 기반 단일 HTML 앱의 외부 의존성, 데이터 흐름, 탭별 기능 모듈 구조. 기준 파일: map/heejin/index.html. 2026-06-16.</desc>
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#6b7280"/>
+    </marker>
+    <marker id="arr-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#2563eb"/>
+    </marker>
+    <marker id="arr-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#059669"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: 'Segoe UI', Arial, sans-serif; }
+  </style>
+
+  <!-- Title -->
+  <text x="430" y="22" text-anchor="middle" font-size="15" font-weight="700" fill="#111827">매싱 스튜디오 — 아키텍처 다이어그램</text>
+  <text x="430" y="38" text-anchor="middle" font-size="10" fill="#6b7280">map/heejin/index.html  ·  단일 정적 HTML  ·  2026-06-16</text>
+
+  <!-- ─── LAYER 1: External Services ─── -->
+  <text x="10" y="62" font-size="10" font-weight="600" fill="#6b7280">외부 서비스</text>
+  <line x1="10" y1="66" x2="850" y2="66" stroke="#e5e7eb" stroke-width="1"/>
+
+  <!-- VWORLD Map Engine -->
+  <rect x="10" y="72" width="150" height="48" rx="6" fill="#dbeafe" stroke="#93c5fd" stroke-width="1"/>
+  <text x="85" y="91" text-anchor="middle" font-size="11" font-weight="600" fill="#1e40af">VWORLD WebGL</text>
+  <text x="85" y="106" text-anchor="middle" font-size="9" fill="#1e3a8a">지도엔진 (Cesium 내장)</text>
+  <text x="85" y="116" text-anchor="middle" font-size="8" fill="#3b82f6">&lt;script src&gt; · JSONP</text>
+
+  <!-- VWORLD Geocoder -->
+  <rect x="175" y="72" width="150" height="48" rx="6" fill="#dbeafe" stroke="#93c5fd" stroke-width="1"/>
+  <text x="250" y="91" text-anchor="middle" font-size="11" font-weight="600" fill="#1e40af">VWORLD 지오코더</text>
+  <text x="250" y="106" text-anchor="middle" font-size="9" fill="#1e3a8a">도로명/지번→좌표</text>
+  <text x="250" y="116" text-anchor="middle" font-size="8" fill="#3b82f6">JSONP (CORS 미지원)</text>
+
+  <!-- VWORLD GetFeature -->
+  <rect x="340" y="72" width="160" height="48" rx="6" fill="#dbeafe" stroke="#93c5fd" stroke-width="1"/>
+  <text x="420" y="91" text-anchor="middle" font-size="11" font-weight="600" fill="#1e40af">VWORLD GetFeature</text>
+  <text x="420" y="104" text-anchor="middle" font-size="9" fill="#1e3a8a">대지경계·용도지역·도로</text>
+  <text x="420" y="116" text-anchor="middle" font-size="8" fill="#3b82f6">JSONP · fetchFeatureResilient (3회)</text>
+
+  <!-- Nominatim -->
+  <rect x="515" y="72" width="120" height="48" rx="6" fill="#d1fae5" stroke="#6ee7b7" stroke-width="1"/>
+  <text x="575" y="91" text-anchor="middle" font-size="11" font-weight="600" fill="#065f46">Nominatim</text>
+  <text x="575" y="106" text-anchor="middle" font-size="9" fill="#064e3b">보조 지오코더</text>
+  <text x="575" y="116" text-anchor="middle" font-size="8" fill="#059669">fetch (CORS OK)</text>
+
+  <!-- Gemini -->
+  <rect x="650" y="72" width="120" height="48" rx="6" fill="#fef9c3" stroke="#fde68a" stroke-width="1"/>
+  <text x="710" y="91" text-anchor="middle" font-size="11" font-weight="600" fill="#78350f">Gemini API</text>
+  <text x="710" y="106" text-anchor="middle" font-size="9" fill="#713f12">AI 실사 렌더링</text>
+  <text x="710" y="116" text-anchor="middle" font-size="8" fill="#d97706">localStorage key</text>
+
+  <!-- source/ PNGs -->
+  <rect x="785" y="72" width="65" height="48" rx="6" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1"/>
+  <text x="817" y="91" text-anchor="middle" font-size="10" font-weight="600" fill="#374151">source/</text>
+  <text x="817" y="104" text-anchor="middle" font-size="9" fill="#4b5563">텍스처 PNG</text>
+  <text x="817" y="116" text-anchor="middle" font-size="8" fill="#6b7280">fetch 상대경로</text>
+
+  <!-- ─── LAYER 2: Core App ─── -->
+  <text x="10" y="140" font-size="10" font-weight="600" fill="#6b7280">앱 핵심 (index.html)</text>
+  <line x1="10" y1="144" x2="850" y2="144" stroke="#e5e7eb" stroke-width="1"/>
+
+  <!-- App outer box -->
+  <rect x="10" y="150" width="840" height="300" rx="8" fill="#f9fafb" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="6,3"/>
+
+  <!-- Init box -->
+  <rect x="25" y="160" width="160" height="56" rx="6" fill="#ffffff" stroke="#9ca3af" stroke-width="1"/>
+  <text x="105" y="179" text-anchor="middle" font-size="10" font-weight="600" fill="#374151">window.onload · 초기화</text>
+  <text x="105" y="193" text-anchor="middle" font-size="9" fill="#6b7280">new vw.Map()</text>
+  <text x="105" y="205" text-anchor="middle" font-size="9" fill="#6b7280">viewer = map._wsViewer</text>
+
+  <!-- JSONP Helper -->
+  <rect x="205" y="160" width="155" height="56" rx="6" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1"/>
+  <text x="282" y="179" text-anchor="middle" font-size="10" font-weight="600" fill="#1e40af">JSONP 헬퍼</text>
+  <text x="282" y="193" text-anchor="middle" font-size="9" fill="#1d4ed8">jsonpOnce (9s timeout)</text>
+  <text x="282" y="205" text-anchor="middle" font-size="9" fill="#1d4ed8">jsonpGet (3회, 400ms)</text>
+
+  <!-- Global State -->
+  <rect x="375" y="160" width="190" height="56" rx="6" fill="#fdf2f8" stroke="#f9a8d4" stroke-width="1"/>
+  <text x="470" y="179" text-anchor="middle" font-size="10" font-weight="600" fill="#831843">전역 상태</text>
+  <text x="470" y="193" text-anchor="middle" font-size="9" fill="#9d174d">map·viewer·sitePlaneH·drawCoords</text>
+  <text x="470" y="205" text-anchor="middle" font-size="9" fill="#9d174d">siteBoundaryCoords·buildableCoords</text>
+
+  <!-- ZONING_TABLE -->
+  <rect x="580" y="160" width="120" height="56" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
+  <text x="640" y="179" text-anchor="middle" font-size="10" font-weight="600" fill="#14532d">ZONING_TABLE</text>
+  <text x="640" y="193" text-anchor="middle" font-size="9" fill="#166534">21개 용도지역</text>
+  <text x="640" y="205" text-anchor="middle" font-size="9" fill="#166534">건폐율/용적률 상한</text>
+
+  <!-- Render Helpers -->
+  <rect x="715" y="160" width="120" height="56" rx="6" fill="#fff7ed" stroke="#fdba74" stroke-width="1"/>
+  <text x="775" y="179" text-anchor="middle" font-size="10" font-weight="600" fill="#7c2d12">렌더 헬퍼</text>
+  <text x="775" y="193" text-anchor="middle" font-size="9" fill="#9a3412">depthFailMaterial</text>
+  <text x="775" y="205" text-anchor="middle" font-size="9" fill="#9a3412">sitePlaneH z 고정</text>
+
+  <!-- Tab A -->
+  <rect x="25" y="232" width="185" height="110" rx="6" fill="#ffffff" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="117" y="249" text-anchor="middle" font-size="10" font-weight="700" fill="#4f46e5">탭 A · 위치·투명화</text>
+  <line x1="25" y1="254" x2="210" y2="254" stroke="#e0e7ff" stroke-width="1"/>
+  <text x="35" y="268" font-size="9" fill="#374151">searchAddress()</text>
+  <text x="35" y="281" font-size="9" fill="#374151">loadParcelAndRestrictions()</text>
+  <text x="35" y="294" font-size="9" fill="#374151">drawSiteBoundary() ← 빨간 폴리라인</text>
+  <text x="35" y="307" font-size="9" fill="#374151">applyZoning() → 건폐율/용적률</text>
+  <text x="35" y="320" font-size="9" fill="#374151">detectRoadEdges() → computeBuildable()</text>
+  <text x="35" y="333" font-size="9" fill="#374151">toggleTransparent() ← 건물 클릭</text>
+
+  <!-- Tab B -->
+  <rect x="222" y="232" width="185" height="110" rx="6" fill="#ffffff" stroke="#0891b2" stroke-width="1.5"/>
+  <text x="314" y="249" text-anchor="middle" font-size="10" font-weight="700" fill="#0e7490">탭 B · 신축·입면</text>
+  <line x1="222" y1="254" x2="407" y2="254" stroke="#cffafe" stroke-width="1"/>
+  <text x="232" y="268" font-size="9" fill="#374151">프리셋: makePresetRectangle()</text>
+  <text x="232" y="281" font-size="9" fill="#374151">  maxRectInPoly (히스토그램 DP)</text>
+  <text x="232" y="294" font-size="9" fill="#374151">직접그리기: toggleDraw/Edit</text>
+  <text x="232" y="307" font-size="9" fill="#374151">rebuildDraft() → 매스 솔리드</text>
+  <text x="232" y="320" font-size="9" fill="#374151">rebuildPaneling() → 입면 텍스처</text>
+  <text x="232" y="333" font-size="9" fill="#374151">층고·층수·수평투영 (공통)</text>
+
+  <!-- Tab C -->
+  <rect x="419" y="232" width="175" height="110" rx="6" fill="#ffffff" stroke="#9ca3af" stroke-width="1.5"/>
+  <text x="506" y="249" text-anchor="middle" font-size="10" font-weight="700" fill="#374151">탭 C · 포디움·지붕</text>
+  <line x1="419" y1="254" x2="594" y2="254" stroke="#f3f4f6" stroke-width="1"/>
+  <text x="429" y="268" font-size="9" fill="#374151">포디움 폴리곤 그리기</text>
+  <text x="429" y="281" font-size="9" fill="#374151">지붕 폴리곤 디자인</text>
+  <text x="429" y="294" font-size="9" fill="#374151">groundPolygonsList</text>
+  <text x="429" y="307" font-size="9" fill="#374151">roofPolygonsList</text>
+
+  <!-- Tab D -->
+  <rect x="607" y="232" width="145" height="110" rx="6" fill="#ffffff" stroke="#d97706" stroke-width="1.5"/>
+  <text x="679" y="249" text-anchor="middle" font-size="10" font-weight="700" fill="#92400e">탭 D · AI 실사</text>
+  <line x1="607" y1="254" x2="752" y2="254" stroke="#fef3c7" stroke-width="1"/>
+  <text x="617" y="268" font-size="9" fill="#374151">captureScreen()</text>
+  <text x="617" y="281" font-size="9" fill="#374151">getDisplayMedia</text>
+  <text x="617" y="294" font-size="9" fill="#374151">runAiRender()</text>
+  <text x="617" y="307" font-size="9" fill="#374151">→ Gemini POST</text>
+  <text x="617" y="320" font-size="9" fill="#374151">downloadAiResult()</text>
+
+  <!-- Coverage Panel -->
+  <rect x="765" y="232" width="70" height="110" rx="6" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <text x="800" y="249" text-anchor="middle" font-size="9" font-weight="700" fill="#14532d">건폐율</text>
+  <text x="800" y="261" text-anchor="middle" font-size="9" font-weight="700" fill="#14532d">체크</text>
+  <line x1="765" y1="266" x2="835" y2="266" stroke="#bbf7d0" stroke-width="1"/>
+  <text x="800" y="280" text-anchor="middle" font-size="9" fill="#374151">updateCoverage</text>
+  <text x="800" y="293" text-anchor="middle" font-size="9" fill="#374151">shoelace</text>
+  <text x="800" y="306" text-anchor="middle" font-size="9" fill="#374151">합집합</text>
+
+  <!-- Geo helpers row -->
+  <rect x="25" y="355" width="840" height="80" rx="6" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="430" y="373" text-anchor="middle" font-size="10" font-weight="600" fill="#374151">지형·좌표 헬퍼</text>
+  <line x1="25" y1="377" x2="865" y2="377" stroke="#f3f4f6" stroke-width="1"/>
+  <text x="100" y="394" text-anchor="middle" font-size="9" fill="#374151">sampleGroundHeight()</text>
+  <text x="100" y="407" text-anchor="middle" font-size="9" fill="#6b7280">globe.getHeight 기반</text>
+  <text x="100" y="419" text-anchor="middle" font-size="9" fill="#6b7280">NOT sampleTerrainMostDetailed</text>
+
+  <text x="260" y="394" text-anchor="middle" font-size="9" fill="#374151">refineSitePlaneH()</text>
+  <text x="260" y="407" text-anchor="middle" font-size="9" fill="#6b7280">3회 재시도, 400ms간격</text>
+  <text x="260" y="419" text-anchor="middle" font-size="9" fill="#6b7280">동일 z 보장</text>
+
+  <text x="430" y="394" text-anchor="middle" font-size="9" fill="#374151">insetPolygon() 하이브리드</text>
+  <text x="430" y="407" text-anchor="middle" font-size="9" fill="#6b7280">miter(MITER=2.0) → 유효성 검사</text>
+  <text x="430" y="419" text-anchor="middle" font-size="9" fill="#6b7280">→ 폴백: Sutherland-Hodgman clip</text>
+
+  <text x="620" y="394" text-anchor="middle" font-size="9" fill="#374151">maxRectInPoly()</text>
+  <text x="620" y="407" text-anchor="middle" font-size="9" fill="#6b7280">N=150 래스터 + 히스토그램 DP</text>
+  <text x="620" y="419" text-anchor="middle" font-size="9" fill="#6b7280">엣지 방향별 후보각도 탐색</text>
+
+  <text x="790" y="394" text-anchor="middle" font-size="9" fill="#374151">areaOfCoords()</text>
+  <text x="790" y="407" text-anchor="middle" font-size="9" fill="#6b7280">위도보정 미터변환</text>
+  <text x="790" y="419" text-anchor="middle" font-size="9" fill="#6b7280">신발끈 공식</text>
+
+  <!-- ─── LAYER 3: Deploy ─── -->
+  <text x="10" y="465" font-size="10" font-weight="600" fill="#6b7280">배포 / 환경</text>
+  <line x1="10" y1="469" x2="850" y2="469" stroke="#e5e7eb" stroke-width="1"/>
+
+  <rect x="10" y="475" width="180" height="56" rx="6" fill="#ffffff" stroke="#d1d5db" stroke-width="1"/>
+  <text x="100" y="494" text-anchor="middle" font-size="10" font-weight="600" fill="#374151">배포.bat / _deploy.ps1</text>
+  <text x="100" y="508" text-anchor="middle" font-size="9" fill="#6b7280">add → commit → pull --rebase</text>
+  <text x="100" y="520" text-anchor="middle" font-size="9" fill="#6b7280">→ push (fit-platform 계정)</text>
+
+  <rect x="205" y="475" width="160" height="56" rx="6" fill="#dbeafe" stroke="#93c5fd" stroke-width="1"/>
+  <text x="285" y="494" text-anchor="middle" font-size="10" font-weight="600" fill="#1e40af">GitHub Pages</text>
+  <text x="285" y="508" text-anchor="middle" font-size="9" fill="#1d4ed8">fit-platform/map (main)</text>
+  <text x="285" y="520" text-anchor="middle" font-size="9" fill="#1d4ed8">https://fit-platform.github.io/map/</text>
+
+  <rect x="380" y="475" width="200" height="56" rx="6" fill="#ffffff" stroke="#d1d5db" stroke-width="1"/>
+  <text x="480" y="494" text-anchor="middle" font-size="10" font-weight="600" fill="#374151">FIT Platform 방 구조</text>
+  <text x="480" y="508" text-anchor="middle" font-size="9" fill="#6b7280">heejin/ jubyung/ sangeun/ shinjae/ shared/</text>
+  <text x="480" y="520" text-anchor="middle" font-size="9" fill="#dc2626">heejin = 현재 로그인 게이트 없음 ⚠</text>
+
+  <rect x="595" y="475" width="160" height="56" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1"/>
+  <text x="675" y="494" text-anchor="middle" font-size="10" font-weight="600" fill="#374151">Supabase (미연동)</text>
+  <text x="675" y="508" text-anchor="middle" font-size="9" fill="#6b7280">auykdsmpfkljassfavba.supabase.co</text>
+  <text x="675" y="520" text-anchor="middle" font-size="9" fill="#6b7280">결정 보류: 저장 기능 도입 여부</text>
+
+  <!-- Arrows -->
+  <line x1="85" y1="120" x2="85" y2="150" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+  <line x1="250" y1="120" x2="250" y2="150" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+  <line x1="420" y1="120" x2="420" y2="150" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+  <line x1="575" y1="120" x2="575" y2="150" stroke="#059669" stroke-width="1.5" marker-end="url(#arr-green)"/>
+  <line x1="710" y1="120" x2="710" y2="150" stroke="#d97706" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="817" y1="120" x2="817" y2="150" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="100" y1="450" x2="100" y2="475" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="190" y1="503" x2="205" y2="503" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Legend -->
+  <rect x="10" y="545" width="840" height="50" rx="4" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="20" y="562" font-size="9" font-weight="600" fill="#374151">범례:</text>
+  <rect x="55" y="552" width="12" height="12" rx="2" fill="#dbeafe" stroke="#93c5fd" stroke-width="1"/>
+  <text x="72" y="562" font-size="9" fill="#374151">VWORLD 의존</text>
+  <rect x="155" y="552" width="12" height="12" rx="2" fill="#d1fae5" stroke="#6ee7b7" stroke-width="1"/>
+  <text x="172" y="562" font-size="9" fill="#374151">CORS OK (fetch)</text>
+  <rect x="255" y="552" width="12" height="12" rx="2" fill="#fef9c3" stroke="#fde68a" stroke-width="1"/>
+  <text x="272" y="562" font-size="9" fill="#374151">AI / 사용자 키</text>
+  <rect x="355" y="552" width="12" height="12" rx="2" fill="#fdf2f8" stroke="#f9a8d4" stroke-width="1"/>
+  <text x="372" y="562" font-size="9" fill="#374151">전역 상태 (충돌 위험)</text>
+  <text x="475" y="562" font-size="9" fill="#6b7280">──→ JSONP 호출 (3회 재시도)</text>
+  <text x="600" y="562" font-size="9" fill="#dc2626">⚠ heejin 현재 공개 (로그인 없음)</text>
+  <text x="20" y="584" font-size="9" fill="#6b7280">z 규약: 모든 폴리라인 = sitePlaneH (globe.getHeight, 동일값). 통합 시 iframe 격리 권장 (전역변수 충돌 방지).</text>
+</svg>
