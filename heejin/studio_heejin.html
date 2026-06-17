@@ -206,6 +206,13 @@
         .subtab:hover{ color:var(--ink); }
         .subtab.on{ background:var(--accent); border-color:var(--accent); color:#fff; }
 
+        /* AI 영역 지정 캡쳐 오버레이 */
+        #regionOverlay{ position:fixed; inset:0; z-index:100001; display:none; cursor:crosshair; background:rgba(20,22,26,0.10); }
+        #regionHint{ position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:100003; display:none;
+            background:rgba(26,26,26,0.86); color:#fff; font-size:12px; font-weight:600; padding:6px 12px; border-radius:6px; }
+        #regionBox{ position:fixed; display:none; z-index:100002; border:2px solid var(--accent);
+            background:rgba(230,141,57,0.12); box-shadow:0 0 0 9999px rgba(20,22,26,0.18); pointer-events:none; }
+
         /* AI 변환 전후 비교 팝업 */
         #cmpModal{ position:fixed; inset:0; z-index:100000; display:none; align-items:center; justify-content:center; }
         #cmpModal .cmp-backdrop{ position:absolute; inset:0; background:rgba(10,10,12,0.74); }
@@ -411,7 +418,7 @@
     <div class="card">
         <div class="label"><span class="dot"></span>실사 변환</div>
         <div class="row">
-            <button class="btn-primary" onclick="captureScreen()">현재 화면 캡쳐</button>
+            <button class="btn-primary" onclick="captureScreen()">영역 지정 캡쳐</button>
         </div>
         <div class="row" style="margin-top:6px;">
             <span class="field" style="flex:0 0 auto;">또는</span>
@@ -529,6 +536,11 @@
         <input id="cmpRange" type="range" min="0" max="100" value="50" oninput="onCmpSlide(this.value)">
     </div>
 </div>
+
+<!-- AI 영역 지정 캡쳐 오버레이 -->
+<div id="regionOverlay"></div>
+<div id="regionBox"></div>
+<div id="regionHint">지도 위에서 캡쳐할 영역을 드래그하세요 · ESC 취소</div>
 
 <div id="vmap"></div>
 
@@ -694,51 +706,51 @@
         if (c) c.style.visibility = h ? "hidden" : "visible";
     }
 
-    // 현재 화면(탭) 한 프레임 캡쳐 — WebGL taint 영향 없는 getDisplayMedia 사용
-    async function captureScreen() {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-            setAiStatus("이 브라우저는 화면 캡쳐를 지원하지 않습니다. 아래 '이미지 업로드'를 사용하세요.");
-            return;
+    // 영역 지정 캡쳐 — 지도(Cesium 캔버스) 위에서 드래그한 사각형만 캡쳐(화면공유 팝업 없음)
+    function captureScreen() {
+        if (!viewer) { setAiStatus("지도가 준비되지 않았습니다."); return; }
+        var ov = document.getElementById("regionOverlay"), box = document.getElementById("regionBox"), hint = document.getElementById("regionHint");
+        if (!ov || !box) return;
+        box.style.display = "none"; ov.style.display = "block"; if (hint) hint.style.display = "block";
+        setAiStatus("지도 위에서 캡쳐할 영역을 드래그하세요. (ESC 취소)");
+        var x0, y0, dragging = false;
+        function draw(e) {
+            var x = Math.min(x0, e.clientX), y = Math.min(y0, e.clientY), w = Math.abs(e.clientX - x0), h = Math.abs(e.clientY - y0);
+            box.style.left = x + "px"; box.style.top = y + "px"; box.style.width = w + "px"; box.style.height = h + "px";
         }
-        setAiStatus("화면 공유를 허용하고 이 탭을 선택하세요…");
+        function down(e) { dragging = true; x0 = e.clientX; y0 = e.clientY; box.style.display = "block"; draw(e); e.preventDefault(); }
+        function move(e) { if (dragging) draw(e); }
+        function up(e) {
+            if (!dragging) return; dragging = false;
+            var x = Math.min(x0, e.clientX), y = Math.min(y0, e.clientY), w = Math.abs(e.clientX - x0), h = Math.abs(e.clientY - y0);
+            cleanup();
+            if (w < 8 || h < 8) { setAiStatus("영역이 너무 작습니다. 다시 ‘영역 지정 캡쳐’를 누르세요."); return; }
+            captureRegion(x, y, w, h);
+        }
+        function key(e) { if (e.key === "Escape") { cleanup(); setAiStatus("캡쳐 취소됨."); } }
+        function cleanup() {
+            ov.style.display = "none"; box.style.display = "none"; if (hint) hint.style.display = "none";
+            ov.removeEventListener("mousedown", down); window.removeEventListener("mousemove", move);
+            window.removeEventListener("mouseup", up); window.removeEventListener("keydown", key);
+        }
+        ov.addEventListener("mousedown", down); window.addEventListener("mousemove", move);
+        window.addEventListener("mouseup", up); window.addEventListener("keydown", key);
+    }
+    // 선택 사각형(뷰포트 px) → 캔버스 픽셀로 변환 후 크롭
+    function captureRegion(x, y, w, h) {
         try {
-            if (!aiStream || !aiStream.active) {
-                aiStream = await navigator.mediaDevices.getDisplayMedia({
-                    video: { displaySurface: "browser" }, audio: false
-                });
-                // 사용자가 공유를 중지하면 스트림 해제
-                aiStream.getVideoTracks()[0].addEventListener("ended", function () { aiStream = null; });
-            }
-            setPanelsHidden(true);
-            var video = document.createElement("video");
-            video.srcObject = aiStream; video.muted = true;
-            await video.play();
-            await new Promise(function (r) { setTimeout(r, 300); }); // 렌더/숨김 반영 대기
-            var vw2 = video.videoWidth, vh = video.videoHeight;
-            if (!vw2 || !vh) throw new Error("프레임 크기를 읽지 못했습니다.");
-            // 분할 화면일 때: 캡쳐 프레임에서 'render studio 패널'(이 iframe) 영역만 잘라 massing studio 화면을 제외.
-            var sx = 0, sy = 0, sw = vw2, sh = vh, fe = null;
-            try { fe = window.frameElement; } catch (e) { fe = null; }
-            if (fe && window.parent && window.parent.innerWidth) {
-                var rect = fe.getBoundingClientRect();
-                var kx = vw2 / window.parent.innerWidth, ky = vh / window.parent.innerHeight;
-                sx = Math.max(0, Math.round(rect.left * kx));
-                sy = Math.max(0, Math.round(rect.top * ky));
-                sw = Math.min(vw2 - sx, Math.round(rect.width * kx));
-                sh = Math.min(vh - sy, Math.round(rect.height * ky));
-            }
-            var canvas = document.createElement("canvas");
-            canvas.width = sw; canvas.height = sh;
-            canvas.getContext("2d").drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
-            aiSourceDataURL = canvas.toDataURL("image/jpeg", 0.92);
-            video.pause(); video.srcObject = null;
+            var canvas = viewer.scene.canvas, r = canvas.getBoundingClientRect();
+            var kx = canvas.width / r.width, ky = canvas.height / r.height;
+            var sx = Math.max(0, (x - r.left) * kx), sy = Math.max(0, (y - r.top) * ky);
+            var sw = Math.min(canvas.width - sx, w * kx), sh = Math.min(canvas.height - sy, h * ky);
+            if (sw < 2 || sh < 2) { setAiStatus("선택 영역이 지도 밖입니다. 지도 위에서 드래그하세요."); return; }
+            viewer.scene.render();
+            var out = document.createElement("canvas"); out.width = Math.round(sw); out.height = Math.round(sh);
+            out.getContext("2d").drawImage(canvas, sx, sy, sw, sh, 0, 0, out.width, out.height);
+            aiSourceDataURL = out.toDataURL("image/jpeg", 0.92);
             showAiSource();
-            setAiStatus("캡쳐 완료. 스타일을 고르고 '실사 변환 실행'을 누르세요.");
-        } catch (e) {
-            setAiStatus("캡쳐 실패: " + e.message);
-        } finally {
-            setPanelsHidden(false);
-        }
+            setAiStatus("영역 캡쳐 완료 (" + Math.round(sw) + "×" + Math.round(sh) + "). 스타일을 고르고 '실사 변환 실행'을 누르세요.");
+        } catch (e) { setAiStatus("캡쳐 실패: " + e.message + " — '이미지 업로드'를 사용하세요."); }
     }
 
     function onAiUpload(input) {
