@@ -3541,7 +3541,10 @@ window.FitCalcApp = App;
     var s = document.getElementById('toHeejinStatus');
     try{
       var m = buildFitModel();
-      if(window.parent && window.parent !== window) window.parent.postMessage(m, '*');
+      if(window.parent && window.parent !== window){
+        window.parent.postMessage(m, '*');
+        window.parent.postMessage({ type:'split', v:15 }, '*');   // render studio 크게(15:85)로 부드럽게 전환
+      }
       if(s){ s.textContent = '→ 보냄 · 모듈 ' + m.modules.length + '개'; }
     }catch(e){ console.error('export error', e); if(s) s.textContent = '오류: ' + e.message; }
   }
@@ -3558,7 +3561,7 @@ window.FitCalcApp = App;
     b.onclick = exportToHeejin;
     var s = document.createElement('div');
     s.id = 'toHeejinStatus';
-    s.style.cssText = 'position:fixed;top:52px;right:14px;z-index:99999;font:600 11px/1.4 sans-serif;color:#1a1a1a;text-align:right;max-width:220px;';
+    s.style.cssText = 'position:fixed;top:52px;right:14px;z-index:99999;font:600 11px/1.4 sans-serif;color:#1a1a1a;text-align:right;max-width:240px;';
     document.body.appendChild(b); document.body.appendChild(s);
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', inject); else inject();

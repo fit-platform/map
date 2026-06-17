@@ -213,6 +213,12 @@
         #regionBox{ position:fixed; display:none; z-index:100002; border:2px solid var(--accent);
             background:rgba(230,141,57,0.12); box-shadow:0 0 0 9999px rgba(20,22,26,0.18); pointer-events:none; }
 
+        /* massing studio 재검토 버튼 (하단 중앙) */
+        #reviewBtn{ position:fixed; bottom:14px; left:14px; z-index:9999;
+            padding:10px 16px; background:#1a1a1a; color:var(--accent); border:1px solid var(--accent); border-radius:4px;
+            font:600 13px/1 'IBM Plex Sans KR',sans-serif; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,.18); }
+        #reviewBtn:hover{ background:var(--accent); color:#fff; }
+
         /* AI 변환 전후 비교 팝업 */
         #cmpModal{ position:fixed; inset:0; z-index:100000; display:none; align-items:center; justify-content:center; }
         #cmpModal .cmp-backdrop{ position:absolute; inset:0; background:rgba(10,10,12,0.74); }
@@ -252,7 +258,7 @@
         <div class="row">
             <input id="address" type="text" placeholder="주소 또는 장소 입력">
             <button class="btn-primary btn-search" style="flex:0 0 auto; padding:9px 16px;"
-                    onclick="searchAddress()">검색</button>
+                    onclick="searchAddress()">여기로 불러오기</button>
         </div>
         <div class="hint" id="searchHint">도로명 주소를 입력하면 대지경계선이 지도에 표시됩니다. 그 다음 ‘신축 매스·입면’ 탭에서 건물을 올리세요.</div>
         <label class="check" style="margin-top:8px;">
@@ -306,6 +312,24 @@
         </div>
         <div class="row" style="margin-top:10px;">
             <button class="btn-ghost" onclick="resetImportPlace()">배치 초기화</button>
+        </div>
+    </div>
+
+    <!-- 건폐율 체크 (모델 배치 하부) -->
+    <div class="card">
+        <div class="label"><span class="dot"></span>건폐율 체크</div>
+        <div class="cov-row">
+            <span class="cov-label">대지면적</span>
+            <span><input id="siteArea" type="number" min="0" step="0.1" placeholder="직접 입력"
+                   oninput="updateCoverage()"><span class="cov-unit">m²</span></span>
+        </div>
+        <div class="cov-row">
+            <span class="cov-label">수평투영면적<span class="cov-sub">(massing studio 모델 기준)</span></span>
+            <span class="cov-val"><span id="projArea">–</span><span class="cov-unit">m²</span></span>
+        </div>
+        <div class="cov-row total">
+            <span class="cov-label">건폐율</span>
+            <span class="cov-val"><span id="coverageRatio">–</span><span class="cov-unit">%</span></span>
         </div>
     </div>
 
@@ -476,22 +500,7 @@
 </div>
 
 <!-- 건폐율 체크 (우측 하단) -->
-<div id="coveragePanel">
-    <div class="cov-title"><span class="dot"></span>건폐율 체크</div>
-    <div class="cov-row">
-        <span class="cov-label">대지면적</span>
-        <span><input id="siteArea" type="number" min="0" step="0.1" placeholder="직접 입력"
-               oninput="updateCoverage()"><span class="cov-unit">m²</span></span>
-    </div>
-    <div class="cov-row">
-        <span class="cov-label">수평투영면적<span class="cov-sub">(massing studio 모델 기준)</span></span>
-        <span class="cov-val"><span id="projArea">–</span><span class="cov-unit">m²</span></span>
-    </div>
-    <div class="cov-row total">
-        <span class="cov-label">건폐율</span>
-        <span class="cov-val"><span id="coverageRatio">–</span><span class="cov-unit">%</span></span>
-    </div>
-</div>
+<!-- (건폐율 체크 패널은 위치·대지 탭 안으로 이동됨) -->
 
 <!-- 카메라 뷰 임시저장 (우상단 — VWORLD 미니아이콘 대체) -->
 <div id="camBookmarks">
@@ -541,6 +550,9 @@
 <div id="regionOverlay"></div>
 <div id="regionBox"></div>
 <div id="regionHint">지도 위에서 캡쳐할 영역을 드래그하세요 · ESC 취소</div>
+
+<!-- massing studio 재검토 (하단 중앙) -->
+<button id="reviewBtn" onclick="reviewMassing()">↩ massing studio 재검토</button>
 
 <div id="vmap"></div>
 
@@ -2641,6 +2653,7 @@
         if (!pt) { alert("검색 결과가 없습니다."); setSearchHint("검색 결과가 없습니다."); return; }
         map.moveTo(new vw.CameraPosition(new vw.CoordZ(pt.lon, pt.lat, 500), new vw.Direction(0, -55, 0)));
         await loadParcelAndRestrictions(pt.lon, pt.lat);
+        if (lastModel) renderImportedModel(lastModel, true, moveMode);   // 검색 위치에 수신 모델 함께 배치(‘여기로 불러오기’)
     }
 
     // ====================================================================
@@ -2875,6 +2888,7 @@
     }
     function rerenderImported() { if (lastModel) renderImportedModel(lastModel, false, moveMode); }
     function presetAddr(a) { var el = document.getElementById("address"); if (el) el.value = a; searchAddress(); }
+    function reviewMassing() { if (window.parent && window.parent !== window) window.parent.postMessage({ type: "split", v: 85 }, "*"); }
     // 이동 모드 ON = 경량(매스만) 렌더 / OFF = 전체 텍스처 렌더. 토글로 확실히 경량화.
     var moveMode = false;
     function onMoveMode() {
@@ -2996,7 +3010,9 @@
         var d = ev.data; if (!d || d.type !== "fitModel") return;
         var isNew = !lastModel || lastModel.ts !== d.ts;
         lastModel = d;
-        renderImportedModel(d, isNew);   // 새 모델일 때만 카메라 이동
+        updateImportStatus(d);   // 상태·규모·FIT모듈 갱신(보내기 = 모델 전달 + 화면전환)
+        // 대지가 이미 잡혀있으면 즉시 배치, 아니면 ‘여기로 불러오기’(검색) 때 배치
+        if (siteBoundaryCoords && siteBoundaryCoords.length >= 3) renderImportedModel(d, isNew, moveMode);
     });
     loadTex("cart-1.png", "c1"); loadTex("cart-2.png", "c2"); loadTex("cart-air.png", "air");
     loadTex("frame-1.png", "f1"); loadTex("frame-2.png", "f2"); loadTex("frame-3.png", "f3"); loadTex("frame-4.png", "f4");
