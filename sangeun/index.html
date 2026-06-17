@@ -1179,6 +1179,8 @@ el.addEventListener('touchstart',function(e){ if(e.touches.length>=2){ pinching=
 window.addEventListener('touchmove',function(e){ if(pinching && e.touches.length>=2){ var nd=_pdist(e.touches); if(nd>0&&_pinchD>0) zoomMul=clamp(zoomMul*(_pinchD/nd),0.1,3.5); _pinchD=nd; wake(); e.preventDefault(); } },{passive:false});
 function _pend(e){ if(!e.touches||e.touches.length<2){ pinching=false; _pinchD=0; } }
 window.addEventListener('touchend',_pend); window.addEventListener('touchcancel',_pend);
+// iOS Safari는 user-scalable=no를 무시 → 제스처 이벤트로 페이지 확대를 막음(캔버스 핀치는 touch 이벤트라 영향 없음)
+['gesturestart','gesturechange','gestureend'].forEach(function(g){ document.addEventListener(g,function(e){ e.preventDefault(); },{passive:false}); });
 
 window.addEventListener('pointermove',onMove);
 window.addEventListener('pointerup',onUp);
