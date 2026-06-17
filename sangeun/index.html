@@ -189,6 +189,7 @@
   #tagFH{transform:translate(-50%,calc(-50% - 36px));}
   #tagFD{transform:translate(calc(-50% + 88px),-50%);}
   .hide{display:none !important;}
+  html,body{touch-action:pan-x pan-y;}
   @media (max-width:560px){.panel{width:calc(100% - 56px);left:28px;bottom:20px;}.controls{display:none;}.brand .ttl{font-size:20px;}}
 #appbar{position:fixed;top:0;left:0;right:0;z-index:50;height:56px;box-sizing:border-box;
   display:flex;align-items:center;justify-content:space-between;padding:0 40px;
@@ -1181,6 +1182,8 @@ function _pend(e){ if(!e.touches||e.touches.length<2){ pinching=false; _pinchD=0
 window.addEventListener('touchend',_pend); window.addEventListener('touchcancel',_pend);
 // iOS Safari는 user-scalable=no를 무시 → 제스처 이벤트로 페이지 확대를 막음(캔버스 핀치는 touch 이벤트라 영향 없음)
 ['gesturestart','gesturechange','gestureend'].forEach(function(g){ document.addEventListener(g,function(e){ e.preventDefault(); },{passive:false}); });
+// 페이지 전역: 두 손가락(핀치) 터치 이동을 막아 브라우저 확대 차단(패널 포함). 캔버스 3D 핀치는 별도 핸들러가 처리.
+document.addEventListener('touchmove',function(e){ if(e.touches && e.touches.length>=2) e.preventDefault(); },{passive:false,capture:true});
 
 window.addEventListener('pointermove',onMove);
 window.addEventListener('pointerup',onUp);
