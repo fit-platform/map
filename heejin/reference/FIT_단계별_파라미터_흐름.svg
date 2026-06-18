@@ -1,0 +1,162 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1352" font-family="'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif" role="img" aria-labelledby="ttl desc">
+  <title id="ttl">FIT 플랫폼 3D 설계 — 단계별 입력값과 데이터 흐름</title>
+  <desc id="desc">6단계로 진행되며 각 단계에서 사용자가 조작하는 값과 다음 단계로 넘어가는 결과를 보여주는 건축가용 흐름도.</desc>
+
+  <!-- ===== palette (편집 시 여기 색만 바꾸면 전체 반영) ===== -->
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e68d39"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1200" height="1352" fill="#faf9f7"/>
+
+  <!-- ===== 헤더 ===== -->
+  <text x="40" y="48" font-size="27" font-weight="700" fill="#1f1d1a">FIT 플랫폼 3D 설계 — 단계별 입력값 &amp; 데이터 흐름</text>
+  <text x="40" y="76" font-size="15" fill="#8a857c">건축가용 흐름도 · 각 단계에서 <tspan fill="#c2721f" font-weight="700">사용자가 조작하는 값</tspan>과, 다음 단계로 넘어가는 <tspan fill="#1f1d1a" font-weight="700">결과</tspan></text>
+  <!-- 범례 -->
+  <g transform="translate(840,30)">
+    <rect x="0" y="0" width="14" height="14" rx="3" fill="#fff7ef" stroke="#e68d39"/>
+    <text x="22" y="11" font-size="12.5" fill="#5a564e">사용자 입력 (조작 항목)</text>
+    <rect x="0" y="24" width="14" height="14" rx="3" fill="#1f1d1a"/>
+    <text x="22" y="35" font-size="12.5" fill="#5a564e">다음 단계로 전달되는 결과</text>
+  </g>
+
+  <!-- =========================================================
+       카드 1개 = 한 단계.  좌(번호·이름) | 중(사용자 입력) | 우(전달 결과)
+       카드 top: 112,308,504,700,896,1092 / 높이 152 / 폭 1120(x=40)
+       ========================================================= -->
+
+  <!-- ============ STEP 1 · 건물 규모 ============ -->
+  <g>
+    <rect x="40" y="112" width="1120" height="152" rx="10" fill="#ffffff" stroke="#e6e2da"/>
+    <rect x="40" y="112" width="6" height="152" rx="3" fill="#e68d39"/>
+    <line x1="305" y1="132" x2="305" y2="244" stroke="#eee8df"/>
+    <line x1="730" y1="132" x2="730" y2="244" stroke="#eee8df"/>
+    <!-- 좌: 번호/이름 -->
+    <circle cx="92" cy="170" r="27" fill="#e68d39"/>
+    <text x="92" y="179" font-size="22" font-weight="700" fill="#fff" text-anchor="middle">01</text>
+    <text x="138" y="166" font-size="18" font-weight="700" fill="#1f1d1a">건물 규모</text>
+    <text x="138" y="190" font-size="12.5" fill="#9a958c">SCALE — 크기·층</text>
+    <!-- 중: 입력 -->
+    <text x="322" y="136" font-size="11.5" font-weight="700" fill="#b3ac9f" letter-spacing="0.5">사용자 입력</text>
+    <text x="330" y="160" font-size="13.5" fill="#2a2a28">· 가로 W · 세로 D  (2–500 m)</text>
+    <text x="330" y="182" font-size="13.5" fill="#2a2a28">· 층수 (1–100 층)</text>
+    <text x="330" y="204" font-size="13.5" fill="#2a2a28">· 기준 층고 (2.5–6.0 m)</text>
+    <text x="330" y="226" font-size="13.5" fill="#2a2a28">· 평면 입력: 사각형 / 직접 그리기</text>
+    <!-- 우: 전달 -->
+    <text x="746" y="136" font-size="11.5" font-weight="700" fill="#b3ac9f" letter-spacing="0.5">다음 단계로 전달</text>
+    <text x="754" y="166" font-size="13.5" fill="#1f1d1a"><tspan fill="#e68d39" font-weight="700">▸</tspan> 기준층 면적 · 연면적(GFA)</text>
+    <text x="754" y="190" font-size="13.5" fill="#1f1d1a"><tspan fill="#e68d39" font-weight="700">▸</tspan> 건물 평면 윤곽</text>
+  </g>
+  <line x1="600" y1="264" x2="600" y2="306" stroke="#e68d39" stroke-width="1.5" marker-end="url(#arr)"/>
+  <g><rect x="528" y="276" width="144" height="20" rx="10" fill="#fff" stroke="#e68d39"/><text x="600" y="290" font-size="11.5" fill="#c2721f" text-anchor="middle">건물 규모</text></g>
+
+  <!-- ============ STEP 2 · 건물 코어 ============ -->
+  <g>
+    <rect x="40" y="308" width="1120" height="152" rx="10" fill="#ffffff" stroke="#e6e2da"/>
+    <rect x="40" y="308" width="6" height="152" rx="3" fill="#e68d39"/>
+    <line x1="305" y1="328" x2="305" y2="440" stroke="#eee8df"/>
+    <line x1="730" y1="328" x2="730" y2="440" stroke="#eee8df"/>
+    <circle cx="92" cy="366" r="27" fill="#e68d39"/>
+    <text x="92" y="375" font-size="22" font-weight="700" fill="#fff" text-anchor="middle">02</text>
+    <text x="138" y="362" font-size="18" font-weight="700" fill="#1f1d1a">건물 코어</text>
+    <text x="138" y="386" font-size="12.5" fill="#9a958c">CORE — 코어 배치</text>
+    <text x="322" y="332" font-size="11.5" font-weight="700" fill="#b3ac9f" letter-spacing="0.5">사용자 입력</text>
+    <text x="330" y="358" font-size="13.5" fill="#2a2a28">· 코어 가로 W · 깊이 D</text>
+    <text x="330" y="382" font-size="13.5" fill="#2a2a28">· 위치: 끌어서 이동</text>
+    <text x="330" y="406" font-size="13.5" fill="#2a2a28">· 코어 추가 / 삭제 (여러 개)</text>
+    <text x="746" y="332" font-size="11.5" font-weight="700" fill="#b3ac9f" letter-spacing="0.5">다음 단계로 전달</text>
+    <text x="754" y="362" font-size="13.5" fill="#1f1d1a"><tspan fill="#e68d39" font-weight="700">▸</tspan> 코어 면적 · 코어 비율(%)</text>
+    <text x="754" y="386" font-size="13.5" fill="#1f1d1a"><tspan fill="#e68d39" font-weight="700">▸</tspan> 임대가능(전용) 면적 산정</text>
+  </g>
+  <line x1="600" y1="460" x2="600" y2="502" stroke="#e68d39" stroke-width="1.5" marker-end="url(#arr)"/>
+  <g><rect x="540" y="472" width="120" height="20" rx="10" fill="#fff" stroke="#e68d39"/><text x="600" y="486" font-size="11.5" fill="#c2721f" text-anchor="middle">＋ 코어</text></g>
+
+  <!-- ============ STEP 3 · FIT 적용 층·면 ============ -->
+  <g>
+    <rect x="40" y="504" width="1120" height="152" rx="10" fill="#ffffff" stroke="#e6e2da"/>
+    <rect x="40" y="504" width="6" height="152" rx="3" fill="#e68d39"/>
+    <line x1="305" y1="524" x2="305" y2="636" stroke="#eee8df"/>
+    <line x1="730" y1="524" x2="730" y2="636" stroke="#eee8df"/>
+    <circle cx="92" cy="562" r="27" fill="#e68d39"/>
+    <text x="92" y="571" font-size="22" font-weight="700" fill="#fff" text-anchor="middle">03</text>
+    <text x="138" y="558" font-size="18" font-weight="700" fill="#1f1d1a">FIT 적용 층·면</text>
+    <text x="138" y="582" font-size="12.5" fill="#9a958c">어디에 FIT을 입힐지</text>
+    <text x="322" y="528" font-size="11.5" font-weight="700" fill="#b3ac9f" letter-spacing="0.5">사용자 입력</text>
+    <text x="330" y="556" font-size="13.5" fill="#2a2a28">· 시작층 · 끝층</text>
+    <text x="330" y="580" font-size="13.5" fill="#2a2a28">· 적용 면 선택 (4면 중 클릭)</text>
+    <text x="746" y="528" font-size="11.5" font-weight="700" fill="#b3ac9f" letter-spacing="0.5">다음 단계로 전달</text>
+    <text x="754" y="558" font-size="13.5" fill="#1f1d1a"><tspan fill="#e68d39" font-weight="700">▸</tspan> FIT 적용 층수 · 면 수</text>
+    <text x="754" y="582" font-size="13.5" fill="#1f1d1a"><tspan fill="#e68d39" font-weight="700">▸</tspan> FIT 전용면적</text>
+  </g>
+  <line x1="600" y1="656" x2="600" y2="698" stroke="#e68d39" stroke-width="1.5" marker-end="url(#arr)"/>
+  <g><rect x="512" y="668" width="176" height="20" rx="10" fill="#fff" stroke="#e68d39"/><text x="600" y="682" font-size="11.5" fill="#c2721f" text-anchor="middle">＋ FIT 적용 범위</text></g>
+
+  <!-- ============ STEP 4 · FIT 프레임 ============ -->
+  <g>
+    <rect x="40" y="700" width="1120" height="152" rx="10" fill="#ffffff" stroke="#e6e2da"/>
+    <rect x="40" y="700" width="6" height="152" rx="3" fill="#e68d39"/>
+    <line x1="305" y1="720" x2="305" y2="832" stroke="#eee8df"/>
+    <line x1="730" y1="720" x2="730" y2="832" stroke="#eee8df"/>
+    <circle cx="92" cy="758" r="27" fill="#e68d39"/>
+    <text x="92" y="767" font-size="22" font-weight="700" fill="#fff" text-anchor="middle">04</text>
+    <text x="138" y="754" font-size="18" font-weight="700" fill="#1f1d1a">FIT 프레임</text>
+    <text x="138" y="778" font-size="12.5" fill="#9a958c">FRAME — 외피 골조</text>
+    <text x="322" y="724" font-size="11.5" font-weight="700" fill="#b3ac9f" letter-spacing="0.5">사용자 입력</text>
+    <text x="330" y="748" font-size="13.5" fill="#2a2a28">· 프레임 가로 W · 깊이 D · 높이 H (mm)</text>
+    <text x="330" y="770" font-size="13.5" fill="#2a2a28">· 가로폭 방식: 등분 맞춤 / 치수 고정</text>
+    <text x="330" y="792" font-size="13.5" fill="#2a2a28">· 1,200mm 자동 맞춤 · 타입 추가</text>
+    <text x="330" y="814" font-size="13.5" fill="#2a2a28">· 유리: 저철분 / 일반</text>
+    <text x="746" y="724" font-size="11.5" font-weight="700" fill="#b3ac9f" letter-spacing="0.5">다음 단계로 전달</text>
+    <text x="754" y="754" font-size="13.5" fill="#1f1d1a"><tspan fill="#e68d39" font-weight="700">▸</tspan> 프레임 개수 · 열 수 · 코너 수</text>
+    <text x="754" y="778" font-size="13.5" fill="#1f1d1a"><tspan fill="#e68d39" font-weight="700">▸</tspan> 타입별 배치</text>
+  </g>
+  <line x1="600" y1="852" x2="600" y2="894" stroke="#e68d39" stroke-width="1.5" marker-end="url(#arr)"/>
+  <g><rect x="520" y="864" width="160" height="20" rx="10" fill="#fff" stroke="#e68d39"/><text x="600" y="878" font-size="11.5" fill="#c2721f" text-anchor="middle">＋ 프레임 규격</text></g>
+
+  <!-- ============ STEP 5 · 카트리지 ============ -->
+  <g>
+    <rect x="40" y="896" width="1120" height="152" rx="10" fill="#ffffff" stroke="#e6e2da"/>
+    <rect x="40" y="896" width="6" height="152" rx="3" fill="#e68d39"/>
+    <line x1="305" y1="916" x2="305" y2="1028" stroke="#eee8df"/>
+    <line x1="730" y1="916" x2="730" y2="1028" stroke="#eee8df"/>
+    <circle cx="92" cy="954" r="27" fill="#e68d39"/>
+    <text x="92" y="963" font-size="22" font-weight="700" fill="#fff" text-anchor="middle">05</text>
+    <text x="138" y="950" font-size="18" font-weight="700" fill="#1f1d1a">카트리지</text>
+    <text x="138" y="974" font-size="12.5" fill="#9a958c">CARTRIDGE — 외피 채움</text>
+    <text x="322" y="920" font-size="11.5" font-weight="700" fill="#b3ac9f" letter-spacing="0.5">사용자 입력</text>
+    <text x="330" y="946" font-size="13.5" fill="#2a2a28">· 스킨 종류: 스트링 / 패브릭 / 메탈 / 롤블라인드</text>
+    <text x="330" y="970" font-size="13.5" fill="#2a2a28">· 칠하기: 스킨 · 공조 · 도어 · 없음</text>
+    <text x="330" y="994" font-size="13.5" fill="#2a2a28">· 적용 방식: 전체 / 층별</text>
+    <text x="746" y="920" font-size="11.5" font-weight="700" fill="#b3ac9f" letter-spacing="0.5">다음 단계로 전달</text>
+    <text x="754" y="950" font-size="13.5" fill="#1f1d1a"><tspan fill="#e68d39" font-weight="700">▸</tspan> 스킨 · 공조 · 도어 개수</text>
+    <text x="754" y="974" font-size="13.5" fill="#1f1d1a"><tspan fill="#e68d39" font-weight="700">▸</tspan> 층별/전체 구성</text>
+  </g>
+  <line x1="600" y1="1048" x2="600" y2="1092" stroke="#e68d39" stroke-width="1.5" marker-end="url(#arr)"/>
+  <g><rect x="516" y="1060" width="168" height="20" rx="10" fill="#fff" stroke="#e68d39"/><text x="600" y="1074" font-size="11.5" fill="#c2721f" text-anchor="middle">＋ 카트리지 구성</text></g>
+
+  <!-- ============ STEP 6 · 완료 · 견적 ============ -->
+  <g>
+    <rect x="40" y="1092" width="1120" height="172" rx="10" fill="#1f1d1a"/>
+    <rect x="40" y="1092" width="6" height="172" rx="3" fill="#e68d39"/>
+    <line x1="305" y1="1112" x2="305" y2="1244" stroke="#3a372f"/>
+    <line x1="730" y1="1112" x2="730" y2="1244" stroke="#3a372f"/>
+    <circle cx="92" cy="1160" r="27" fill="#e68d39"/>
+    <text x="92" y="1169" font-size="22" font-weight="700" fill="#fff" text-anchor="middle">06</text>
+    <text x="138" y="1156" font-size="18" font-weight="700" fill="#ffffff">완료 · 견적 리포트</text>
+    <text x="138" y="1180" font-size="12.5" fill="#bdb6a8">REPORT — 수량·견적 산출</text>
+    <text x="322" y="1116" font-size="11.5" font-weight="700" fill="#8d8773" letter-spacing="0.5">사용자 입력 (조정)</text>
+    <text x="330" y="1144" font-size="13.5" fill="#efece4">· 납품 실행률 (%) · 공사 실행률 (%)</text>
+    <text x="330" y="1168" font-size="13.5" fill="#efece4">· 견적 항목 8종 선택</text>
+    <text x="344" y="1190" font-size="12" fill="#bdb6a8">FIT FRAME · 스킨 · 공조 · FTU · 엑세스플로어 ·</text>
+    <text x="344" y="1208" font-size="12" fill="#bdb6a8">복사패널 · FIT GRID · FIT OS</text>
+    <text x="746" y="1116" font-size="11.5" font-weight="700" fill="#8d8773" letter-spacing="0.5">최종 산출물</text>
+    <text x="754" y="1146" font-size="13.5" fill="#ffffff"><tspan fill="#e68d39" font-weight="700">▸</tspan> 항목별 수량 · 금액</text>
+    <text x="754" y="1170" font-size="13.5" fill="#ffffff"><tspan fill="#e68d39" font-weight="700">▸</tspan> 엑셀(견적서) 내보내기</text>
+    <text x="754" y="1194" font-size="13.5" fill="#ffffff"><tspan fill="#e68d39" font-weight="700">▸</tspan> 설계안 저장 / 불러오기</text>
+  </g>
+
+  <!-- ===== 하단 안내 ===== -->
+  <text x="40" y="1300" font-size="13" fill="#8a857c">※ 단계가 진행될수록 앞 단계의 값이 누적되어, 마지막에 <tspan fill="#c2721f" font-weight="700">수량과 견적</tspan>으로 합쳐집니다. ‘저장’한 설계안은 언제든 불러와 이어서 수정할 수 있습니다.</text>
+  <text x="40" y="1326" font-size="12" fill="#b3ac9f">FIT PLATFORM · 3D 매싱→견적 워크플로 (index_ref_sangeun2)</text>
+</svg>

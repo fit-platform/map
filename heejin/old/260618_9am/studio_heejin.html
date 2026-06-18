@@ -811,13 +811,7 @@
 
         var runBtn = document.getElementById("aiRunBtn");
         runBtn.disabled = true;
-        var _t0 = Date.now();
-        var _ticker = setInterval(function () {
-            setAiStatus("변환 중… " + Math.round((Date.now() - _t0) / 1000) + "초 경과 (이미지 생성은 30~60초 걸릴 수 있습니다)");
-        }, 1000);
-        setAiStatus("변환 중… (이미지 생성은 30~60초 걸릴 수 있습니다)");
-        var _ctrl = new AbortController();
-        var _killer = setTimeout(function () { _ctrl.abort(); }, 120000); // 120초 안전 타임아웃(무한 '변환중' 방지)
+        setAiStatus("변환 중… (보통 5~15초)");
         try {
             var url = "https://generativelanguage.googleapis.com/v1beta/models/" +
                 encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(key);
@@ -845,7 +839,7 @@
                 generationConfig: { responseModalities: ["IMAGE"] }
             };
             var res = await fetch(url, {
-                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: _ctrl.signal
+                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
             });
             var data = await res.json();
             if (!res.ok) throw new Error((data.error && data.error.message) || ("HTTP " + res.status));
@@ -862,10 +856,9 @@
             document.getElementById("aiResWrap").style.display = "block";
             setAiStatus("완료! 결과를 확인하세요.");
         } catch (e) {
-            if (e.name === "AbortError") setAiStatus("변환 실패: 시간 초과(120초) — 응답이 없습니다. API 키·할당량·네트워크를 확인하고 다시 시도하세요.");
-            else setAiStatus("변환 실패: " + e.message);
+            setAiStatus("변환 실패: " + e.message);
         } finally {
-            clearInterval(_ticker); clearTimeout(_killer); runBtn.disabled = false;
+            runBtn.disabled = false;
         }
     }
 

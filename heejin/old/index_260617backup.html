@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>FIT 스튜디오 — massing studio × render studio 분할</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body { display: flex; flex-direction: column; font-family: 'Apple SD Gothic Neo','Noto Sans KR',sans-serif; background: #1a1a1a; }
+  .bar { height: 42px; flex: 0 0 auto; display: flex; align-items: center; gap: 16px; padding: 0 16px;
+         background: #1a1a1a; color: #e68d39; font-size: 13px; font-weight: 600; }
+  .bar .t { letter-spacing: 0.12em; }
+  .bar .desc { font-weight: 400; color: #c9c9c4; font-size: 12px; }
+  .bar .split-ctl { margin-left: auto; display: flex; align-items: center; gap: 8px; font-weight: 400; color: #c9c9c4; font-size: 12px; }
+  .bar .split-ctl input[type=range] { width: 160px; }
+  .split { flex: 1 1 auto; display: flex; min-height: 0; position: relative; }
+  .pane { flex: 0 0 50%; min-width: 0; position: relative; background: #efefed; }
+  .pane iframe { width: 100%; height: 100%; border: 0; display: block; }
+  /* 작은 쪽 패널 가리기(연회색) */
+  .pane-cover { position: absolute; inset: 0; z-index: 6; display: none; background: #e68d39; }
+  .pane.anim { transition: flex-basis 0.45s ease; }   /* 프로그램 전환 시에만 부드럽게(드래그는 즉시) */
+  /* 두 앱 사이의 선 = 드래그 슬라이더 */
+  #gutter { flex: 0 0 8px; background: #e68d39; cursor: col-resize; position: relative; z-index: 10;
+            transition: background .15s; }
+  #gutter:hover, #gutter.drag { background: #f29b4d; }
+  #gutter::before { content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            width: 2px; height: 34px; background: rgba(255,255,255,0.85); border-radius: 2px;
+            box-shadow: 4px 0 0 rgba(255,255,255,0.85), -4px 0 0 rgba(255,255,255,0.85); }
+  .split.dragging iframe { pointer-events: none; }
+  /* AI 변환 전후 비교 팝업 (화면 절반 크기) */
+  #cmpModal{ position:fixed; inset:0; z-index:100000; display:none; align-items:center; justify-content:center; font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif; }
+  #cmpModal .cmp-backdrop{ position:absolute; inset:0; background:rgba(10,10,12,0.74); }
+  #cmpModal .cmp-box{ position:relative; z-index:1; width:50vw; max-width:50vw; display:flex; flex-direction:column; gap:10px; }
+  #cmpModal .cmp-close{ position:absolute; top:-14px; right:-14px; width:30px; height:30px; border-radius:50%; border:none; background:#1a1a1a; color:#fff; font-size:18px; line-height:30px; padding:0; cursor:pointer; z-index:2; }
+  #cmpModal .cmp-wrap{ position:relative; line-height:0; border-radius:10px; overflow:hidden; box-shadow:0 24px 70px rgba(0,0,0,0.55); background:#000; max-height:84vh; cursor:ew-resize; user-select:none; }
+  #cmpModal .cmp-img{ display:block; }
+  #cmpModal #cmpAfter{ width:100%; height:auto; }
+  #cmpModal #cmpBefore{ position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; }
+  #cmpModal .cmp-divider{ position:absolute; top:0; bottom:0; left:50%; width:2px; background:#e68d39; transform:translateX(-1px); pointer-events:none; }
+  #cmpModal .cmp-divider::after{ content:"⇆"; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:30px; height:30px;
+        border-radius:50%; background:#e68d39; color:#fff; font-size:14px; line-height:30px; text-align:center; box-shadow:0 0 0 3px rgba(255,255,255,0.65); }
+  #cmpModal .cmp-tag{ position:absolute; top:8px; font-size:11px; font-weight:700; color:#fff; background:rgba(26,26,26,0.7); padding:3px 8px; border-radius:4px; pointer-events:none; }
+  #cmpModal .cmp-tag-l{ left:8px; } #cmpModal .cmp-tag-r{ right:8px; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <span class="t">FIT 스튜디오</span>
+    <span class="desc">왼쪽 massing studio에서 모델링 → ‘→ render studio으로 보내기’ 클릭 → 오른쪽 render studio 지도에 실시간 반영 · 가운데 선을 드래그해 비율 조절</span>
+  </div>
+  <div class="split">
+    <div class="pane left" id="paneL">
+      <div class="pane-cover" id="coverL"></div>
+      <iframe id="sangeun" src="studio_sangeun.html"></iframe>
+    </div>
+    <div id="gutter" title="드래그해서 좌우 비율 조절"></div>
+    <div class="pane right" id="paneR">
+      <div class="pane-cover" id="coverR"></div>
+      <iframe id="heejin" src="studio_heejin.html"></iframe>
+    </div>
+  </div>
+
+  <!-- AI 변환 전후 비교 팝업 (호스트 = 화면 절반 크기) -->
+  <div id="cmpModal">
+    <div class="cmp-backdrop" onclick="hostCloseCompare()"></div>
+    <div class="cmp-box">
+      <button class="cmp-close" onclick="hostCloseCompare()">×</button>
+      <div class="cmp-wrap" id="cmpWrap">
+        <img id="cmpAfter" class="cmp-img" alt="">
+        <img id="cmpBefore" class="cmp-img" alt="">
+        <div class="cmp-divider" id="cmpDivider"></div>
+        <span class="cmp-tag cmp-tag-l">변환 전</span>
+        <span class="cmp-tag cmp-tag-r">변환 후</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 좌우 분할 비율 조절 (render studio을 키우면 캡쳐 영역도 그만큼 넓어짐)
+    function setSplit(v) {
+      v = Math.max(15, Math.min(85, Math.round(Number(v) || 50)));
+      document.getElementById("paneL").style.flexBasis = v + "%";
+      document.getElementById("paneR").style.flexBasis = (100 - v) + "%";
+      var lbl = document.getElementById("splitLbl"); if (lbl) lbl.textContent = v + " : " + (100 - v);
+      var sr = document.getElementById("splitRange"); if (sr && Number(sr.value) !== v) sr.value = v;
+      // 작은 쪽(≤15%) 패널은 연회색으로 가림
+      var cl = document.getElementById("coverL"), crv = document.getElementById("coverR");
+      if (cl) cl.style.display = (v <= 15) ? "block" : "none";
+      if (crv) crv.style.display = (v >= 85) ? "block" : "none";
+    }
+    setSplit(85);   // 초기 비율 = massing 85 : render 15 (작은 render 쪽은 연회색 처리)
+    // 두 앱 사이의 선(gutter)을 드래그해 비율 조절
+    (function() {
+      var split = document.querySelector(".split"), gutter = document.getElementById("gutter"), dragging = false;
+      function onMove(e) {
+        if (!dragging) return;
+        var r = split.getBoundingClientRect();
+        var x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+        setSplit(x / r.width * 100);
+        if (e.cancelable) e.preventDefault();
+      }
+      function stop() { dragging = false; gutter.classList.remove("drag"); split.classList.remove("dragging"); }
+      gutter.addEventListener("mousedown", function() { dragging = true; gutter.classList.add("drag"); split.classList.add("dragging"); });
+      gutter.addEventListener("touchstart", function() { dragging = true; gutter.classList.add("drag"); split.classList.add("dragging"); });
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("touchmove", onMove, { passive: false });
+      window.addEventListener("mouseup", stop);
+      window.addEventListener("touchend", stop);
+    })();
+    // AI 비교 팝업 (render studio → 호스트, 화면 절반 크기)
+    var cmpHasBoth = false;
+    function hostCloseCompare() { document.getElementById("cmpModal").style.display = "none"; }
+    function hostCmpSlide(v) {
+      v = Math.max(0, Math.min(100, v));
+      document.getElementById("cmpBefore").style.clipPath = "inset(0 " + (100 - v) + "% 0 0)";
+      document.getElementById("cmpDivider").style.left = v + "%";
+    }
+    // 가운데 구분선(이미지 영역)을 눌러 드래그 → 비교 위치 이동
+    (function() {
+      var wrap = document.getElementById("cmpWrap"), dragging = false;
+      function pct(e) { var r = wrap.getBoundingClientRect(); var x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left; return x / r.width * 100; }
+      function start(e) { if (!cmpHasBoth) return; dragging = true; hostCmpSlide(pct(e)); if (e.cancelable) e.preventDefault(); }
+      function move(e) { if (!dragging || !cmpHasBoth) return; hostCmpSlide(pct(e)); if (e.cancelable) e.preventDefault(); }
+      function stop() { dragging = false; }
+      wrap.addEventListener("mousedown", start);
+      wrap.addEventListener("touchstart", start, { passive: false });
+      window.addEventListener("mousemove", move);
+      window.addEventListener("touchmove", move, { passive: false });
+      window.addEventListener("mouseup", stop);
+      window.addEventListener("touchend", stop);
+    })();
+    window.addEventListener("keydown", function(e) { if (e.key === "Escape") hostCloseCompare(); });
+
+    // 비율을 부드럽게 전환(프로그램 호출용) — 드래그는 즉시 setSplit
+    function smoothSplit(v) {
+      var L = document.getElementById("paneL"), R = document.getElementById("paneR");
+      L.classList.add("anim"); R.classList.add("anim");
+      setSplit(v);
+      setTimeout(function() { L.classList.remove("anim"); R.classList.remove("anim"); }, 520);
+    }
+
+    // massing studio iframe이 parent로 보낸 모델을 render studio iframe으로 중계.
+    var hj = document.getElementById("heejin");
+    window.addEventListener("message", function(ev) {
+      var d = ev.data;
+      if (!d) return;
+      if (d.type === "split") { smoothSplit(d.v); return; }
+      if (d.type === "fitModel") { if (hj && hj.contentWindow) hj.contentWindow.postMessage(d, "*"); smoothSplit(15); return; }
+      if (d.type === "compare") {
+        cmpHasBoth = !!d.hasBoth;
+        document.getElementById("cmpBefore").src = d.before;
+        document.getElementById("cmpAfter").src = d.after;
+        var show = cmpHasBoth ? "block" : "none";
+        document.getElementById("cmpDivider").style.display = show;
+        document.querySelectorAll("#cmpWrap .cmp-tag").forEach(function(t) { t.style.display = show; });
+        document.getElementById("cmpWrap").style.cursor = cmpHasBoth ? "ew-resize" : "default";
+        hostCmpSlide(50);
+        document.getElementById("cmpModal").style.display = "flex";
+        return;
+      }
+    });
+  </script>
+</body>
+</html>

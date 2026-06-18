@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>VWORLD 3D Tiles → Three.js 실험</title>
+<style>
+  html,body{margin:0;height:100%;background:#0d0f12;overflow:hidden;font-family:'Segoe UI',sans-serif;}
+  #c{position:fixed;inset:0;}
+  #log{position:fixed;top:10px;left:10px;z-index:10;background:rgba(20,22,26,.8);color:#cfd2d6;
+       font-size:12px;line-height:1.5;padding:10px 12px;border-radius:8px;max-width:46vw;max-height:80vh;overflow:auto;white-space:pre-wrap;}
+  #log b{color:#e68d39;}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/three@0.137.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.137.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.137.0/examples/js/loaders/DRACOLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.137.0/examples/js/utils/WorkerPool.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.137.0/examples/js/loaders/KTX2Loader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.137.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="log"></div>
+<script>
+var ROOT = "https://cdn.vworld.kr/TDServer/services/map4/TG9ENA.json";
+var TARGET_B3DM = 120;   // 한 동네 채우기
+var FETCH_BUDGET = 600;  // tileset 탐색 fetch 상한
+// 목표 지점: 영동대로 508(코엑스/무역센터) — 실사 랜드마크가 있는 강남 도심
+var TARGET_LON = 127.0590, TARGET_LAT = 37.5126;
+var tLon = TARGET_LON*Math.PI/180, tLat = TARGET_LAT*Math.PI/180;
+var RADIUS_M = 250;   // 목표 주변 수집 반경(이 박스와 겹치는 타일 = 한 동네)
+var dLat = RADIUS_M/6378137, dLon = RADIUS_M/(6378137*Math.cos(tLat));
+// region BV가 목표 주변 AOI 박스와 겹치는지(없으면 통과)
+function inRegion(bv){
+  if(!bv || !bv.region) return true;
+  var r=bv.region; // [west,south,east,north,minH,maxH] (rad)
+  return r[0]<=tLon+dLon && r[2]>=tLon-dLon && r[1]<=tLat+dLat && r[3]>=tLat-dLat;
+}
+var logEl = document.getElementById("log");
+function log(s){ logEl.innerHTML += s + "\n"; logEl.scrollTop = logEl.scrollHeight; }
+window.__r = { b3dm: [], loaded: 0, failed: 0, meshes: 0, materials: 0, textures: 0, errors: [], done: false };
+
+// ---- Three.js 기본 씬 ----
+var renderer = new THREE.WebGLRenderer({ canvas: document.getElementById("c"), antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;   // glTF 색공간
+var scene = new THREE.Scene(); scene.background = new THREE.Color(0x0d0f12);
+var camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.5, 200000);
+camera.position.set(200, 200, 200);
+var controls = new THREE.OrbitControls(camera, renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x444455, 1.1));
+var dir = new THREE.DirectionalLight(0xffffff, 1.0); dir.position.set(1, 2, 1); scene.add(dir);
+var group = new THREE.Group(); scene.add(group);
+var loader = new THREE.GLTFLoader();
+var draco = new THREE.DRACOLoader();
+draco.setDecoderPath("https://cdn.jsdelivr.net/npm/three@0.137.0/examples/js/libs/draco/");
+loader.setDRACOLoader(draco);   // VWORLD b3dm = Draco 압축 메시
+// 실사 외피 텍스처는 KTX2(Basis Universal) — KTX2Loader 없으면 1×1 회색 폴백으로 떨어짐
+var ktx2 = new THREE.KTX2Loader();
+ktx2.setTranscoderPath("https://cdn.jsdelivr.net/npm/three@0.137.0/examples/js/libs/basis/");
+ktx2.detectSupport(renderer);
+loader.setKTX2Loader(ktx2);
+addEventListener("resize", function(){ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+(function animate(){ requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); })();
+
+// ---- tileset JSON (BOM 제거) ----
+async function fetchTileset(url){
+  var t = await (await fetch(url)).text();
+  if (t.charCodeAt(0) === 0xFEFF) t = t.slice(1);   // UTF-8 BOM 제거
+  return JSON.parse(t);
+}
+// ---- tileset 트리 DFS → 고해상도(리프) b3dm 수집 ----
+// 부모 타일은 거친 LOD(1×1 텍스처 = 원경 단색 박스)이므로 건너뛰고,
+// 자식이 없는 리프 b3dm(실제 외피 텍스처)만 수집한다.
+var budget = FETCH_BUDGET;
+async function walk(node, tsUrl, depth){
+  if (window.__r.b3dm.length >= TARGET_B3DM || budget <= 0 || !node) return;
+  if (!inRegion(node.boundingVolume)) return;   // 목표 동네 밖이면 가지치기
+  var hasChildren = !!(node.children && node.children.length);
+  var c = node.content;
+  var full = (c && (c.uri || c.url)) ? new URL(c.uri || c.url, tsUrl).href : null;
+  // content가 외부 tileset(.json)이면 더 깊은 트리이므로 들어간다
+  if (full && /\.json/i.test(full)){
+    budget--;
+    try { var ts = await fetchTileset(full); if (ts && ts.root) await walk(ts.root, full, depth+1); }
+    catch(e){ window.__r.errors.push("ts " + e.message); }
+  }
+  // 리프에 닿기 위해 자식부터 내려간다
+  if (hasChildren){
+    for (var i=0; i<node.children.length && window.__r.b3dm.length<TARGET_B3DM && budget>0; i++)
+      await walk(node.children[i], tsUrl, depth+1);
+  }
+  // 자식 없는 b3dm 리프(=고해상도 타일)만 수집
+  if (full && /\.b3dm/i.test(full) && !hasChildren){
+    window.__r.b3dm.push(full);
+    log("  리프 b3dm(d" + depth + "): …" + full.slice(-48));
+  }
+}
+
+// ---- b3dm → glb 추출 ----
+function extractGLB(ab){
+  var dv = new DataView(ab);
+  var magic = String.fromCharCode(dv.getUint8(0),dv.getUint8(1),dv.getUint8(2),dv.getUint8(3));
+  if (magic !== "b3dm") throw new Error("b3dm 매직 아님: " + magic);
+  var ftJSON=dv.getUint32(12,true), ftBIN=dv.getUint32(16,true), btJSON=dv.getUint32(20,true), btBIN=dv.getUint32(24,true);
+  var glbStart = 28 + ftJSON + ftBIN + btJSON + btBIN;
+  var rtc = null;
+  if (ftJSON > 0){ try{ var ft = JSON.parse(new TextDecoder().decode(new Uint8Array(ab,28,ftJSON))); rtc = ft.RTC_CENTER || null; }catch(e){} }
+  return { glb: ab.slice(glbStart), rtc: rtc, magic: magic };
+}
+async function loadB3DM(url){
+  var ab = await (await fetch(url)).arrayBuffer();
+  var ex = extractGLB(ab);
+  var base = url.substring(0, url.lastIndexOf("/")+1);
+  return new Promise(function(res, rej){
+    loader.parse(ex.glb, base, function(g){
+      var m = new THREE.Group();
+      m.add(g.scene);
+      if (ex.rtc) m.position.set(ex.rtc[0], ex.rtc[2], -ex.rtc[1]); // 대충 배치(시각용)
+      group.add(m);
+      res(g);
+    }, function(e){ rej(e); });
+  });
+}
+
+function frameCamera(){
+  group.updateMatrixWorld(true);
+  var box = new THREE.Box3().setFromObject(group);
+  if (box.isEmpty()) return;
+  var c = box.getCenter(new THREE.Vector3());          // ECEF world 중심
+  // ECEF는 지구중심 좌표 → 그 지점의 지표 법선(up)을 +Y로 정립해야 똑바로 선다
+  var up = c.clone().normalize();
+  var q = new THREE.Quaternion().setFromUnitVectors(up, new THREE.Vector3(0,1,0));
+  var pivot = new THREE.Group();                        // 회전 피벗(원점)
+  pivot.quaternion.copy(q); scene.add(pivot);
+  scene.remove(group); pivot.add(group);
+  group.position.copy(c).multiplyScalar(-1);            // 중심을 원점으로 → child_world = q·(ecef−c)
+  pivot.updateMatrixWorld(true);
+  window.pivot = pivot;
+  // 정립된 상태에서 다시 bbox로 카메라 프레이밍
+  var box2 = new THREE.Box3().setFromObject(pivot);
+  var c2 = box2.getCenter(new THREE.Vector3()), s2 = box2.getSize(new THREE.Vector3());
+  var r = Math.max(s2.x, s2.z) || 200;
+  camera.position.set(c2.x + r*0.9, c2.y + Math.max(s2.y, r)*0.8, c2.z + r*0.9);
+  camera.near = Math.max(r/500, 0.1); camera.far = r*60; camera.updateProjectionMatrix();
+  controls.target.copy(c2); controls.update();
+  window.__r.sceneSize = [Math.round(s2.x), Math.round(s2.y), Math.round(s2.z)];
+  log("정립+프레이밍: " + window.__r.sceneSize.join("×") + "m (지표 up→+Y)");
+}
+
+(async function main(){
+  try{
+    log("<b>1) 루트 tileset 로드</b> …");
+    var rootTs = await fetchTileset(ROOT);
+    log("  asset.tileType = " + (rootTs.asset && rootTs.asset.tileType) + ", version = " + (rootTs.asset && rootTs.asset.version));
+    log("<b>2) 트리 탐색 → b3dm 리프 찾기</b> …");
+    await walk(rootTs.root, ROOT, 0);
+    log("  b3dm " + window.__r.b3dm.length + "개 발견 (fetch " + (FETCH_BUDGET-budget) + "회)");
+    if (!window.__r.b3dm.length){ log("<b>b3dm 못 찾음</b> — 트리가 더 깊거나 경로가 다름."); window.__r.done=true; return; }
+    log("<b>3) b3dm 디코드 + GLTFLoader 로드</b> …");
+    for (var i=0; i<window.__r.b3dm.length; i++){
+      try{ await loadB3DM(window.__r.b3dm[i]); window.__r.loaded++; log("  ✓ 로드 " + (i+1)); }
+      catch(e){ window.__r.failed++; window.__r.errors.push("glb " + e.message); log("  ✗ 실패 " + (i+1) + ": " + e.message); }
+    }
+    // 통계 + 진단(텍스처 크기 분포 / 1×1 픽셀 색)
+    window.group = group;
+    window.__r.sizes = {};        // "WxH" → count
+    window.__r.pixels = [];       // 작은 텍스처의 실제 색
+    var px = document.createElement("canvas"); px.width=px.height=1; var pctx = px.getContext("2d");
+    group.traverse(function(o){
+      if (o.isMesh){ window.__r.meshes++;
+        var mats = Array.isArray(o.material)?o.material:[o.material];
+        mats.forEach(function(mm){ if(mm){ window.__r.materials++;
+          if(mm.map){ window.__r.textures++; mm.map.encoding = THREE.sRGBEncoding; mm.map.needsUpdate = true;
+            var img = mm.map.image, w = img?(img.width||0):0, h = img?(img.height||0):0;
+            var k = w+"x"+h; window.__r.sizes[k] = (window.__r.sizes[k]||0)+1;
+            if (img && w<=2 && h<=2 && window.__r.pixels.length<6){
+              try{ pctx.clearRect(0,0,1,1); pctx.drawImage(img,0,0,1,1); var d=pctx.getImageData(0,0,1,1).data;
+                window.__r.pixels.push("rgb("+d[0]+","+d[1]+","+d[2]+") a"+d[3]); }catch(e){ window.__r.pixels.push("read-fail"); }
+            }
+          }
+          mm.needsUpdate = true;
+        }});
+      }
+    });
+    // 씬 크기
+    var bb=new THREE.Box3().setFromObject(group), sz=bb.getSize(new THREE.Vector3());
+    window.__r.sceneSize = [Math.round(sz.x),Math.round(sz.y),Math.round(sz.z)];
+    frameCamera();
+    log("<b>결과</b>: mesh " + window.__r.meshes + " · material " + window.__r.materials + " · texture(map) " + window.__r.textures);
+    log(window.__r.meshes>0 ? "<b>✅ VWORLD b3dm이 Three.js에서 로드됨</b>" : "<b>⚠️ 메시 0 — 디코드/포맷 문제</b>");
+    window.__r.done = true;
+  }catch(e){ log("<b>오류</b>: " + e.message); window.__r.errors.push("main " + e.message); window.__r.done = true; }
+})();
+</script>
+</body>
+</html>
