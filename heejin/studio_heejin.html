@@ -432,7 +432,7 @@
         <div class="hint">키는 이 브라우저에만 저장됩니다(localStorage). aistudio.google.com 에서 발급.</div>
         <div class="row" style="margin-top:8px;">
             <span class="field">모델</span>
-            <input id="aiModel" type="text" value="gemini-2.5-flash-image"
+            <input id="aiModel" type="text" value="gemini-3.1-flash-image"
                    style="flex:1; width:auto;">
         </div>
         <div class="hint">모델명 오류 시 위 값을 최신 이미지 모델명으로 바꾸세요.</div>
@@ -803,7 +803,7 @@
         var key = (document.getElementById("aiKey").value || "").trim();
         if (!key) { setAiStatus("먼저 Gemini API 키를 입력하세요."); return; }
         if (!aiSourceDataURL) { setAiStatus("먼저 화면을 캡쳐하거나 이미지를 업로드하세요."); return; }
-        var model = (document.getElementById("aiModel").value || "gemini-2.5-flash-image").trim();
+        var model = (document.getElementById("aiModel").value || "gemini-3.1-flash-image").trim();
         var prompt = (document.getElementById("aiPrompt").value || "").trim() || AI_PRESETS.day;
         var m = aiSourceDataURL.match(/^data:(.*?);base64,(.*)$/);
         if (!m) { setAiStatus("원본 이미지 형식 오류."); return; }
