@@ -205,22 +205,6 @@
         .subtab{ flex:1; padding:7px 2px; font-size:10.5px; font-weight:700; border:1px solid var(--line); border-radius:8px; background:var(--soft); color:var(--muted); cursor:pointer; }
         .subtab:hover{ color:var(--ink); }
         .subtab.on{ background:var(--accent); border-color:var(--accent); color:#fff; }
-        .shape-btn{ width:36px; padding:6px 0; font-size:16px; border:1px solid var(--line); border-radius:8px; background:var(--soft); color:var(--ink); cursor:pointer; line-height:1; }
-        .shape-btn:hover{ border-color:var(--ink); }
-        .shape-btn.active{ background:var(--accent); border-color:var(--accent); color:#fff; }
-        /* 카트리지 — 모듈별 이미지 썸네일 */
-        .cart-grp{ margin-top:13px; }
-        .cart-grp:first-of-type{ margin-top:4px; }
-        .cart-grp-ttl{ font-size:12px; font-weight:700; color:var(--ink); margin-bottom:6px; display:flex; align-items:center; gap:7px; }
-        .cart-grp-ttl .sw{ width:13px; height:13px; border-radius:3px; flex:0 0 auto; }
-        .cart-sub{ display:flex; align-items:flex-start; gap:8px; margin:5px 0 5px 4px; }
-        .cart-sub-lbl{ font-size:11.5px; color:#4b5159; width:64px; flex:0 0 auto; padding-top:13px; }
-        .cart-thumbs{ display:flex; gap:8px; flex-wrap:wrap; }
-        .cart-thumb{ width:48px; text-align:center; }
-        .cart-thumb img, .cart-thumb .ph{ width:48px; height:48px; border:1px solid var(--line); border-radius:8px; background:var(--soft); object-fit:contain; display:block; }
-        .cart-thumb .cap{ font-size:9.5px; color:var(--muted); margin-top:3px; display:block; line-height:1.2; word-break:break-all; }
-        .cart-thumb .ph.door{ background:#fff; }
-        .cart-thumb .ph.none{ border-style:dashed; background:repeating-linear-gradient(45deg,#edebe6,#edebe6 5px,#f7f6f3 5px,#f7f6f3 10px); }
 
         /* AI 영역 지정 캡쳐 오버레이 */
         #regionOverlay{ position:fixed; inset:0; z-index:100001; display:none; cursor:crosshair; background:rgba(20,22,26,0.10); }
@@ -362,7 +346,6 @@
         <button id="bt-mass" class="subtab" onclick="bTab('mass')">매스</button>
         <button id="bt-slab" class="subtab" onclick="bTab('slab')">슬래브</button>
         <button id="bt-cart" class="subtab" onclick="bTab('cart')">카트리지</button>
-        <button id="bt-pattern" class="subtab" onclick="bTab('pattern')">패턴</button>
     </div>
 
     <!-- 1. 수신 모델 (상태·규모·FIT모듈) -->
@@ -372,14 +355,6 @@
         <div class="rs-row hl" style="margin-top:10px;"><span class="rs-k">상태</span><span class="rs-v" id="impStatus">대기 중 — 아직 수신 없음</span></div>
         <div class="rs-row"><span class="rs-k">규모</span><span class="rs-v" id="impMass">–</span></div>
         <div class="rs-row"><span class="rs-k">FIT 모듈</span><span class="rs-v" id="impMods">–</span></div>
-        <label class="check" style="margin-top:10px;">
-            <input type="checkbox" id="jsonLoadToggle" onchange="onJsonToggle()">
-            JSON 불러오기 (sangeun 저장 파일)
-        </label>
-        <div id="jsonLoadRow" style="display:none;margin-top:8px;">
-            <input type="file" id="jsonFile" accept=".json,application/json" onchange="onJsonFile(event)" style="font-size:12px;max-width:100%;">
-            <div class="hint" id="jsonLoadStatus" style="margin-top:6px;">sangeun 앱에서 저장한 <b>_3D_*.json</b> 파일을 선택하세요. (연결 없이 저장본으로 모델 재현)</div>
-        </div>
         <div class="hint" style="margin-top:8px;">이동·회전 배치는 ‘위치·대지’ 탭에서 조절합니다.</div>
     </div>
 
@@ -422,124 +397,22 @@
         <div class="hint">매스 바닥 형태로 각 층 레벨(0층~최상층)에 불투명 슬래브를 깝니다.</div>
     </div>
 
-    <!-- 4. 카트리지 (모듈별 이미지: 썸네일 + 파일명) -->
+    <!-- 4. 카트리지 -->
     <div class="card subpane" id="bp-cart" style="display:none;">
-        <div class="label"><span class="dot"></span>카트리지 — 모듈별 이미지</div>
-
-        <!-- 1. 스킨 (a 스트링 / b 패브릭 / c 메탈 / d 롤블라인드) — 현재 abcd 모두 cart-1·cart-2 -->
-        <div class="cart-grp">
-            <div class="cart-grp-ttl"><span class="sw" style="background:#b0aca3;"></span>1. 스킨 (skin)</div>
-            <div class="cart-sub">
-                <span class="cart-sub-lbl">a. 스트링</span>
-                <div class="cart-thumbs">
-                    <div class="cart-thumb"><img src="source/cart-1.png" alt=""><span class="cap">cart-1.png</span></div>
-                    <div class="cart-thumb"><img src="source/cart-2.png" alt=""><span class="cap">cart-2.png</span></div>
-                </div>
-            </div>
-            <div class="cart-sub">
-                <span class="cart-sub-lbl">b. 패브릭</span>
-                <div class="cart-thumbs">
-                    <div class="cart-thumb"><img src="source/cart-1.png" alt=""><span class="cap">cart-1.png</span></div>
-                    <div class="cart-thumb"><img src="source/cart-2.png" alt=""><span class="cap">cart-2.png</span></div>
-                </div>
-            </div>
-            <div class="cart-sub">
-                <span class="cart-sub-lbl">c. 메탈</span>
-                <div class="cart-thumbs">
-                    <div class="cart-thumb"><img src="source/cart-1.png" alt=""><span class="cap">cart-1.png</span></div>
-                    <div class="cart-thumb"><img src="source/cart-2.png" alt=""><span class="cap">cart-2.png</span></div>
-                </div>
-            </div>
-            <div class="cart-sub">
-                <span class="cart-sub-lbl">d. 롤블라인드</span>
-                <div class="cart-thumbs">
-                    <div class="cart-thumb"><img src="source/cart-1.png" alt=""><span class="cap">cart-1.png</span></div>
-                    <div class="cart-thumb"><img src="source/cart-2.png" alt=""><span class="cap">cart-2.png</span></div>
-                </div>
-            </div>
+        <div class="label"><span class="dot"></span>카트리지</div>
+        <div class="row">
+            <span class="field" style="font-size:11px;">cart-1</span>
+            <input id="cartRatioRange2" type="range" min="0" max="100" value="50" step="1" oninput="onCartRatio()">
+            <span class="field" style="font-size:11px;">cart-2</span>
         </div>
-
-        <!-- 2. 공조 -->
-        <div class="cart-grp">
-            <div class="cart-grp-ttl"><span class="sw" style="background:#e68d39;"></span>2. 공조 (hvac)</div>
-            <div class="cart-thumbs" style="margin-left:4px;">
-                <div class="cart-thumb"><img src="source/cart-air.png" alt=""><span class="cap">cart-air.png</span></div>
-            </div>
-        </div>
-
-        <!-- 3. 도어 (이미지 없음 → 기본 도형) -->
-        <div class="cart-grp">
-            <div class="cart-grp-ttl"><span class="sw" style="background:#fff;border:1px solid #cfcbc3;"></span>3. 도어 (door)</div>
-            <div class="cart-thumbs" style="margin-left:4px;">
-                <div class="cart-thumb"><div class="ph door"></div><span class="cap">기본 도형</span></div>
-            </div>
-        </div>
-
-        <!-- 4. 없음 (이미지 없음 → 기본 도형 · 빈 프레임) -->
-        <div class="cart-grp">
-            <div class="cart-grp-ttl"><span class="sw" style="background:#edebe6;border:1px solid #cfcbc3;"></span>4. 없음 (none)</div>
-            <div class="cart-thumbs" style="margin-left:4px;">
-                <div class="cart-thumb"><div class="ph none"></div><span class="cap">기본 도형</span></div>
-            </div>
-        </div>
-
-        <!-- 5. 코너 프레임 -->
-        <div class="cart-grp">
-            <div class="cart-grp-ttl"><span class="sw" style="background:#7a766e;"></span>5. 코너 프레임 (corner)</div>
-            <div class="cart-thumbs" style="margin-left:4px;">
-                <div class="cart-thumb"><img src="source/frame-3.png" alt=""><span class="cap">frame-3.png<br>면 오른쪽 끝</span></div>
-                <div class="cart-thumb"><img src="source/frame-4.png" alt=""><span class="cap">frame-4.png<br>면 왼쪽 끝</span></div>
-            </div>
-        </div>
-
-        <div class="hint" style="margin-top:10px;">각 모듈에 들어가는 이미지입니다. 이미지가 없는 모듈은 기본 도형으로 표시됩니다. 스킨 cart-1·cart-2 배치 비율은 ‘패턴’ 탭에서 조절합니다.</div>
-    </div>
-
-    <!-- 5. 패턴 (스킨 카트리지 배치 방식: 랜덤 / 레터링) -->
-    <div class="card subpane" id="bp-pattern" style="display:none;">
-        <div class="label"><span class="dot"></span>패턴 — 스킨 카트리지 배치</div>
-        <div class="subtabs">
-            <button id="pt-random" class="subtab on" onclick="pTab('random')">1. 랜덤</button>
-            <button id="pt-lettering" class="subtab" onclick="pTab('lettering')">2. 레터링</button>
-        </div>
-
-        <!-- 1. 랜덤: cart-1·cart-2 믹싱 비율(기존 동작 그대로) -->
-        <div class="pp" id="pp-random" style="margin-top:12px;">
-            <div class="row">
-                <span class="field" style="font-size:11px;">cart-1</span>
-                <input id="cartRatioRange2" type="range" min="0" max="100" value="50" step="1" oninput="onCartRatio()">
-                <span class="field" style="font-size:11px;">cart-2</span>
-            </div>
-            <div class="hint" id="cartRatioVal2">cart-1 50% : cart-2 50% · 스킨 모듈 랜덤 배치 비율</div>
-            <div class="hint" style="margin-top:8px;">스킨(skin) 모듈 면에 cart-1 과 cart-2 텍스처가 섞이는 비율입니다. 모듈마다 결정적 랜덤으로 배치됩니다.</div>
-        </div>
-
-        <!-- 2. 레터링: 선택한 면에 글자 모양으로 cart-2 배치 -->
-        <div class="pp" id="pp-lettering" style="display:none;margin-top:12px;">
-            <button id="letterSelBtn" class="btn-draw" style="width:100%;" onclick="toggleLetterSelect()">면 선택 (모델에서 클릭)</button>
-            <div class="hint" id="letterFaceLbl" style="margin-top:6px;">선택된 면: 없음 — 버튼을 누르고 모델의 한 면을 클릭하세요.</div>
-            <div class="row" style="margin-top:10px;">
-                <span class="field">글자</span>
-                <input id="letterChar" type="text" maxlength="2" placeholder="가 / AB / 12" style="width:90px;text-align:center;" oninput="onLetterChar()">
-            </div>
-            <div class="row" style="margin-top:8px;">
-                <span class="field" style="min-width:48px;">프리셋</span>
-                <button class="shape-btn" id="preset-smiley" onclick="onPreset('smiley')" title="스마일리">☺</button>
-                <button class="shape-btn" id="preset-heart" onclick="onPreset('heart')" title="하트">♥</button>
-                <button class="shape-btn" id="preset-star" onclick="onPreset('star')" title="별">★</button>
-            </div>
-            <div class="row" style="margin-top:10px;">
-                <span class="field" style="min-width:48px;">가로 크기</span>
-                <input id="letterScaleX" type="range" min="20" max="300" value="100" step="5" oninput="onLetterScale()">
-                <span id="letterScaleXVal" class="field" style="min-width:36px;text-align:right;">100%</span>
-            </div>
-            <div class="row" style="margin-top:6px;">
-                <span class="field" style="min-width:48px;">세로 크기</span>
-                <input id="letterScaleY" type="range" min="20" max="150" value="100" step="5" oninput="onLetterScale()">
-                <span id="letterScaleYVal" class="field" style="min-width:36px;text-align:right;">100%</span>
-            </div>
-            <div class="hint" style="margin-top:8px;">선택한 면에서 입력한 글자(한글·영문·숫자 1~2자) 또는 프리셋 도형(☺ 하트 별) 모양으로 <b>cart-2</b>가 배치되고, 나머지에는 <b>cart-1</b>이 배치됩니다. 2자일 때 <b>세로로 긴 면은 위·아래, 가로로 긴 면은 좌·우</b>로 배치됩니다. 가로·세로 크기 슬라이더로 도형도 함께 조절됩니다. 다른 면은 ‘랜덤’ 설정을 따릅니다.</div>
-        </div>
+        <div class="hint" id="cartRatioVal2">cart-1 50% : cart-2 50% · 스킨 모듈 랜덤 배치 비율</div>
+        <div class="ai-caption" style="margin-top:10px;">색상</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;"><span style="display:inline-block;width:13px;height:13px;border-radius:2px;background:#b0aca3;"></span>스킨 (skin)</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;"><span style="display:inline-block;width:13px;height:13px;border-radius:2px;background:#e68d39;"></span>공조 (hvac)</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;"><span style="display:inline-block;width:13px;height:13px;border-radius:2px;background:#4a86c5;"></span>도어 (door)</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;"><span style="display:inline-block;width:13px;height:13px;border-radius:2px;background:#edebe6;border:1px solid #cfcbc3;"></span>없음 (none · 빈 프레임)</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;"><span style="display:inline-block;width:13px;height:13px;border-radius:2px;background:#7a766e;"></span>코너 프레임</div>
+        <div class="hint" style="margin-top:8px;">각 모듈 = 내측 frame-2 / 중간 카트리지(스킨=cart-1·2, 공조=cart-air) / 외측 frame-1 의 3중 오프셋. 코너 모듈은 frame-3·4.</div>
     </div>
     </div><!-- /tabB -->
 
@@ -1008,16 +881,6 @@
     // 지도 클릭 통합 핸들러
     // ====================================================================
     function onMapClick(windowPosition, ecefPosition, cartographic, modelObject) {
-        // 레터링 면 선택 모드: 우리 매스 벽면(faceKey 태그)을 클릭하면 그 면을 선택.
-        if (letterSelectMode) {
-            try {
-                var wp = (windowPosition && !(windowPosition instanceof Cesium.Cartesian2))
-                    ? new Cesium.Cartesian2(windowPosition.x, windowPosition.y) : windowPosition;
-                var picked = viewer.scene.pick(wp);
-                if (picked && picked.id && picked.id.faceKey) { selectLetterFace(picked.id.faceKey); return; }
-            } catch (e) { console.warn("면 픽 실패:", e); }
-            return;   // 선택 모드에선 건물 투명화 동작 막음
-        }
         // 신축 매스는 파라메트릭 생성이라 지도 클릭으로 점을 찍지 않음. 클릭 = 기존 건물 투명/복원만.
         if (modelObject) toggleTransparent(modelObject);
     }
@@ -2872,249 +2735,6 @@
             .catch(function(err) { console.warn("텍스처 로드 실패:", file, err); });
     }
     function texHash(i) { var x = Math.sin(i * 127.1 + 17.3) * 43758.5453; return x - Math.floor(x); }
-
-    // ── 패턴: 랜덤(cart-1·2 믹싱) / 레터링(선택 면에 글자 모양으로 cart-2 배치) ──
-    var patternMode = "random";    // "random" | "lettering"
-    var letterFaceKey = null;      // 레터링 적용 면 key
-    var letterText = "";           // 입력 글자(한/영/숫자, 최대 2자)
-    var letterShape = "";          // 프리셋 도형("" | "smiley" | "heart" | "star") — 있으면 글자 대신 도형 배치
-    var letterScaleX = 1, letterScaleY = 1;   // 글자/도형 가로·세로 크기 배율
-    var letterSelectMode = false;  // 면 클릭 선택 대기 상태
-    var faceMap = {};              // module idx → { key, col, row, ncols, nrows }
-    var faceGeom = {};             // face key → { A, B, bot, top } (호버 하이라이트용 면 외곽)
-    function r3(v) { return Math.round(v * 1000) / 1000; }
-    function isFaceModule(u) { return u && u.type && u.mode !== "fill" && u.mode !== "center"; }
-    function faceKeyOf(u) {
-        var off = u.x * u.nx + u.z * u.nz;                 // 법선 방향 위치(평행면 구분)
-        return r3(u.nx) + "," + r3(u.nz) + "," + (Math.round(off * 10) / 10);
-    }
-    // 현재 모델의 모듈을 면(법선·오프셋 동일) 단위로 모아 열(col)·행(row) 인덱스를 매긴다.
-    function computeFaces(m) {
-        faceMap = {};
-        var faces = {};
-        (m.modules || []).forEach(function(u, idx) {
-            if (!isFaceModule(u)) return;
-            var key = faceKeyOf(u);
-            var t = u.x * u.ux + u.z * u.uz;               // 면 접선 방향 위치(열 정렬)
-            var f = faces[key] || (faces[key] = { key: key, nx: u.nx, nz: u.nz, ux: u.ux, uz: u.uz, ts: [], ys: [], mods: [], tLo: Infinity, tHi: -Infinity, yLo: Infinity, yHi: -Infinity });
-            var tk = Math.round(t * 100) / 100, yk = Math.round(u.y0 * 100) / 100;
-            if (f.ts.indexOf(tk) < 0) f.ts.push(tk);
-            if (f.ys.indexOf(yk) < 0) f.ys.push(yk);
-            var hw = (u.w || 0) / 2;                        // 물리적 면 길이 산출용(미터)
-            if (t - hw < f.tLo) f.tLo = t - hw;
-            if (t + hw > f.tHi) f.tHi = t + hw;
-            if (u.y0 < f.yLo) f.yLo = u.y0;
-            if (u.y0 + (u.h || 0) > f.yHi) f.yHi = u.y0 + (u.h || 0);
-            f.mods.push({ idx: idx, tk: tk, yk: yk });
-        });
-        Object.keys(faces).forEach(function(k) {
-            var f = faces[k];
-            f.ts.sort(function(a, b) { return a - b; });
-            f.ys.sort(function(a, b) { return a - b; });   // 작은 y0 = 아래층(row 0)
-            var ncols = f.ts.length, nrows = f.ys.length;
-            var physW = f.tHi - f.tLo, physH = f.yHi - f.yLo;   // 면의 물리적 가로·세로 길이(m)
-            var vertical = physH > physW;                       // 칸 수가 아니라 물리 길이로 세로/가로 판단
-            var flip = (f.nx * f.uz - f.nz * f.ux) > 0;    // 면 바깥에서 글자가 좌→우로 읽히도록 보정(좌우반전 교정)
-            f.mods.forEach(function(mm) {
-                var col = f.ts.indexOf(mm.tk); if (flip) col = ncols - 1 - col;
-                faceMap[mm.idx] = { key: k, col: col, row: f.ys.indexOf(mm.yk), ncols: ncols, nrows: nrows, vertical: vertical, physW: physW, physH: physH };
-            });
-        });
-    }
-    // 한 글자를 (x,y,w,h) 박스에 맞춰 그림(한/영/숫자). 박스 높이 기준으로 폰트 크기 맞춤.
-    function drawCharFit(ctx, ch, x, y, w, h, sx, sy) {
-        sx = (sx == null) ? 1 : sx; sy = (sy == null) ? 1 : sy;
-        var fs = Math.max(1, Math.floor(Math.min(h * 0.96, w * 1.5)));
-        ctx.save();
-        ctx.translate(x + w / 2, y + h / 2);
-        ctx.scale(sx, sy);                                 // 글자 가로·세로 크기 배율
-        ctx.font = "bold " + fs + 'px Arial, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
-        ctx.fillText(ch, 0, fs * 0.05);
-        ctx.restore();
-    }
-    // 글자(최대 2자)를 ncols×nrows 그리드 비트맵으로(행 0 = 아래). on[row][col]=true → cart-2
-    // vertical(면이 물리적으로 세로로 김)=true면 위·아래 세로배치, 아니면 좌·우 가로배치.
-    function letterGrid(text, ncols, nrows, vertical, sx, sy) {
-        text = (text || "").slice(0, 2);
-        if (!text || ncols < 1 || nrows < 1) return null;
-        var cv = document.createElement("canvas"); cv.width = ncols; cv.height = nrows;
-        var ctx = cv.getContext("2d");
-        ctx.fillStyle = "#000"; ctx.fillRect(0, 0, ncols, nrows);
-        ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        var chars = text.split("");
-        if (chars.length === 1) {
-            drawCharFit(ctx, chars[0], 0, 0, ncols, nrows, sx, sy);
-        } else if (vertical) {                             // 세로로 긴 면 → 첫 글자 위, 둘째 아래
-            drawCharFit(ctx, chars[0], 0, 0, ncols, nrows / 2, sx, sy);
-            drawCharFit(ctx, chars[1], 0, nrows / 2, ncols, nrows / 2, sx, sy);
-        } else {                                           // 가로로 긴 면 → 첫 글자 왼쪽, 둘째 오른쪽
-            drawCharFit(ctx, chars[0], 0, 0, ncols / 2, nrows, sx, sy);
-            drawCharFit(ctx, chars[1], ncols / 2, 0, ncols / 2, nrows, sx, sy);
-        }
-        var d = ctx.getImageData(0, 0, ncols, nrows).data, on = [];
-        for (var r = 0; r < nrows; r++) {
-            var rowArr = [], cr = nrows - 1 - r;           // 캔버스 위→아래 ↔ 그리드 아래→위
-            for (var c = 0; c < ncols; c++) rowArr.push(d[(cr * ncols + c) * 4] > 128);
-            on.push(rowArr);
-        }
-        return on;
-    }
-    // 프리셋 도형(스마일리/하트/별)을 ncols×nrows 그리드 비트맵으로(행 0 = 아래). on=true → cart-2
-    function drawSmiley(ctx, R) {
-        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(0, 0, R, 0, 2 * Math.PI); ctx.fill();   // 얼굴
-        ctx.fillStyle = "#000";                                                                  // 눈·입은 파냄(cart-1)
-        ctx.beginPath(); ctx.arc(-R * 0.36, -R * 0.30, R * 0.15, 0, 2 * Math.PI); ctx.fill();
-        ctx.beginPath(); ctx.arc(R * 0.36, -R * 0.30, R * 0.15, 0, 2 * Math.PI); ctx.fill();
-        ctx.strokeStyle = "#000"; ctx.lineWidth = Math.max(1, R * 0.16); ctx.lineCap = "round";
-        ctx.beginPath(); ctx.arc(0, -R * 0.05, R * 0.55, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();   // 미소(아래로 볼록)
-    }
-    function drawHeart(ctx, R) {
-        ctx.fillStyle = "#fff"; ctx.beginPath();
-        ctx.moveTo(0, R * 0.72);                                                  // 아래 꼭짓점
-        ctx.bezierCurveTo(-R * 1.0, -R * 0.1, -R * 0.5, -R * 0.85, 0, -R * 0.28);  // 왼쪽 볼록
-        ctx.bezierCurveTo(R * 0.5, -R * 0.85, R * 1.0, -R * 0.1, 0, R * 0.72);     // 오른쪽 볼록
-        ctx.closePath(); ctx.fill();
-    }
-    function drawStar(ctx, R) {
-        ctx.fillStyle = "#fff"; ctx.beginPath();
-        for (var i = 0; i < 10; i++) {
-            var ang = -Math.PI / 2 + i * Math.PI / 5, rad = (i % 2 === 0) ? R : R * 0.42;
-            var px = Math.cos(ang) * rad, py = Math.sin(ang) * rad;
-            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-        }
-        ctx.closePath(); ctx.fill();
-    }
-    function shapeGrid(shape, ncols, nrows, sx, sy) {
-        if (ncols < 1 || nrows < 1) return null;
-        var cv = document.createElement("canvas"); cv.width = ncols; cv.height = nrows;
-        var ctx = cv.getContext("2d");
-        ctx.fillStyle = "#000"; ctx.fillRect(0, 0, ncols, nrows);
-        ctx.save();
-        ctx.translate(ncols / 2, nrows / 2);
-        ctx.scale(sx || 1, sy || 1);
-        var R = Math.min(ncols, nrows) * 0.46;
-        if (shape === "heart") drawHeart(ctx, R);
-        else if (shape === "star") drawStar(ctx, R);
-        else drawSmiley(ctx, R);
-        ctx.restore();
-        var d = ctx.getImageData(0, 0, ncols, nrows).data, on = [];
-        for (var r = 0; r < nrows; r++) {
-            var rowArr = [], cr = nrows - 1 - r;
-            for (var c = 0; c < ncols; c++) rowArr.push(d[(cr * ncols + c) * 4] > 128);
-            on.push(rowArr);
-        }
-        return on;
-    }
-    var _letterGridCache = { key: "", grid: null };
-    function skinUsesC2(idx) {     // true → cart-2, false → cart-1
-        if (patternMode === "lettering" && letterFaceKey && (letterShape || letterText)) {
-            var fm = faceMap[idx];
-            if (fm && fm.key === letterFaceKey) {
-                var pat = letterShape ? ("#" + letterShape) : letterText;
-                var ck = pat + "|" + fm.ncols + "x" + fm.nrows + "|" + (fm.vertical ? "v" : "h") + "|" + letterScaleX + "x" + letterScaleY;
-                if (_letterGridCache.key !== ck) {
-                    var grid = letterShape ? shapeGrid(letterShape, fm.ncols, fm.nrows, letterScaleX, letterScaleY)
-                                           : letterGrid(letterText, fm.ncols, fm.nrows, fm.vertical, letterScaleX, letterScaleY);
-                    _letterGridCache = { key: ck, grid: grid };
-                }
-                var g = _letterGridCache.grid;
-                return !!(g && g[fm.row] && g[fm.row][fm.col]);
-            }
-        }
-        return texHash(idx) < cartRatio2;                  // 그 외 = 랜덤 비율
-    }
-    function faceDirLabel(key) {
-        var p = key.split(","), nx = parseFloat(p[0]), nz = parseFloat(p[1]);
-        if (Math.abs(nx) >= Math.abs(nz)) return nx >= 0 ? "동측 면" : "서측 면";
-        return nz >= 0 ? "남측 면" : "북측 면";
-    }
-    function faceDims(key) {
-        for (var k in faceMap) if (faceMap[k].key === key) {
-            var fm = faceMap[k];
-            return fm.physW.toFixed(1) + "×" + fm.physH.toFixed(1) + "m (" + (fm.vertical ? "세로배치" : "가로배치") + ") · " + fm.ncols + "×" + fm.nrows + "칸";
-        }
-        return "?";
-    }
-    // ── 면 호버 하이라이트(레터링 면 선택 모드) ──
-    var faceHoverHandler = null, _hoverKey = null, hoverEnts = [];
-    function clearHover() { if (viewer) hoverEnts.forEach(function(e) { try { viewer.entities.remove(e); } catch (x) {} }); hoverEnts = []; }
-    function highlightFace(key) {
-        clearHover();
-        var g = faceGeom[key]; if (!g || !g.A || !g.B || !viewer) return;
-        var ORANGE = Cesium.Color.fromCssColorString("#e68d39");
-        hoverEnts.push(viewer.entities.add({ faceKey: key, wall: {   // 반투명 오렌지 채움
-            positions: Cesium.Cartesian3.fromDegreesArrayHeights([g.A.lon, g.A.lat, g.top, g.B.lon, g.B.lat, g.top]),
-            minimumHeights: [g.bot, g.bot], maximumHeights: [g.top, g.top], material: ORANGE.withAlpha(0.3)
-        } }));
-        hoverEnts.push(viewer.entities.add({ faceKey: key, polyline: {   // 오렌지 테두리
-            positions: Cesium.Cartesian3.fromDegreesArrayHeights([
-                g.A.lon, g.A.lat, g.bot, g.B.lon, g.B.lat, g.bot, g.B.lon, g.B.lat, g.top,
-                g.A.lon, g.A.lat, g.top, g.A.lon, g.A.lat, g.bot]),
-            width: 3, arcType: Cesium.ArcType.NONE, material: ORANGE, depthFailMaterial: ORANGE
-        } }));
-    }
-    function startFaceHover() {
-        if (!viewer || faceHoverHandler) return;
-        faceHoverHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-        faceHoverHandler.setInputAction(function(e) {
-            var picked = viewer.scene.pick(e.endPosition);
-            var key = picked && picked.id && picked.id.faceKey;
-            if (key) { if (key !== _hoverKey) { _hoverKey = key; highlightFace(key); } }
-            else if (_hoverKey) { _hoverKey = null; clearHover(); }
-        }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
-    }
-    function stopFaceHover() {
-        if (faceHoverHandler) { faceHoverHandler.destroy(); faceHoverHandler = null; }
-        _hoverKey = null; clearHover();
-    }
-    // 패턴 서브탭 전환(랜덤/레터링)
-    function pTab(name) {
-        ["random", "lettering"].forEach(function(n) {
-            var p = document.getElementById("pp-" + n); if (p) p.style.display = (n === name) ? "block" : "none";
-            var b = document.getElementById("pt-" + n); if (b) b.classList.toggle("on", n === name);
-        });
-        patternMode = name;
-        if (name !== "lettering" && letterSelectMode) toggleLetterSelect();
-        if (lastModel) renderImportedModel(lastModel);
-    }
-    function toggleLetterSelect() {
-        letterSelectMode = !letterSelectMode;
-        var b = document.getElementById("letterSelBtn");
-        if (b) { b.classList.toggle("active", letterSelectMode); b.textContent = letterSelectMode ? "면 클릭 대기중… (다시 누르면 취소)" : "면 선택 (모델에서 클릭)"; }
-        if (letterSelectMode) startFaceHover(); else stopFaceHover();
-    }
-    function selectLetterFace(key) {
-        letterFaceKey = key; letterSelectMode = false; stopFaceHover();
-        var b = document.getElementById("letterSelBtn"); if (b) { b.classList.remove("active"); b.textContent = "면 선택 (모델에서 클릭)"; }
-        var lbl = document.getElementById("letterFaceLbl"); if (lbl) lbl.textContent = "선택된 면: " + faceDirLabel(key) + " · " + faceDims(key);
-        if (lastModel) renderImportedModel(lastModel);
-    }
-    function onLetterChar() {
-        var el = document.getElementById("letterChar");
-        var v = (el && el.value ? el.value : "").replace(/\s/g, "").slice(0, 2).toUpperCase();   // 한/영/숫자 최대 2자
-        letterText = v;
-        if (el && el.value !== v) el.value = v;
-        if (v && letterShape) { letterShape = ""; updatePresetButtons(); }   // 글자 입력 시 프리셋 해제
-        if (lastModel) renderImportedModel(lastModel);
-    }
-    function updatePresetButtons() {
-        ["smiley", "heart", "star"].forEach(function(s) { var b = document.getElementById("preset-" + s); if (b) b.classList.toggle("active", letterShape === s); });
-    }
-    function onPreset(shape) {
-        if (letterShape === shape) letterShape = "";                         // 다시 누르면 해제(글자 모드로)
-        else { letterShape = shape; letterText = ""; var el = document.getElementById("letterChar"); if (el) el.value = ""; }
-        updatePresetButtons();
-        if (lastModel) renderImportedModel(lastModel);
-    }
-    function onLetterScale() {
-        var ex = document.getElementById("letterScaleX"), ey = document.getElementById("letterScaleY");
-        letterScaleX = (Number(ex && ex.value) || 100) / 100;
-        letterScaleY = (Number(ey && ey.value) || 100) / 100;
-        var vx = document.getElementById("letterScaleXVal"); if (vx) vx.textContent = Math.round(letterScaleX * 100) + "%";
-        var vy = document.getElementById("letterScaleYVal"); if (vy) vy.textContent = Math.round(letterScaleY * 100) + "%";
-        if (lastModel) renderImportedModel(lastModel);
-    }
-
     // 스킨 → cart-1/2(모듈마다 결정적 랜덤), 공조 → cart-air, 그 외 → 텍스처 없음(색상으로)
     function moduleTexture(u, idx) {
         if (u.type === "skin") return (texHash(idx) < 0.5) ? TEX.c1 : TEX.c2;
@@ -3205,20 +2825,17 @@
         function imgMat(url, tr) { return new Cesium.ImageMaterialProperty({ image: url, color: Cesium.Color.WHITE, repeat: new Cesium.Cartesian2(1, 1), transparent: tr !== false }); }
         var matF1 = imgMat(TEX.f1), matF2 = imgMat(TEX.f2), matF3 = imgMat(TEX.f3), matF4 = imgMat(TEX.f4);
         var matC1 = imgMat(TEX.c1), matC2 = imgMat(TEX.c2), matAir = imgMat(TEX.air);  // 원본 alpha 그대로(transparent:true) → cart-1/2 차이 유지
-        var matDoor = Cesium.Color.fromBytes(255, 255, 255, 255);   // 도어 기본 도형 = 흰색
+        var matDoor = Cesium.Color.fromBytes(74, 134, 197);
         function addWallLL(a, b, bot, top, mat) {
-            var ent = viewer.entities.add({ wall: {
+            importEnts.push(viewer.entities.add({ wall: {
                 positions: Cesium.Cartesian3.fromDegreesArrayHeights([a[0], a[1], top, b[0], b[1], top]),
                 minimumHeights: [bot, bot], maximumHeights: [top, top], material: mat
-            }});
-            importEnts.push(ent);
-            return ent;
+            }}));
         }
-        if (!simple) { computeFaces(m); faceGeom = {}; }   // 레터링용 면 그리드(열·행) + 호버 외곽 산출
         if (!simple) (m.modules || []).forEach(function(u, idx) {   // 드래그 중(simple)엔 모듈 생략 → 매스+코어만
             var bot = baseH + u.y0, top = baseH + u.y0 + u.h;
-            if (u.mode === "fill") {   // 코너 빈틈 필러: frame-3(우측 끝)·frame-4(좌측 끝) — 코너엔 카트리지 안 넣음
-                var fm = (u.mat === "f3") ? matF3 : (u.mat === "f4") ? matF4 : matF1;
+            if (u.mode === "fill") {   // 코너 빈틈 필러(old방 addCorner): cart-1 / frame-3·4
+                var fm = (u.mat === "f3") ? matF3 : (u.mat === "f4") ? matF4 : matC1;
                 addWallLL(toLL(u.x1, u.z1), toLL(u.x2, u.z2), bot, top, fm);
                 return;
             }
@@ -3231,24 +2848,13 @@
                 return;
             }
             // 면 모듈: 내측부터 frame-2 / 카트리지 / frame-1 — 법선 방향 3중 오프셋(0 → d/2 → d)
-            var fkey = faceKeyOf(u);                            // 레터링 면 선택(클릭 픽)용 태그
-            (function() {   // 호버 하이라이트용 면 외곽: 접선 양끝, 법선 바깥쪽으로 약간 띄움
-                var offH = u.d + 0.25, tc = u.x * u.ux + u.z * u.uz;
-                var aL = toLL(u.x - u.ux * u.w / 2 + u.nx * offH, u.z - u.uz * u.w / 2 + u.nz * offH);
-                var bR = toLL(u.x + u.ux * u.w / 2 + u.nx * offH, u.z + u.uz * u.w / 2 + u.nz * offH);
-                var g = faceGeom[fkey] || (faceGeom[fkey] = { tMin: Infinity, tMax: -Infinity, A: null, B: null, bot: Infinity, top: -Infinity });
-                if (tc - u.w / 2 < g.tMin) { g.tMin = tc - u.w / 2; g.A = { lon: aL[0], lat: aL[1] }; }
-                if (tc + u.w / 2 > g.tMax) { g.tMax = tc + u.w / 2; g.B = { lon: bR[0], lat: bR[1] }; }
-                if (bot < g.bot) g.bot = bot;
-                if (top > g.top) g.top = top;
-            })();
             function layer(off, mat) {
                 var a = toLL(u.x - u.ux * u.w / 2 + u.nx * off, u.z - u.uz * u.w / 2 + u.nz * off);
                 var b = toLL(u.x + u.ux * u.w / 2 + u.nx * off, u.z + u.uz * u.w / 2 + u.nz * off);
-                var ent = addWallLL(a, b, bot, top, mat); ent.faceKey = fkey; return ent;
+                addWallLL(a, b, bot, top, mat);
             }
             layer(0.05, matF2);                                 // 내측 frame-2
-            var cm = (u.type === "skin") ? (skinUsesC2(idx) ? matC2 : matC1)   // 랜덤 또는 레터링
+            var cm = (u.type === "skin") ? (texHash(idx) < cartRatio2 ? matC2 : matC1)
                    : (u.type === "hvac") ? matAir
                    : (u.type === "door") ? matDoor : null;      // none = 중간 비움(빈 프레임)
             if (cm) layer(u.d / 2, cm);                         // 중간 카트리지
@@ -3292,128 +2898,6 @@
         if (vf) { vf.max = Math.max(1, m.floors || 1); if (Number(vf.value) > vf.max) vf.value = vf.max; var vl = document.getElementById("vcFloorVal"); if (vl) vl.textContent = vf.value + "층"; }
     }
     function rerenderImported() { if (lastModel) renderImportedModel(lastModel, false, moveMode); }
-
-    // ── sangeun 저장 JSON(getDesignState, app:'FIT-MASSING') → render 모델 m 변환 ──
-    // studio_sangeun.html 의 buildFitModel + 지오메트리(edgesBase/cornerInfo/facesGeo/bayGeo/effType…)를 이식.
-    function fitModelFromDesign(d) {
-        if (!d || typeof d !== "object") return null;
-        var B = d.building || {}, C = d.core || {}, FR = d.frame || {}, FT = d.fit || {}, BZ = d.bays || {};
-        var tHalfW = +B.tHalfW || 0, tHalfD = +B.tHalfD || 0, tFloors = +B.tFloors || 1, tFloorH = +B.tFloorH || 4;
-        var tcHalfW = +C.tcHalfW || 0, tcHalfD = +C.tcHalfD || 0, tcx = +C.tcx || 0, tcz = +C.tcz || 0;
-        var frameW = +FR.frameW || 1200, frameD = +FR.frameD || 1200, frameH = +FR.frameH || 4000, frameWMode = FR.frameWMode || "face";
-        var fitFrom = (FT.fitFrom != null) ? +FT.fitFrom : 1, fitTo = (FT.fitTo != null) ? +FT.fitTo : tFloors;
-        var faceSel = Array.isArray(FT.faceSel) ? FT.faceSel.map(Boolean) : [true, true, true, true];
-        var footprint = Array.isArray(d.footprint) ? d.footprint.map(function(q) { return { x: +q.x, z: +q.z }; }) : null;
-        var polySel = Array.isArray(d.polySel) ? d.polySel.map(Boolean) : [];
-        var baseType = BZ.baseType || {}, floorOv = BZ.floorOv || {}, baseDoor = BZ.baseDoor || {}, floorDoor = BZ.floorDoor || {};
-        if (tHalfW <= 0 || tHalfD <= 0) return null;
-        var cornerFaces = [[0,1],[0,3],[2,3],[2,1]], cornerSgn = [[1,1],[-1,1],[-1,-1],[1,-1]];
-        function hasPoly() { return footprint && footprint.length >= 3; }
-        function cornerOn(i) { return faceSel[cornerFaces[i][0]] && faceSel[cornerFaces[i][1]]; }
-        function ensurePolySel() { if (hasPoly()) { var t = edgesBase(0, 0).length; if (!Array.isArray(polySel) || polySel.length !== t) polySel = new Array(t).fill(true); } else polySel = []; }
-        function fSel(i) { return hasPoly() ? !!polySel[i] : !!faceSel[i]; }
-        function faceCols(L) { var fWm = frameW / 1000; if (fWm <= 0) return 1; return Math.max(1, frameWMode === "dim" ? Math.floor(L / fWm) : Math.round(L / fWm)); }
-        function bayGeo(L) { var cols = faceCols(L), fWm = frameW / 1000; if (frameWMode === "dim" && fWm > 0) return { cols: cols, w: fWm, off: (L - cols * fWm) / 2 }; var w = L / cols; return { cols: cols, w: w, off: 0 }; }
-        function edgesBase(w, d2) { var out = [];
-            if (hasPoly()) { var n = footprint.length;
-                var a2 = 0; for (var i = 0; i < n; i++) { var a = footprint[i], b = footprint[(i+1)%n]; a2 += a.x*b.z - b.x*a.z; } var sgn = a2 > 0 ? 1 : -1;
-                var raw = []; for (var i2 = 0; i2 < n; i2++) { var a3 = footprint[i2], b3 = footprint[(i2+1)%n], ex = b3.x-a3.x, ez = b3.z-a3.z, L = Math.hypot(ex,ez); raw.push({ a: i2, L: L, ux: L>1e-6?ex/L:0, uz: L>1e-6?ez/L:0 }); }
-                var start = 0; for (var i3 = 0; i3 < n; i3++) { var pv = raw[(i3-1+n)%n]; if (Math.abs(raw[i3].ux-pv.ux)>1e-3 || Math.abs(raw[i3].uz-pv.uz)>1e-3) { start = i3; break; } }
-                var k = 0; while (k < n) { var e0 = raw[(start+k)%n]; var L2 = e0.L, j = k+1;
-                    while (j < n) { var e = raw[(start+j)%n]; if (Math.abs(e.ux-e0.ux)<1e-3 && Math.abs(e.uz-e0.uz)<1e-3) { L2 += e.L; j++; } else break; }
-                    var sv = raw[(start+k)%n].a, p0 = footprint[sv]; var nx = e0.uz*sgn, nz = -e0.ux*sgn; var nl = Math.hypot(nx,nz)||1; nx/=nl; nz/=nl;
-                    out.push({ i: out.length, p0x: p0.x, p0z: p0.z, ux: e0.ux, uz: e0.uz, nx: nx, nz: nz, L: L2, ry: Math.atan2(-e0.uz, e0.ux) });
-                    k = j; }
-            } else { var hw = w/2, hd = d2/2;
-                out.push({ i:0, p0x:-hw, p0z:hd, ux:1, uz:0, nx:0, nz:1, L:w, ry:0 });
-                out.push({ i:1, p0x:hw, p0z:-hd, ux:0, uz:1, nx:1, nz:0, L:d2, ry:Math.atan2(-1,0) });
-                out.push({ i:2, p0x:-hw, p0z:-hd, ux:1, uz:0, nx:0, nz:-1, L:w, ry:0 });
-                out.push({ i:3, p0x:-hw, p0z:-hd, ux:0, uz:1, nx:-1, nz:0, L:d2, ry:Math.atan2(-1,0) }); }
-            return out; }
-        function cornerInfo(w, d2) { var cs = Math.max(frameD/1000, 0.5), out = [];
-            if (hasPoly()) { var F = edgesBase(w,d2), m = F.length, n = footprint.length;
-                var a2 = 0; for (var i = 0; i < n; i++) { var a = footprint[i], b = footprint[(i+1)%n]; a2 += a.x*b.z - b.x*a.z; } var ori = a2 > 0 ? 1 : -1;
-                for (var i2 = 0; i2 < m; i2++) { var ep = F[(i2-1+m)%m], ec = F[i2]; if (!ep || !ec) { out.push(null); continue; }
-                    var turn = ep.ux*ec.uz - ep.uz*ec.ux, convex = (turn*ori >= -1e-6);
-                    var sx = ep.nx+ec.nx, sz = ep.nz+ec.nz; var sl = Math.hypot(sx,sz)||1; sx/=sl; sz/=sl;
-                    var Vx = ec.p0x, Vz = ec.p0z, ccx = Vx+sx*cs*0.7071, ccz = Vz+sz*cs*0.7071;
-                    out.push({ vi:i2, key:'c'+i2, on:(fSel((i2-1+m)%m)&&fSel(i2)), convex:convex, cx:ccx, cz:ccz, cs:cs, ry:Math.atan2(sx,sz), Vx:Vx, Vz:Vz }); }
-            } else { var hw = w/2, hd = d2/2; cornerSgn.forEach(function(sg, ci) { out.push({ vi:ci, key:'c'+ci, on:cornerOn(ci), convex:true, cx:sg[0]*(hw+cs/2), cz:sg[1]*(hd+cs/2), cs:cs, ry:Math.atan2(sg[0],sg[1]), Vx:sg[0]*hw, Vz:sg[1]*hd }); }); }
-            return out; }
-        function facesGeo(w, d2) { ensurePolySel(); var E = edgesBase(w,d2);
-            if (!hasPoly()) return E;
-            var m = E.length, CI = cornerInfo(w,d2), cs = Math.max(frameD/1000, 0.5), minL = Math.max(0.2, frameW/1000*0.5);
-            return E.map(function(e) { if (!e) return null; var cS = CI[e.i], cE = CI[(e.i+1)%m];
-                var tS = (cS&&cS.on&&!cS.convex)?cs:0, tE = (cE&&cE.on&&!cE.convex)?cs:0;
-                var Lp = e.L-tS-tE, p0x = e.p0x+e.ux*tS, p0z = e.p0z+e.uz*tS;
-                if (Lp < minL) { Lp = e.L; p0x = e.p0x; p0z = e.p0z; }
-                return { i:e.i, p0x:p0x, p0z:p0z, ux:e.ux, uz:e.uz, nx:e.nx, nz:e.nz, L:Lp, ry:e.ry }; }); }
-        function cornersGeo(w, d2) { return cornerInfo(w, d2).filter(function(c) { return c; }); }
-        function effType(floor, face, bay) { var fk = floor+"_"+face+"_"+bay; if (fk in floorOv) return floorOv[fk]; var bk = face+"_"+bay; return (bk in baseType) ? baseType[bk] : "skin"; }
-        function effDoor(floor, face, bay) { var fk = floor+"_"+face+"_"+bay; if (fk in floorDoor) return floorDoor[fk]; return !!baseDoor[face+"_"+bay]; }
-
-        var W = tHalfW*2, D = tHalfD*2;
-        var poly = hasPoly() ? footprint.map(function(q) { return { x: q.x, z: q.z }; }) : null;
-        var floorHm = tFloorH, frameWm = frameW/1000, frameDm = frameD/1000, frameHm = frameH/1000;
-        var rowsPF = Math.max(1, frameHm > 0 ? Math.floor(floorHm/frameHm) : 1);
-        var FA = facesGeo(W, D), CO = cornersGeo(W, D), modules = [];
-        FA.forEach(function(fa) {
-            if (!fa || !fSel(fa.i)) return;
-            var bg = bayGeo(fa.L);
-            for (var b = 0; b < bg.cols; b++) {
-                var along = bg.off + (b+0.5)*bg.w, px = fa.p0x + fa.ux*along, pz = fa.p0z + fa.uz*along;
-                for (var f = fitFrom; f <= fitTo; f++) {
-                    var t = effType(f, fa.i, b);
-                    if (t === "noframe") continue;
-                    var ty = (t === "door" || effDoor(f, fa.i, b)) ? "door" : t;
-                    for (var r = 0; r < rowsPF; r++)
-                        modules.push({ mode:"flush", x:px, z:pz, ux:fa.ux, uz:fa.uz, nx:fa.nx, nz:fa.nz, w:frameWm, d:frameDm, y0:(f-1)*floorHm + r*frameHm, h:frameHm, type:ty });
-                }
-            }
-        });
-        if (!poly) {   // 박스: 코너 빈틈 필러(외측 frame-3/4, 중간은 코너=프레임)
-            var dd = frameDm, dh = frameDm/2, hw = W/2, hd = D/2;
-            var VV = [[-hw,-hd],[hw,-hd],[hw,hd],[-hw,hd]], NN = [[0,-1],[1,0],[0,1],[-1,0]], emap = [2,1,0,3];
-            var addFill = function(x1, z1, x2, z2, key) { for (var f = fitFrom; f <= fitTo; f++) for (var r = 0; r < rowsPF; r++) modules.push({ mode:"fill", x1:x1, z1:z1, x2:x2, z2:z2, y0:(f-1)*floorHm + r*frameHm, h:frameHm, mat:key }); };
-            for (var ci = 0; ci < 4; ci++) {
-                if (!fSel(emap[ci])) continue;
-                var cj = (ci+1)%4, cp = (ci+3)%4, Vi = VV[ci], Vj = VV[cj], ni = NN[ci], np = NN[cp], nj = NN[cj];
-                addFill(Vi[0]+(np[0]+ni[0])*dd, Vi[1]+(np[1]+ni[1])*dd, Vi[0]+ni[0]*dd, Vi[1]+ni[1]*dd, "f4");
-                addFill(Vj[0]+ni[0]*dd, Vj[1]+ni[1]*dd, Vj[0]+(ni[0]+nj[0])*dd, Vj[1]+(ni[1]+nj[1])*dd, "f3");
-                addFill(Vi[0]+(np[0]+ni[0])*dh, Vi[1]+(np[1]+ni[1])*dh, Vi[0]+ni[0]*dh, Vi[1]+ni[1]*dh, "cart1");
-                addFill(Vj[0]+ni[0]*dh, Vj[1]+ni[1]*dh, Vj[0]+(ni[0]+nj[0])*dh, Vj[1]+(ni[1]+nj[1])*dh, "cart1");
-            }
-        } else {   // 부정형 footprint 코너
-            CO.forEach(function(c) { if (!c || !c.on) return; for (var f = fitFrom; f <= fitTo; f++) for (var r = 0; r < rowsPF; r++) modules.push({ mode:"center", x:c.cx, z:c.cz, ux:1, uz:0, nx:0, nz:1, w:c.cs, d:c.cs, y0:(f-1)*floorHm + r*frameHm, h:frameHm, type:"corner" }); });
-        }
-        var r1 = function(v) { return Math.round(v*10)/10; };
-        return {
-            type: "fitModel", ts: Date.now(), floors: tFloors, floorH: r1(floorHm),
-            mass: poly ? { shape: "poly", pts: poly } : { shape: "box", W: r1(W), D: r1(D) },
-            core: { W: r1(tcHalfW*2), D: r1(tcHalfD*2), cx: r1(tcx), cz: r1(tcz) },
-            frame: { W: frameW, D: frameD, H: frameH }, fit: { from: fitFrom, to: fitTo }, modules: modules
-        };
-    }
-    function onJsonToggle() {
-        var on = document.getElementById("jsonLoadToggle").checked;
-        var row = document.getElementById("jsonLoadRow"); if (row) row.style.display = on ? "block" : "none";
-    }
-    function onJsonFile(ev) {
-        var f = ev.target.files && ev.target.files[0], st = document.getElementById("jsonLoadStatus");
-        if (!f) return;
-        var rd = new FileReader();
-        rd.onload = function() {
-            var d; try { d = JSON.parse(rd.result); } catch (e) { if (st) st.textContent = "JSON 파싱 오류: " + e.message; return; }
-            if (d && d.app && d.app !== "FIT-MASSING") { if (st) st.textContent = "형식 오류: sangeun 3D 저장(FIT-MASSING) 파일이 아닙니다."; return; }
-            var m = fitModelFromDesign(d);
-            if (!m || !m.modules.length) { if (st) st.textContent = "변환 실패: 모듈을 만들지 못했습니다(면 선택·규모·층 확인)."; return; }
-            var ready = siteBoundaryCoords && siteBoundaryCoords.length >= 3;
-            lastModel = m; updateImportStatus(m);
-            if (ready) renderImportedModel(m, true, moveMode);
-            if (st) st.textContent = "불러옴 · 모듈 " + m.modules.length + "개" + (ready ? "" : " — ‘위치·대지’에서 주소 검색 시 배치됩니다.");
-        };
-        rd.readAsText(f);
-    }
     function presetAddr(a) { var el = document.getElementById("address"); if (el) el.value = a; searchAddress(); }
     function reviewMassing() { if (window.parent && window.parent !== window) window.parent.postMessage({ type: "split", v: 85 }, "*"); }
     // 이동 모드 ON = 경량(매스만) 렌더 / OFF = 전체 텍스처 렌더. 토글로 확실히 경량화.
@@ -3440,7 +2924,7 @@
     }
     // 탭 B 서브탭 전환
     function bTab(name) {
-        ["recv", "mass", "slab", "cart", "pattern"].forEach(function(n) {
+        ["recv", "mass", "slab", "cart"].forEach(function(n) {
             var p = document.getElementById("bp-" + n); if (p) p.style.display = (n === name) ? "block" : "none";
             var b = document.getElementById("bt-" + n); if (b) b.classList.toggle("on", n === name);
         });
