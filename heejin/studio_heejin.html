@@ -420,16 +420,16 @@
 
     <!-- ===== 탭 D: AI 실사 렌더링 ===== -->
     <div class="tabpane" id="tabD" style="display:none;">
-    <!-- API 키 -->
+    <!-- 비밀번호 (Gemini 키는 서버에 보관) -->
     <div class="card">
-        <div class="label"><span class="dot"></span>Gemini API 키</div>
+        <div class="label"><span class="dot"></span>비밀번호</div>
         <div class="row">
-            <input id="aiKey" class="ai-key" type="password" placeholder="AIza... 붙여넣기"
+            <input id="aiKey" class="ai-key" type="password" placeholder="팀 공유 비밀번호"
                    style="flex:1; width:auto;">
             <button class="btn-ghost" style="flex:0 0 auto; padding:9px 12px;"
                     onclick="saveAiKey()">저장</button>
         </div>
-        <div class="hint">키는 이 브라우저에만 저장됩니다(localStorage). aistudio.google.com 에서 발급.</div>
+        <div class="hint">API 키는 서버에 안전하게 보관됩니다. 비밀번호만 입력하면 어느 PC에서도 동작합니다(비밀번호는 이 브라우저에 저장).</div>
         <div class="row" style="margin-top:8px;">
             <span class="field">모델</span>
             <input id="aiModel" type="text" value="gemini-3.1-flash-image"
@@ -697,15 +697,15 @@
     }
 
     function initAiTab() {
-        try { document.getElementById("aiKey").value = localStorage.getItem("geminiKey") || ""; } catch (e) {}
+        try { document.getElementById("aiKey").value = localStorage.getItem("fitAiPass") || ""; } catch (e) {}
         applyAiPreset(); // 기본 프롬프트 채우기
     }
 
     function saveAiKey() {
         try {
-            localStorage.setItem("geminiKey", (document.getElementById("aiKey").value || "").trim());
-            setAiStatus("키를 이 브라우저에 저장했습니다.");
-        } catch (e) { setAiStatus("키 저장 실패: " + e.message); }
+            localStorage.setItem("fitAiPass", (document.getElementById("aiKey").value || "").trim());
+            setAiStatus("비밀번호를 이 브라우저에 저장했습니다.");
+        } catch (e) { setAiStatus("저장 실패: " + e.message); }
     }
 
     function setAiStatus(msg) { var el = document.getElementById("aiStatus"); if (el) el.textContent = msg; }
@@ -799,9 +799,11 @@
         setAiStatus("레퍼런스 이미지를 제거했습니다.");
     }
 
+    // 키를 서버에만 보관하는 프록시(Supabase Edge Function). 앱은 비밀번호만 전송.
+    var AI_PROXY = "https://auykdsmpfkljassfavba.supabase.co/functions/v1/ai-render";
     async function runAiRender() {
-        var key = (document.getElementById("aiKey").value || "").trim();
-        if (!key) { setAiStatus("먼저 Gemini API 키를 입력하세요."); return; }
+        var pass = (document.getElementById("aiKey").value || "").trim();
+        if (!pass) { setAiStatus("먼저 비밀번호를 입력하세요."); return; }
         if (!aiSourceDataURL) { setAiStatus("먼저 화면을 캡쳐하거나 이미지를 업로드하세요."); return; }
         var model = (document.getElementById("aiModel").value || "gemini-3.1-flash-image").trim();
         var prompt = (document.getElementById("aiPrompt").value || "").trim() || AI_PRESETS.day;
@@ -809,60 +811,47 @@
         if (!m) { setAiStatus("원본 이미지 형식 오류."); return; }
         var mime = m[1], b64 = m[2];
 
+        // 레퍼런스 이미지(선택): 프롬프트에 참조 지시 추가 + 두 번째 이미지로 전달
+        var refObj = null;
+        if (aiRefDataURL) {
+            var rm = aiRefDataURL.match(/^data:(.*?);base64,(.*)$/);
+            if (rm) {
+                var aspects = [];
+                if (document.getElementById("aiRefFacade").checked)   aspects.push("the facade design language and articulation");
+                if (document.getElementById("aiRefMaterial").checked) aspects.push("the materials and surface textures");
+                if (document.getElementById("aiRefColor").checked)    aspects.push("the overall color tone and palette");
+                var aspectText = aspects.length ? aspects.join(", ") : "the overall visual style";
+                prompt += "\n\nA SECOND image is provided as a STYLE REFERENCE. From the reference image, borrow ONLY " + aspectText +
+                    " and apply it to the project building. Strictly keep the building geometry, facade module spacing, camera view, site layout, roads and surrounding context from the FIRST image. Do NOT copy the reference image's buildings, composition, or layout.";
+                refObj = { mime: rm[1], data: rm[2] };
+            }
+        }
+
         var runBtn = document.getElementById("aiRunBtn");
         runBtn.disabled = true;
         var _t0 = Date.now();
         var _ticker = setInterval(function () {
-            setAiStatus("변환 중… " + Math.round((Date.now() - _t0) / 1000) + "초 경과 (이미지 생성은 30~60초 걸릴 수 있습니다)");
+            setAiStatus("변환 중… " + Math.round((Date.now() - _t0) / 1000) + "초 경과 (보통 15~30초)");
         }, 1000);
-        setAiStatus("변환 중… (이미지 생성은 30~60초 걸릴 수 있습니다)");
+        setAiStatus("변환 중… (보통 15~30초)");
         var _ctrl = new AbortController();
-        var _killer = setTimeout(function () { _ctrl.abort(); }, 120000); // 120초 안전 타임아웃(무한 '변환중' 방지)
+        var _killer = setTimeout(function () { _ctrl.abort(); }, 120000); // 120초 안전 타임아웃
         try {
-            var url = "https://generativelanguage.googleapis.com/v1beta/models/" +
-                encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(key);
-
-            // 기본: [프롬프트, 원본 이미지]
-            var parts = [ { text: prompt }, { inline_data: { mime_type: mime, data: b64 } } ];
-
-            // 레퍼런스 이미지가 있으면 선택한 항목만 참조하도록 지시 + 두 번째 이미지로 첨부
-            if (aiRefDataURL) {
-                var rm = aiRefDataURL.match(/^data:(.*?);base64,(.*)$/);
-                if (rm) {
-                    var aspects = [];
-                    if (document.getElementById("aiRefFacade").checked)   aspects.push("the facade design language and articulation");
-                    if (document.getElementById("aiRefMaterial").checked) aspects.push("the materials and surface textures");
-                    if (document.getElementById("aiRefColor").checked)    aspects.push("the overall color tone and palette");
-                    var aspectText = aspects.length ? aspects.join(", ") : "the overall visual style";
-                    parts[0].text += "\n\nA SECOND image is provided as a STYLE REFERENCE. From the reference image, borrow ONLY " + aspectText +
-                        " and apply it to the project building. Strictly keep the building geometry, facade module spacing, camera view, site layout, roads and surrounding context from the FIRST image. Do NOT copy the reference image's buildings, composition, or layout.";
-                    parts.push({ inline_data: { mime_type: rm[1], data: rm[2] } });
-                }
-            }
-
-            var body = {
-                contents: [{ parts: parts }],
-                generationConfig: { responseModalities: ["IMAGE"] }
-            };
-            var res = await fetch(url, {
-                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: _ctrl.signal
+            var res = await fetch(AI_PROXY, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ password: pass, model: model, prompt: prompt, image: { mime: mime, data: b64 }, ref: refObj }),
+                signal: _ctrl.signal
             });
             var data = await res.json();
-            if (!res.ok) throw new Error((data.error && data.error.message) || ("HTTP " + res.status));
-            var parts = ((((data.candidates || [])[0] || {}).content) || {}).parts || [];
-            var imgPart = null, textPart = null;
-            parts.forEach(function (p) {
-                if (p.inlineData || p.inline_data) imgPart = p;
-                else if (p.text) textPart = p;
-            });
-            if (!imgPart) throw new Error("이미지가 반환되지 않았습니다." + (textPart ? " 모델 응답: " + textPart.text : ""));
-            var inl = imgPart.inlineData || imgPart.inline_data;
-            aiResultDataURL = "data:" + (inl.mimeType || inl.mime_type || "image/png") + ";base64," + inl.data;
+            if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+            if (!data.data) throw new Error("이미지가 반환되지 않았습니다(다시 시도해 보세요).");
+            aiResultDataURL = "data:" + (data.mime || "image/png") + ";base64," + data.data;
             document.getElementById("aiResImg").src = aiResultDataURL;
             document.getElementById("aiResWrap").style.display = "block";
-            setAiStatus("완료! 결과를 확인하세요.");
+            setAiStatus("완료! (" + Math.round((Date.now() - _t0) / 1000) + "초) 결과를 확인하세요.");
         } catch (e) {
-            if (e.name === "AbortError") setAiStatus("변환 실패: 시간 초과(120초) — 응답이 없습니다. API 키·할당량·네트워크를 확인하고 다시 시도하세요.");
+            if (e.name === "AbortError") setAiStatus("변환 실패: 시간 초과(120초) — 다시 시도해 주세요.");
             else setAiStatus("변환 실패: " + e.message);
         } finally {
             clearInterval(_ticker); clearTimeout(_killer); runBtn.disabled = false;

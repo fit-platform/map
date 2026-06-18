@@ -50,12 +50,12 @@
   <div class="split">
     <div class="pane left" id="paneL">
       <div class="pane-cover" id="coverL"></div>
-      <iframe id="sangeun" src="studio_sangeun.html"></iframe>
+      <iframe id="sangeun"></iframe>
     </div>
     <div id="gutter" title="드래그해서 좌우 비율 조절"></div>
     <div class="pane right" id="paneR">
       <div class="pane-cover" id="coverR"></div>
-      <iframe id="heejin" src="studio_heejin.html"></iframe>
+      <iframe id="heejin"></iframe>
     </div>
   </div>
 
@@ -75,6 +75,12 @@
   </div>
 
   <script>
+    // iframe을 항상 최신본으로 로드(캐시 무시) — 편집/배포 후 새로고침만으로 반영됨
+    (function () {
+      var v = Date.now();
+      document.getElementById("sangeun").src = "studio_sangeun.html?v=" + v;
+      document.getElementById("heejin").src = "studio_heejin.html?v=" + v;
+    })();
     // 좌우 분할 비율 조절 (render studio을 키우면 캡쳐 영역도 그만큼 넓어짐)
     function setSplit(v) {
       v = Math.max(15, Math.min(85, Math.round(Number(v) || 50)));
