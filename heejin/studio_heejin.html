@@ -183,6 +183,9 @@
         #cbSaveBtn{ width:100%; background:var(--ink); color:#fff; font-size:12px; font-weight:600; border:none; border-radius:9px; padding:8px; cursor:pointer; }
         #cbSaveBtn:hover{ background:var(--accent); }
         #cbSaveBtn:disabled{ background:#c9c9c4; cursor:not-allowed; }
+        .cb-presets{ display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-bottom:8px; }
+        .cb-preset{ background:#fff; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:7px 4px; font-size:11px; font-weight:600; cursor:pointer; }
+        .cb-preset:hover{ border-color:var(--accent); color:var(--accent); }
 
         /* 주소 프리셋 */
         .preset-row{ display:flex; flex-wrap:wrap; gap:5px; margin-top:5px; }
@@ -261,9 +264,9 @@
 <div id="panel">
 
     <div class="tabs">
-        <button class="tab active" data-tab="A" onclick="switchTab('A')">위치·대지</button>
-        <button class="tab" data-tab="B" onclick="switchTab('B')">신축 매스·입면</button>
-        <button class="tab" data-tab="D" onclick="switchTab('D')">AI 실사</button>
+        <button class="tab active" data-tab="A" onclick="switchTab('A')">대지</button>
+        <button class="tab" data-tab="B" onclick="switchTab('B')">검토안</button>
+        <button class="tab" data-tab="D" onclick="switchTab('D')">실사화</button>
     </div>
 
     <!-- ===== 탭 A: 위치 검색 + 건물 선택·투명화 ===== -->
@@ -349,77 +352,94 @@
         </div>
     </div>
 
-    <!-- 수신 모델 삭제 (위치·대지 탭 최하단) -->
-    <div class="card">
-        <button class="btn-del" onclick="clearImported()">수신 모델 삭제</button>
-    </div>
     </div><!-- /tabA -->
 
     <!-- ===== 탭 B: massing studio에서 수신한 FIT 모델 (4 서브탭) ===== -->
     <div class="tabpane" id="tabB" style="display:none;">
     <div class="subtabs">
         <button id="bt-recv" class="subtab on" onclick="bTab('recv')">수신 모델</button>
-        <button id="bt-mass" class="subtab" onclick="bTab('mass')">매스</button>
-        <button id="bt-slab" class="subtab" onclick="bTab('slab')">슬래브</button>
+        <button id="bt-mass" class="subtab" onclick="bTab('mass')">구조체</button>
         <button id="bt-cart" class="subtab" onclick="bTab('cart')">카트리지</button>
         <button id="bt-pattern" class="subtab" onclick="bTab('pattern')">패턴</button>
     </div>
 
-    <!-- 1. 수신 모델 (상태·규모·FIT모듈) -->
+    <!-- 1. 수신 모델 (입력 / 사양 / 불러온 목록) -->
     <div class="card subpane" id="bp-recv">
-        <div class="label"><span class="dot"></span>수신된 FIT 모델</div>
-        <div class="hint">왼쪽 massing studio에서 ‘→ render studio으로 보내기’를 누르면 3D 모델이 대지 중심에 재현됩니다. 다시 보내면 갱신됩니다.</div>
-        <div class="rs-row hl" style="margin-top:10px;"><span class="rs-k">상태</span><span class="rs-v" id="impStatus">대기 중 — 아직 수신 없음</span></div>
-        <div class="rs-row"><span class="rs-k">규모</span><span class="rs-v" id="impMass">–</span></div>
-        <div class="rs-row"><span class="rs-k">FIT 모듈</span><span class="rs-v" id="impMods">–</span></div>
-        <label class="check" style="margin-top:10px;">
-            <input type="checkbox" id="jsonLoadToggle" onchange="onJsonToggle()">
-            JSON 불러오기 (sangeun 저장 파일)
-        </label>
-        <div id="jsonLoadRow" style="display:none;margin-top:8px;">
-            <input type="file" id="jsonFile" accept=".json,application/json" onchange="onJsonFile(event)" style="font-size:12px;max-width:100%;">
-            <div class="hint" id="jsonLoadStatus" style="margin-top:6px;">sangeun 앱에서 저장한 <b>_3D_*.json</b> 파일을 선택하세요. (연결 없이 저장본으로 모델 재현)</div>
+        <div class="label"><span class="dot"></span>수신 모델</div>
+        <div class="subtabs">
+            <button id="rt-input" class="subtab on" onclick="rTab('input')">입력</button>
+            <button id="rt-spec" class="subtab" onclick="rTab('spec')">사양</button>
+            <button id="rt-list" class="subtab" onclick="rTab('list')">불러온 목록</button>
         </div>
-        <div class="hint" style="margin-top:8px;">이동·회전 배치는 ‘위치·대지’ 탭에서 조절합니다.</div>
+
+        <!-- 1) 입력: 연결 수신(자동) / JSON 파일 -->
+        <div id="rp-input">
+            <div class="row" style="margin-top:8px; gap:14px;">
+                <label class="check" style="margin:0;"><input type="radio" name="recvSrc" value="link" checked onchange="onRecvSrc()"> 연결 수신(자동)</label>
+                <label class="check" style="margin:0;"><input type="radio" name="recvSrc" value="json" onchange="onRecvSrc()"> JSON 파일</label>
+            </div>
+            <div class="rs-row hl" style="margin-top:10px;"><span class="rs-k">상태</span><span class="rs-v" id="impStatus">대기 중 — 아직 수신 없음</span></div>
+            <div id="jsonLoadRow" style="display:none; margin-top:8px;">
+                <input type="file" id="jsonFile" accept=".json,application/json" onchange="onJsonFile(event)" style="font-size:12px; max-width:100%;">
+                <div class="hint" id="jsonLoadStatus" style="margin-top:6px;">sangeun 앱에서 저장한 <b>_3D_*.json</b> 파일을 선택하세요. (연결 없이 저장본으로 재현)</div>
+            </div>
+            <div class="hint" style="margin-top:8px;">연결 수신: 왼쪽 massing studio에서 ‘보내기’ 시 자동 반영. 이동·회전은 ‘대지’ 탭에서.</div>
+        </div>
+
+        <!-- 2) 사양: 평면·층고·층수·프레임·개수 -->
+        <div id="rp-spec" style="display:none; margin-top:8px;">
+            <div class="rs-row"><span class="rs-k">평면 크기</span><span class="rs-v" id="spPlane">–</span></div>
+            <div class="rs-row"><span class="rs-k">층고</span><span class="rs-v" id="spFloorH">–</span></div>
+            <div class="rs-row"><span class="rs-k">층수</span><span class="rs-v" id="spFloors">–</span></div>
+            <div class="rs-row"><span class="rs-k">FIT 프레임</span><span class="rs-v" id="spFrame">–</span></div>
+            <div class="rs-row"><span class="rs-k">모듈 개수</span><span class="rs-v" id="spCount">–</span></div>
+            <div class="hint" style="margin-top:6px;">FIT 프레임은 W×D×H(mm), 모듈은 유형별 개수입니다.</div>
+        </div>
+
+        <!-- 3) 불러온 목록: 이번 세션에 수신·불러온 모델 드롭다운 -->
+        <div id="rp-list" style="display:none; margin-top:8px;">
+            <select id="recvList" onchange="onRecvListPick()" style="width:100%; font-size:12px; padding:7px; border:1px solid var(--line); border-radius:8px; background:#fff;"></select>
+            <div class="hint" style="margin-top:6px;">이번 세션에 불러온/수신한 모델입니다. 선택하면 그 모델로 다시 표시합니다.</div>
+        </div>
+
+        <!-- 수신 모델 삭제 (수신 모델 탭 최하단) -->
+        <button class="btn-del" onclick="clearImported()" style="width:100%; margin-top:12px;">수신 모델 삭제</button>
     </div>
 
-    <!-- 2. 매스 / 코어 -->
+    <!-- 2. 매스 · 슬래브 · 코어 (각각 표시 + 밝기 + 불투명도) -->
     <div class="card subpane" id="bp-mass" style="display:none;">
-        <div class="label"><span class="dot"></span>매스 / 코어</div>
-        <label class="check">
-            <input type="checkbox" id="impMassOn" checked onchange="rerenderImported()">
-            규모(매스) 박스 표시
-        </label>
-        <label class="check" style="margin-top:8px;">
-            <input type="checkbox" id="impCoreOn" checked onchange="rerenderImported()">
-            코어 박스 표시
-        </label>
-        <div class="row" style="margin-top:10px;">
-            <span class="field">매스 밝기</span>
-            <input id="massBrightRange" type="range" min="0" max="255" value="235" step="1" oninput="onMassBright()">
-            <span id="massBrightVal" class="field" style="min-width:36px; text-align:right;">235</span>
-        </div>
-        <div class="hint">규모 박스를 0–255 모노톤으로 밝기 조절합니다. 코어는 중간 그레이 고정.</div>
-    </div>
+        <div class="label"><span class="dot"></span>구조체</div>
 
-    <!-- 3. 각 층 슬래브 -->
-    <div class="card subpane" id="bp-slab" style="display:none;">
-        <div class="label"><span class="dot"></span>각 층 슬래브</div>
-        <label class="check">
-            <input type="checkbox" id="slabOn" onchange="onSlabToggle()">
-            슬래브(각 층 바닥·천장) 표시
-        </label>
-        <div class="row" style="margin-top:8px;">
-            <span class="field">두께</span>
+        <!-- 매스 -->
+        <label class="check"><input type="checkbox" id="impMassOn" checked onchange="rerenderImported()"> 매스(규모) 표시</label>
+        <div class="row" style="margin-top:6px;"><span class="field">밝기</span>
+            <input id="massBrightRange" type="range" min="0" max="255" value="235" step="1" oninput="onMassBright()">
+            <span id="massBrightVal" class="field" style="min-width:34px; text-align:right;">235</span></div>
+        <div class="row" style="margin-top:4px;"><span class="field">불투명도</span>
+            <input id="massAlphaRange" type="range" min="0" max="100" value="100" step="1" oninput="onMassAlpha()">
+            <span id="massAlphaVal" class="field" style="min-width:34px; text-align:right;">100%</span></div>
+
+        <!-- 슬래브 -->
+        <label class="check" style="margin-top:12px;"><input type="checkbox" id="slabOn" onchange="onSlabToggle()"> 슬래브(각 층) 표시</label>
+        <div class="row" style="margin-top:6px;"><span class="field">두께</span>
             <input id="slabThick" type="range" min="100" max="1000" value="200" step="10" oninput="onSlabThick()">
-            <span id="slabThickVal" class="field" style="min-width:58px; text-align:right;">200 mm</span>
-        </div>
-        <div class="row" style="margin-top:8px;">
-            <span class="field">색(밝기)</span>
+            <span id="slabThickVal" class="field" style="min-width:56px; text-align:right;">200 mm</span></div>
+        <div class="row" style="margin-top:4px;"><span class="field">밝기</span>
             <input id="slabBrightRange" type="range" min="0" max="255" value="205" step="1" oninput="onSlabBright()">
-            <span id="slabBrightVal" class="field" style="min-width:36px; text-align:right;">205</span>
-        </div>
-        <div class="hint">매스 바닥 형태로 각 층 레벨(0층~최상층)에 불투명 슬래브를 깝니다.</div>
+            <span id="slabBrightVal" class="field" style="min-width:34px; text-align:right;">205</span></div>
+        <div class="row" style="margin-top:4px;"><span class="field">불투명도</span>
+            <input id="slabAlphaRange" type="range" min="0" max="100" value="100" step="1" oninput="onSlabAlpha()">
+            <span id="slabAlphaVal" class="field" style="min-width:34px; text-align:right;">100%</span></div>
+
+        <!-- 코어 -->
+        <label class="check" style="margin-top:12px;"><input type="checkbox" id="impCoreOn" checked onchange="rerenderImported()"> 코어 표시</label>
+        <div class="row" style="margin-top:6px;"><span class="field">밝기</span>
+            <input id="coreBrightRange" type="range" min="0" max="255" value="142" step="1" oninput="onCoreBright()">
+            <span id="coreBrightVal" class="field" style="min-width:34px; text-align:right;">142</span></div>
+        <div class="row" style="margin-top:4px;"><span class="field">불투명도</span>
+            <input id="coreAlphaRange" type="range" min="0" max="100" value="100" step="1" oninput="onCoreAlpha()">
+            <span id="coreAlphaVal" class="field" style="min-width:34px; text-align:right;">100%</span></div>
+        <div class="hint">각 요소를 따로 표시·밝기·불투명도 조절합니다. 슬래브는 매스 바닥형태로 각 층에 깔립니다.</div>
     </div>
 
     <!-- 4. 카트리지 (모듈별 이미지: 썸네일 + 파일명) -->
@@ -633,6 +653,12 @@
 <div id="camBookmarks">
     <div class="cb-title"><span class="dot"></span><span id="cbTitleText">카메라 뷰</span></div>
     <div id="camPane">
+        <div class="cb-presets">
+            <button class="cb-preset" id="fitCorner0" onclick="flyCorner(0)">코너 1</button>
+            <button class="cb-preset" id="fitCorner1" onclick="flyCorner(1)">코너 2</button>
+            <button class="cb-preset" id="fitCorner2" onclick="flyCorner(2)">코너 3</button>
+            <button class="cb-preset" id="fitCorner3" onclick="flyCorner(3)">코너 4</button>
+        </div>
         <div id="cbSlots"></div>
         <button id="cbSaveBtn" onclick="saveCamView()">+ 현재 뷰 저장 (0/5)</button>
     </div>
@@ -2701,6 +2727,7 @@
         siteBoundaryCoords = coords.slice();
         siteLabelText = labelText || "";
         renderSiteBoundary();
+        updateCornerPresets();   // 대지 4코너 + 방위명 → 카메라 프리셋 버튼 갱신
         refineSitePlaneH(); // 지형 로딩 후 평균수평면 z 정밀화(비동기) → 재그리기
     }
 
@@ -2859,6 +2886,7 @@
     var importOffX = 0, importOffY = 0;   // 배치 이동(동서 m, 남북 m)
     var lastPlace = null;                 // 마지막 배치 중심 {lon, lat, baseH} — 뷰체크용
     var massBright = 235;                 // 매스 밝기(0~255 그레이)
+    var massAlpha = 255, coreBright = 142, coreAlpha = 255;  // 매스/코어 불투명도·코어밝기
     var cartRatio2 = 0.5;                 // 스킨 모듈에서 cart-2가 뽑힐 확률(0~1)
     var TYPE_COLOR = { skin:[176,172,163], hvac:[230,141,57], door:[74,134,197], none:[237,235,230], corner:[122,118,110] };
     function typeColorBytes(t) { var c = TYPE_COLOR[t] || [150,150,150]; return Cesium.Color.fromBytes(c[0], c[1], c[2], t === "none" ? 165 : 240); }
@@ -3188,7 +3216,7 @@
             importEnts.push(viewer.entities.add({ polygon: {
                 hierarchy: Cesium.Cartesian3.fromDegreesArray(ringFlat(massPts)),
                 height: baseH, extrudedHeight: baseH + floorsTot,
-                material: Cesium.Color.fromBytes(massBright, massBright, massBright, 255), outline: true, outlineColor: Cesium.Color.fromBytes(110, 110, 110, 220)
+                material: Cesium.Color.fromBytes(massBright, massBright, massBright, massAlpha), outline: true, outlineColor: Cesium.Color.fromBytes(110, 110, 110, 220)
             }}));
         }
         if (!simple && coreOn && m.core && m.core.W > 0 && m.core.D > 0) {   // 코어 박스(규모와 독립). 드래그 중엔 생략.
@@ -3197,7 +3225,7 @@
             importEnts.push(viewer.entities.add({ polygon: {
                 hierarchy: Cesium.Cartesian3.fromDegreesArray(ringFlat(corePts)),
                 height: baseH, extrudedHeight: baseH + floorsTot,
-                material: Cesium.Color.fromBytes(140, 140, 144, 255), outline: true, outlineColor: Cesium.Color.fromBytes(80, 80, 84, 255)
+                material: Cesium.Color.fromBytes(coreBright, coreBright, coreBright, coreAlpha), outline: true, outlineColor: Cesium.Color.fromBytes(80, 80, 84, 255)
             }}));
         }
         // 공유 텍스처 재질(같은 dataURL → Cesium 텍스처 캐시 재사용)
@@ -3265,7 +3293,7 @@
                 importEnts.push(viewer.entities.add({ polygon: {
                     hierarchy: slabFlat,
                     height: lvl - slabT / 2, extrudedHeight: lvl + slabT / 2,
-                    material: Cesium.Color.fromBytes(slabBright, slabBright, slabBright, 255), outline: true, outlineColor: Cesium.Color.fromBytes(90, 90, 95, 255)
+                    material: Cesium.Color.fromBytes(slabBright, slabBright, slabBright, slabAlpha), outline: true, outlineColor: Cesium.Color.fromBytes(90, 90, 95, 255)
                 }}));
             }
         }
@@ -3277,6 +3305,7 @@
         // 카메라 이동은 '새 모델 최초 수신' 때만 — 회전·밝기·토글 재렌더 시엔 시점 유지.
         if (fly) {
             try {
+                usePersp();   // 새 모델 자동 시점은 원근
                 var c0 = toLL(0, 0);
                 viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(c0[0], c0[1] - 0.0013, baseH + floorsTot + 130),
                     orientation: { heading: 0, pitch: Cesium.Math.toRadians(-32), roll: 0 }, duration: 0.8 });
@@ -3284,10 +3313,8 @@
         }
     }
     function updateImportStatus(m) {
-        var sizeStr = (m.mass.shape === "poly") ? "부정형 footprint" : (m.mass.W + " × " + m.mass.D + " m");
         var st = document.getElementById("impStatus"); if (st) st.textContent = "수신됨";
-        var ms = document.getElementById("impMass"); if (ms) ms.textContent = sizeStr + " · " + m.floors + "층 × " + m.floorH + "m";
-        var md = document.getElementById("impMods"); if (md) md.textContent = (m.modules ? m.modules.length : 0) + "개 · frame " + m.frame.W + "×" + m.frame.D + "×" + m.frame.H + "mm";
+        updateSpec(m);
         var vf = document.getElementById("vcFloor");   // 뷰체크 층 슬라이더 범위 = 모델 층수
         if (vf) { vf.max = Math.max(1, m.floors || 1); if (Number(vf.value) > vf.max) vf.value = vf.max; var vl = document.getElementById("vcFloorVal"); if (vl) vl.textContent = vf.value + "층"; }
     }
@@ -3394,10 +3421,6 @@
             frame: { W: frameW, D: frameD, H: frameH }, fit: { from: fitFrom, to: fitTo }, modules: modules
         };
     }
-    function onJsonToggle() {
-        var on = document.getElementById("jsonLoadToggle").checked;
-        var row = document.getElementById("jsonLoadRow"); if (row) row.style.display = on ? "block" : "none";
-    }
     function onJsonFile(ev) {
         var f = ev.target.files && ev.target.files[0], st = document.getElementById("jsonLoadStatus");
         if (!f) return;
@@ -3409,8 +3432,9 @@
             if (!m || !m.modules.length) { if (st) st.textContent = "변환 실패: 모듈을 만들지 못했습니다(면 선택·규모·층 확인)."; return; }
             var ready = siteBoundaryCoords && siteBoundaryCoords.length >= 3;
             lastModel = m; updateImportStatus(m);
+            addRecvModel(f.name || "JSON", m);   // 불러온 목록에 추가
             if (ready) renderImportedModel(m, true, moveMode);
-            if (st) st.textContent = "불러옴 · 모듈 " + m.modules.length + "개" + (ready ? "" : " — ‘위치·대지’에서 주소 검색 시 배치됩니다.");
+            if (st) st.textContent = "불러옴 · 모듈 " + m.modules.length + "개" + (ready ? "" : " — ‘대지’ 탭에서 주소 검색 시 배치됩니다.");
         };
         rd.readAsText(f);
     }
@@ -3423,7 +3447,7 @@
         if (lastModel) renderImportedModel(lastModel, false, moveMode);
     }
     // 슬래브(각 층 바닥·천장 판)
-    var slabOn = false, slabThickMm = 200, slabBright = 205;
+    var slabOn = false, slabThickMm = 200, slabBright = 205, slabAlpha = 255;
     function onSlabToggle() {
         slabOn = document.getElementById("slabOn").checked;
         if (lastModel) renderImportedModel(lastModel, false, moveMode);
@@ -3438,12 +3462,64 @@
         var v = document.getElementById("slabBrightVal"); if (v) v.textContent = slabBright;
         if (lastModel) renderImportedModel(lastModel, false, moveMode);
     }
+    // 매스/코어/슬래브 불투명도(%)·코어 밝기
+    function _pctA(id) { return Math.round((Number(document.getElementById(id).value) || 0) / 100 * 255); }
+    function onMassAlpha() { massAlpha = _pctA("massAlphaRange"); var v = document.getElementById("massAlphaVal"); if (v) v.textContent = document.getElementById("massAlphaRange").value + "%"; if (lastModel) renderImportedModel(lastModel, false, moveMode); }
+    function onCoreBright() { coreBright = Number(document.getElementById("coreBrightRange").value) || 0; var v = document.getElementById("coreBrightVal"); if (v) v.textContent = coreBright; if (lastModel) renderImportedModel(lastModel, false, moveMode); }
+    function onCoreAlpha() { coreAlpha = _pctA("coreAlphaRange"); var v = document.getElementById("coreAlphaVal"); if (v) v.textContent = document.getElementById("coreAlphaRange").value + "%"; if (lastModel) renderImportedModel(lastModel, false, moveMode); }
+    function onSlabAlpha() { slabAlpha = _pctA("slabAlphaRange"); var v = document.getElementById("slabAlphaVal"); if (v) v.textContent = document.getElementById("slabAlphaRange").value + "%"; if (lastModel) renderImportedModel(lastModel, false, moveMode); }
     // 탭 B 서브탭 전환
     function bTab(name) {
-        ["recv", "mass", "slab", "cart", "pattern"].forEach(function(n) {
+        ["recv", "mass", "cart", "pattern"].forEach(function(n) {
             var p = document.getElementById("bp-" + n); if (p) p.style.display = (n === name) ? "block" : "none";
             var b = document.getElementById("bt-" + n); if (b) b.classList.toggle("on", n === name);
         });
+    }
+    // 수신 모델 하위탭(입력/사양/불러온 목록)
+    function rTab(name) {
+        ["input", "spec", "list"].forEach(function(n) {
+            var p = document.getElementById("rp-" + n); if (p) p.style.display = (n === name) ? "block" : "none";
+            var b = document.getElementById("rt-" + n); if (b) b.classList.toggle("on", n === name);
+        });
+        if (name === "spec" && lastModel) updateSpec(lastModel);
+        if (name === "list") renderRecvList();
+    }
+    function onRecvSrc() {   // 연결 수신 / JSON 파일 라디오
+        var sel = document.querySelector('input[name="recvSrc"]:checked');
+        var on = sel && sel.value === "json";
+        var row = document.getElementById("jsonLoadRow"); if (row) row.style.display = on ? "block" : "none";
+    }
+    // 수신 모델 사양 표시(평면·층고·층수·프레임·모듈 유형별 개수)
+    function updateSpec(m) {
+        if (!m) return;
+        var set = function(id, t) { var e = document.getElementById(id); if (e) e.textContent = t; };
+        set("spPlane", (m.mass.shape === "poly") ? "부정형 footprint" : (m.mass.W + " × " + m.mass.D + " m"));
+        set("spFloorH", (m.floorH != null ? m.floorH : "–") + " m");
+        set("spFloors", (m.floors != null ? m.floors : "–") + " 층");
+        set("spFrame", m.frame ? (m.frame.W + " × " + m.frame.D + " × " + m.frame.H + " mm") : "–");
+        var c = { skin: 0, hvac: 0, door: 0, none: 0, corner: 0, fill: 0 };
+        (m.modules || []).forEach(function(u) { if (u.mode === "fill") c.fill++; else if (u.type && c[u.type] != null) c[u.type]++; });
+        set("spCount", (m.modules ? m.modules.length : 0) + "개  (스킨 " + c.skin + " · 공조 " + c.hvac + " · 도어 " + c.door + " · 없음 " + c.none + " · 코너 " + (c.corner + c.fill) + ")");
+    }
+    // 이번 세션에 수신/불러온 모델 목록(드롭다운)
+    var recvModels = [];
+    function addRecvModel(name, m) {
+        recvModels.push({ name: name, model: m });
+        if (recvModels.length > 20) recvModels.shift();
+        renderRecvList();
+    }
+    function renderRecvList() {
+        var sel = document.getElementById("recvList"); if (!sel) return;
+        if (!recvModels.length) { sel.innerHTML = '<option value="">— 아직 없음 —</option>'; return; }
+        sel.innerHTML = "";
+        recvModels.forEach(function(r, i) { var o = document.createElement("option"); o.value = String(i); o.textContent = (i + 1) + ". " + r.name; sel.appendChild(o); });
+        sel.value = String(recvModels.length - 1);
+    }
+    function onRecvListPick() {
+        var sel = document.getElementById("recvList"); if (!sel || sel.value === "") return;
+        var r = recvModels[parseInt(sel.value, 10)]; if (!r) return;
+        lastModel = r.model; updateImportStatus(r.model);
+        if (siteBoundaryCoords && siteBoundaryCoords.length >= 3) renderImportedModel(r.model, true, moveMode);
     }
     function applyPlace() { if (lastModel) renderImportedModel(lastModel, false, moveMode); }
     function onImportRot() {
@@ -3486,6 +3562,7 @@
     }
     function interiorView() {
         if (!viewer) return;
+        usePersp();   // 실내뷰는 원근(투시)
         if (!lastModel || !lastPlace) { alert("먼저 massing studio 모델을 받아 배치하세요."); return; }
         var floors = lastModel.floors || 1, floorH = lastModel.floorH || 4;
         var n = Math.max(1, Math.min(floors, Number((document.getElementById("vcFloor") || {}).value) || 1));
@@ -3537,12 +3614,85 @@
         var d = ev.data; if (!d || d.type !== "fitModel") return;
         var isNew = !lastModel || lastModel.ts !== d.ts;
         lastModel = d;
-        updateImportStatus(d);   // 상태·규모·FIT모듈 갱신(보내기 = 모델 전달 + 화면전환)
+        updateImportStatus(d);   // 상태·사양 갱신(보내기 = 모델 전달 + 화면전환)
+        if (isNew) addRecvModel("연결 수신 " + new Date().toLocaleTimeString(), d);  // 불러온 목록에 추가
         // 대지가 이미 잡혀있으면 즉시 배치, 아니면 ‘여기로 불러오기’(검색) 때 배치
         if (siteBoundaryCoords && siteBoundaryCoords.length >= 3) renderImportedModel(d, isNew, moveMode);
     });
     loadTex("cart-1.png", "c1"); loadTex("cart-2.png", "c2"); loadTex("cart-air.png", "air");
     loadTex("frame-1.png", "f1"); loadTex("frame-2.png", "f2"); loadTex("frame-3.png", "f3"); loadTex("frame-4.png", "f4");
+
+    // ===== 기본 뷰 프리셋 (대지 위치·건물 규모 기준 항공2·로드뷰2) =====
+    function siteCenter() {   // {lon,lat,baseH}
+        if (lastPlace) return { lon: lastPlace.lon, lat: lastPlace.lat, baseH: lastPlace.baseH || 0 };
+        if (siteBoundaryCoords && siteBoundaryCoords.length >= 3) {
+            var slon = 0, slat = 0; siteBoundaryCoords.forEach(function (c) { slon += c.lon; slat += c.lat; });
+            return { lon: slon / siteBoundaryCoords.length, lat: slat / siteBoundaryCoords.length, baseH: 0 };
+        }
+        return null;
+    }
+    // 정사투영(orthographic) 전환 — 정사투영 + roll 0 이면 건물 세로 모서리가 화면에서 정확히 수직.
+    var _perspFrustum = null;
+    function useOrtho(width) {
+        var cam = viewer.camera;
+        if (!(cam.frustum instanceof Cesium.OrthographicFrustum)) {
+            _perspFrustum = cam.frustum;
+            var f = new Cesium.OrthographicFrustum();
+            f.aspectRatio = viewer.scene.canvas.clientWidth / Math.max(1, viewer.scene.canvas.clientHeight);
+            f.width = width; f.near = 1.0; f.far = 1e7;
+            cam.frustum = f;
+        } else { cam.frustum.width = width; }
+    }
+    function usePersp() {   // 원근(투시) 복귀
+        var cam = viewer.camera;
+        if (_perspFrustum && (cam.frustum instanceof Cesium.OrthographicFrustum)) { cam.frustum = _perspFrustum; _perspFrustum = null; }
+    }
+    // 대지 4코너 뷰 + 방위 자동 명명 (브이월드 절대 북 기준 8방위)
+    var cornerViews = [];   // [{lon,lat,name}]
+    function compass8(brgDeg) {
+        var labels = ["북", "북동", "동", "남동", "남", "남서", "서", "북서"];
+        return labels[Math.round((((brgDeg % 360) + 360) % 360) / 45) % 8];
+    }
+    function updateCornerPresets() {   // 대지 경계 바뀔 때 호출 → 4코너 산출 + 버튼 라벨 갱신
+        cornerViews = [];
+        var ctr = siteCenter();
+        if (ctr && siteBoundaryCoords && siteBoundaryCoords.length >= 3) {
+            var mPerLon = 111320 * Math.cos(ctr.lat * Math.PI / 180);
+            [[1, 1], [1, -1], [-1, -1], [-1, 1]].forEach(function (d) {   // NE·SE·SW·NW 대각으로 가장 먼 정점 = 코너
+                var best = null, bv = -Infinity;
+                siteBoundaryCoords.forEach(function (p) {
+                    var ex = (p.lon - ctr.lon) * mPerLon, ny = (p.lat - ctr.lat) * 111320, v = ex * d[0] + ny * d[1];
+                    if (v > bv) { bv = v; best = p; }
+                });
+                if (best) {
+                    var ex2 = (best.lon - ctr.lon) * mPerLon, ny2 = (best.lat - ctr.lat) * 111320;
+                    cornerViews.push({ lon: best.lon, lat: best.lat, name: compass8(Math.atan2(ex2, ny2) * 180 / Math.PI) });
+                }
+            });
+        }
+        for (var i = 0; i < 4; i++) {
+            var b = document.getElementById("fitCorner" + i);
+            if (b) b.textContent = cornerViews[i] ? (cornerViews[i].name + " 코너") : ("코너 " + (i + 1));
+        }
+    }
+    function flyCorner(i) {
+        if (!viewer) return;
+        var ctr = siteCenter();
+        if (!ctr) { alert("먼저 ‘대지’ 탭에서 주소를 불러오세요."); return; }
+        var W = (lastModel && lastModel.mass && lastModel.mass.W) || 40;
+        var D = (lastModel && lastModel.mass && lastModel.mass.D) || 30;
+        var H = lastModel ? ((lastModel.floors || 1) * (lastModel.floorH || 4)) : 30;
+        var mPerLon = 111320 * Math.cos(ctr.lat * Math.PI / 180), span = Math.max(W, D);
+        var cv = cornerViews[i], ex, ny;
+        if (cv) { ex = (cv.lon - ctr.lon) * mPerLon; ny = (cv.lat - ctr.lat) * 111320; }
+        else { var dd = [[1, 1], [1, -1], [-1, -1], [-1, 1]][i] || [1, 1]; ex = dd[0]; ny = dd[1]; }
+        var n = Math.hypot(ex, ny) || 1; ex /= n; ny /= n;                       // 센터→코너 단위벡터(동,북)
+        var L = Math.max(span, H) * 1.7 + 50;                                    // 코너 밖으로 후퇴
+        var lon = ctr.lon + ex * L / mPerLon, lat = ctr.lat + ny * L / 111320;
+        // 카메라를 수평(pitch 0)으로 → 세로 모서리 수직 유지, 코너에서 봐서 두 면 = 2점투시
+        usePersp();
+        viewer.camera.setView({ destination: Cesium.Cartesian3.fromDegrees(lon, lat, ctr.baseH + H * 0.5), orientation: { heading: Math.atan2(-ex, -ny), pitch: 0, roll: 0 } });
+    }
 
     // ===== 카메라 뷰 임시저장 (최대 5개) =====
     var camViews = [];
