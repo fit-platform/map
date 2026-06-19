@@ -755,7 +755,7 @@ const ACC_O=0xe68d39;
   const yb=0.02, tw=0.14*gR, tl=0.78*gR, hb=0.05*gR;
   grp.add(flatTri([0,yb,-tl, -tw,yb,hb, tw,yb,hb], 0xe23b2e));   // 북(빨강)
   grp.add(flatTri([0,yb, tl, -tw,yb,-hb, tw,yb,-hb], 0x9aa0a8)); // 남(회색)
-  gScene.add(grp);
+  gScene.add(grp); try{window.__seCompass=grp;}catch(e){}
 })();
 let _gizKey='', _gizVX=18, _gizVY=0, _uiScale=1;
 function renderGizmo(){ if(document.body.classList.contains('calc-mode'))return;
@@ -1569,11 +1569,13 @@ function buildPlan(){ wake(); const svg=$('plansvg'); if(!svg)return; while(svg.
     if(bt!=='noframe' && dispDoor(c.key,0)){ const cc=mk('circle',{cx:SX(c.Vx),cy:SZ(c.Vz),r:5,fill:TYPE_COL.door,stroke:'#fff','stroke-width':1}); cc.style.pointerEvents='none'; svg.appendChild(cc); } });
   // 방위 (상단 띠, 평면은 북=위 고정, 3D와 동일한 주황/투명 스타일)
   const gx=275, gy=24, gr=13;
-  svg.appendChild(mk('circle',{cx:gx,cy:gy,r:gr,fill:'rgba(230,141,57,0.08)',stroke:'#e68d39','stroke-width':1.3,'stroke-opacity':0.75}));
+  const _compG=mk('g',{transform:'rotate('+(window.__planNorthDeg||0)+','+gx+','+gy+')'});
+  _compG.appendChild(mk('circle',{cx:gx,cy:gy,r:gr,fill:'rgba(230,141,57,0.08)',stroke:'#e68d39','stroke-width':1.3,'stroke-opacity':0.75}));
   // 나침반 바늘: 북(빨강·위) / 남(회색·아래)
-  svg.appendChild(mk('polygon',{points:gx+','+(gy+gr-3)+' '+(gx-2.2)+','+(gy-1)+' '+(gx+2.2)+','+(gy-1),fill:'#9aa0a8'}));
-  svg.appendChild(mk('polygon',{points:gx+','+(gy-gr+3)+' '+(gx-2.2)+','+(gy+1)+' '+(gx+2.2)+','+(gy+1),fill:'#e23b2e'}));
-  svg.appendChild(mk('circle',{cx:gx,cy:gy,r:1.8,fill:'#e68d39'}));
+  _compG.appendChild(mk('polygon',{points:gx+','+(gy+gr-3)+' '+(gx-2.2)+','+(gy-1)+' '+(gx+2.2)+','+(gy-1),fill:'#9aa0a8'}));
+  _compG.appendChild(mk('polygon',{points:gx+','+(gy-gr+3)+' '+(gx-2.2)+','+(gy+1)+' '+(gx+2.2)+','+(gy+1),fill:'#e23b2e'}));
+  _compG.appendChild(mk('circle',{cx:gx,cy:gy,r:1.8,fill:'#e68d39'}));
+  svg.appendChild(_compG);
   renderPlanSelTag();
 }
 function paintBay(face,bay,floor){ if(floor!=null && unitMode==='floor'){ editFloor=clamp(floor,fitFrom,fTopEff()); floorUI(); modeLine(); }
@@ -5670,6 +5672,74 @@ window.FitCalcApp = App;
   else init();
 })();
 
+</script>
+
+<!-- ===== 대지 최장변 자동 정렬 (SE_3D x VWORLD 통합) ===== -->
+<script>
+(function(){
+  function V(){ return window.VWorldContext; }
+  function longestEdgeRad(){
+    var v=V(); if(!v||!v.state||!v.state.siteGroup) return null;
+    var best=null, bestL=-1;
+    v.state.siteGroup.traverse(function(o){
+      var g=o.geometry; if(!g||!g.attributes||!g.attributes.position) return;
+      if(!(o.isLine||o.isLineLoop||o.isLineSegments)) return;
+      var pa=g.attributes.position, n=pa.count; if(n<2) return;
+      for(var i=0;i<n;i++){
+        var j=(i+1)%n;
+        var dx=pa.getX(j)-pa.getX(i), dz=pa.getZ(j)-pa.getZ(i);
+        var L=dx*dx+dz*dz;
+        if(L>bestL){ bestL=L; best=[dx,dz]; }
+      }
+    });
+    if(!best||bestL<=1e-6) return null;
+    return Math.atan2(best[1], best[0]); // scene XZ 라디안
+  }
+  function normDeg(d){ while(d>90) d-=180; while(d<=-90) d+=180; return d; }
+  function align(){
+    var v=V(); if(!v||!v.state||!v.state.rootGroup) return false;
+    var a=longestEdgeRad(); if(a==null) return false;
+    var deg=normDeg(a*180/Math.PI); // 최장변을 X축(건물 폭)에 평행
+    v.state.xform.rot = deg;
+    v.state.rootGroup.rotation.y = deg*Math.PI/180;
+    syncCompass();
+    return true;
+  }
+  var _lastNorth=null;
+  function syncCompass(){ try{ var v=V(); if(!v||!v.state||!v.state.rootGroup) return; var ry=v.state.rootGroup.rotation.y; if(window.__seCompass) window.__seCompass.rotation.y=ry; var deg=ry*180/Math.PI; if(_lastNorth===null || Math.abs(deg-_lastNorth)>0.01){ _lastNorth=deg; window.__planNorthDeg=-deg; if(typeof buildPlan==='function'){ try{ buildPlan(); }catch(e){} } } }catch(e){} }
+  var AUTO=true, CTX_ON=true, lastSig='';
+  function nbrHideMarkers(){ try{ var g=V().state.neighborsGroup; if(!g) return; g.visible=true; g.children.forEach(function(ch){ if(ch.userData && ch.userData.nIdx!==undefined) ch.visible=false; }); }catch(e){} }
+  function drawNbrContext(){ try{ var v=V(); if(!v||!v.state||!v.state.site) return; var cb=document.getElementById('fitCtxAddMode'); if(!cb) return; cb.checked=true; cb.dispatchEvent(new Event('change')); v.state.addMode=false; var t=0; var iv=setInterval(function(){ t++; var g=v.state.neighborsGroup; if(g&&g.children&&g.children.length>0){ nbrHideMarkers(); v.state.addMode=false; try{cb.checked=false;}catch(e){} clearInterval(iv); } else if(t>40){ clearInterval(iv); try{ v.state.addMode=false; cb.checked=false; }catch(e){} } }, 200); }catch(e){} }
+  function hideNbrContext(){ try{ var g=V().state.neighborsGroup; if(g) g.visible=false; }catch(e){} }
+  function applyContext(){ try{ var v=V(); if(!v||!v.state||!v.state.site) return; if(v.showBuildings) v.showBuildings(0); if(v.showGround) v.showGround(0); if(CTX_ON){ drawNbrContext(); } else { hideNbrContext(); } }catch(e){} }
+  function sig(){
+    var v=V(); if(!v||!v.state||!v.state.site) return '';
+    var st=v.state.site, ps=(st.parcels||[]);
+    try{ return ps.map(function(p){return (p.ring&&p.ring.length)||0;}).join(',')+'|'+(st.lon0||'')+','+(st.lat0||''); }catch(e){ return ''; }
+  }
+  setInterval(function(){
+    syncCompass();
+    var x=sig();
+    if(x && x!==lastSig){ lastSig=x; if(AUTO) setTimeout(align, 80); if(CTX_ON) setTimeout(applyContext, 200); }
+  }, 350);
+  window.alignBuildingToSite = align;
+  window.setAutoAlignToSite = function(on){ AUTO=!!on; if(AUTO) lastSig=''; };
+  window.setContext = function(on){ CTX_ON=!!on; applyContext(); };
+  function addToggle(){
+    if(document.getElementById('seAlignToggle')) return;
+    var b=document.createElement('button');
+    b.id='seAlignToggle'; b.textContent='\uB300\uC9C0 \uC790\uB3D9\uC815\uB82C: ON';
+    b.style.cssText='position:fixed;left:12px;bottom:12px;z-index:99999;padding:7px 10px;font:12px/1.2 sans-serif;background:#1f2733;color:#e8eef6;border:1px solid #3a4658;border-radius:8px;cursor:pointer;opacity:.92';
+    b.onclick=function(){ AUTO=!AUTO; b.textContent='\uB300\uC9C0 \uC790\uB3D9\uC815\uB82C: '+(AUTO?'ON':'OFF'); if(AUTO){ lastSig=''; } };
+    document.body.appendChild(b);
+    var c=document.createElement('button');
+    c.id='seCtxToggle'; c.textContent='\uC8FC\uBCC0 \uCEE8\uD14D\uC2A4\uD2B8: ON';
+    c.style.cssText='position:fixed;left:12px;bottom:46px;z-index:99999;padding:7px 10px;font:12px/1.2 sans-serif;background:#1f2733;color:#e8eef6;border:1px solid #3a4658;border-radius:8px;cursor:pointer;opacity:.92';
+    c.onclick=function(){ CTX_ON=!CTX_ON; c.textContent='\uC8FC\uBCC0 \uCEE8\uD14D\uC2A4\uD2B8: '+(CTX_ON?'ON':'OFF'); applyContext(); };
+    document.body.appendChild(c);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', addToggle); else addToggle();
+})();
 </script>
 </body>
 </html>
