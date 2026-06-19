@@ -2109,6 +2109,7 @@ function fitPanel(){
   const sW=Math.max(0.5, Math.min(_SMAX, (window.innerWidth - sideMargin - MID_GAP)/denomH));
   const s=Math.min(sV, sW);
   _uiScale=s;
+  window._VWUI_S=s; if(window._vwReapply) window._vwReapply();
   const wRatio=Math.min(1, _leftWmax/_topWmax), sTop=s*wRatio;   // 상단 클러스터 폭=하단 패널 폭
   if(step===6){
     // 06: 01~05와 동일 배율로 보고서 컬럼·브랜드·하단 버튼 축소
@@ -4472,7 +4473,7 @@ window.FitCalcApp = App;
 })();
 </script>
 
-<!-- ===== VWORLD 주변 컨텍스트 모듈 (vworld_context.js inline) ===== -->
+<!-- ===== VWORLD 데이터 모듈 (vworld_context.js inline) ===== -->
 <script>
 /* =====================================================================
  * FIT · VWORLD 컨텍스트 모듈 (vworld_context.js)
@@ -5236,8 +5237,9 @@ window.FitCalcApp = App;
       '.vwui .pre{display:flex;flex-wrap:wrap;gap:5px;margin:9px 0 0;}' +
       '.vwui .pre b{font:inherit;font-size:10px;font-weight:500;letter-spacing:.02em;padding:4px 8px;border:1px solid var(--line,#dcdcd6);border-radius:2px;background:#fff;color:var(--sub,#555);cursor:pointer;}' +
       '.vwui .pre b:hover{border-color:var(--accent,#e68d39);color:var(--text,#111);}' +
-      '.vwui .addmode{display:flex;align-items:flex-start;gap:8px;margin-top:0;font-size:12px;color:var(--text,#111);font-weight:500;cursor:pointer;line-height:1.45;}' +
-      '.vwui .addmode input{width:15px;height:15px;accent-color:var(--accent,#e68d39);flex:0 0 auto;margin-top:1px;}' +
+      '.vwui .addmode{display:block;width:100%;text-align:center;padding:9px 8px;font-size:11px;font-weight:600;letter-spacing:.02em;border:1px solid var(--accent,#e68d39);border-radius:3px;background:transparent;color:var(--accent,#e68d39);cursor:pointer;line-height:1.35;margin-top:0;}' +
+      '.vwui .addmode.on,.vwui .addmode:has(input:checked){background:var(--accent,#e68d39);color:#fff;}' +
+      '.vwui .addmode input{display:none;}' +
       '.vwui .cnt{display:block;font-size:11px;color:var(--accent,#e68d39);font-weight:600;margin-top:5px;}' +
       '.vwui .addrow{display:flex;align-items:center;gap:8px;margin-top:7px;}' +
       '.vwui .addrow button{font:inherit;font-size:11px;font-weight:600;padding:6px 12px;border:1px solid var(--line,#dcdcd6);background:#fff;color:var(--sub,#555);border-radius:2px;cursor:pointer;}' +
@@ -5264,8 +5266,9 @@ window.FitCalcApp = App;
       '.vwui .seg button:first-child{border-left:none;}' +
       '.vwui .seg button.on{background:var(--accent,#e68d39);color:#fff;font-weight:600;}' +
       '.vwui .delrow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;font-size:12px;color:var(--sub,#555);}' +
-      '.vwui .delrow label{display:flex;align-items:center;gap:8px;cursor:pointer;}' +
-      '.vwui .delrow input{width:15px;height:15px;accent-color:#d9534f;}' +
+      '.vwui .delrow label{flex:1;text-align:center;padding:8px 6px;font-size:11px;font-weight:600;letter-spacing:.02em;border:1px solid var(--accent,#e68d39);border-radius:3px;background:transparent;color:var(--accent,#e68d39);cursor:pointer;}' +
+      '.vwui .delrow label.on,.vwui .delrow label:has(input:checked){background:var(--accent,#e68d39);color:#fff;}' +
+      '.vwui .delrow input{display:none;}' +
       '.vwui .delrow button{font:inherit;font-size:11px;font-weight:600;letter-spacing:.02em;padding:6px 12px;border:1px solid var(--line,#dcdcd6);background:#fff;color:var(--sub,#555);border-radius:2px;cursor:pointer;}' +
       '.vwui .delrow button:hover{border-color:var(--accent,#e68d39);color:var(--text,#111);}' +
       '.vwui .tog{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:12px;color:var(--sub,#555);}' +
@@ -5283,9 +5286,11 @@ window.FitCalcApp = App;
       '.vwui .vwrz-t{left:12px;right:12px;top:-3px;height:8px;cursor:ns-resize;}' +
       '.vwui .vwrz-bl{left:0;bottom:0;width:14px;height:14px;cursor:nesw-resize;border-left:2px solid var(--accent,#e68d39);border-bottom:2px solid var(--accent,#e68d39);border-bottom-left-radius:4px;opacity:.55;}' +
       '.vwui .vwrz-tl{left:0;top:0;width:14px;height:14px;cursor:nwse-resize;border-left:2px solid var(--accent,#e68d39);border-top:2px solid var(--accent,#e68d39);border-top-left-radius:4px;opacity:.55;}' +
+      '.vwui .xfbtns{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;}' +
+      '.vwui .xform .xfbtns button{margin-top:0;padding:11px 18px;font-size:12px;font-weight:600;}' +
       '#fitCtxPanel{top:174px;right:28px;left:auto;width:328px;}#fitCtxPanelB{top:auto;left:auto;right:28px;bottom:26px;}' +
       '</style>' +
-      '<h4><span class="d"></span>주변 컨텍스트 (VWORLD)</h4>' +
+      '<h4><span class="d"></span>데이터 (VWORLD)</h4>' +
       // 1) 대지 불러오기
       '<div class="sectit first">대지 불러오기</div>' +
       '<div class="ci"><input id="fitCtxAddr" type="text" placeholder="도로명/지번 주소" autocomplete="off">' +
@@ -5329,7 +5334,9 @@ window.FitCalcApp = App;
     document.body.appendChild(wrap);
 
     try{
-      var _VWBASE=1.2;
+      var _VWBASE=1;
+      window._vwAps = window._vwAps || [];
+      window._vwReapply = function(){ var a=window._vwAps||[]; for(var i=0;i<a.length;i++){ try{a[i]();}catch(_){} } };
       function _vwZoom(pn, org, vEdge, growY){
         if(!pn) return; var sc=1;
         pn.style.transformOrigin=org;
@@ -5337,7 +5344,7 @@ window.FitCalcApp = App;
         bar.innerHTML='<button class="vwzb" type="button">−</button><span class="vwzl">100%</span><button class="vwzb" type="button">＋</button>';
         pn.appendChild(bar);
         var bs=bar.getElementsByClassName('vwzb'), lb=bar.getElementsByClassName('vwzl')[0];
-        function ap(){ pn.style.transform='scale('+(_VWBASE*sc)+')'; lb.textContent=Math.round(sc*100)+'%'; }
+        function ap(){ var us=window._VWUI_S||1; pn.style.transform='scale('+(us*_VWBASE*sc)+')'; lb.textContent=Math.round(sc*100)+'%'; }
         function setSc(v){ sc=Math.max(0.85, Math.min(2.0, Math.round(v*100)/100)); ap(); }
         bs[0].onclick=function(e){ e.stopPropagation(); setSc(sc-0.05); };
         bs[1].onclick=function(e){ e.stopPropagation(); setSc(sc+0.05); };
@@ -5357,10 +5364,11 @@ window.FitCalcApp = App;
         mkH('vwrz-l',1,0);
         mkH(vEdge==='b'?'vwrz-b':'vwrz-t',0,1);
         mkH(vEdge==='b'?'vwrz-bl':'vwrz-tl',1,1);
+        window._vwAps.push(ap);
         ap();
       }
-      _vwZoom(wrap, 'top right', 'b', 1);
-      _vwZoom(document.getElementById('fitCtxPanelB'), 'bottom right', 't', -1);
+      _vwZoom(wrap, 'right top', 'b', 1);
+      _vwZoom(document.getElementById('fitCtxPanelB'), 'right bottom', 't', -1);
     }catch(e){}
 
     EL.addr = document.getElementById("fitCtxAddr");
@@ -5430,7 +5438,7 @@ window.FitCalcApp = App;
       min.textContent = collapsed ? "+" : "—";
     };
   }
-  function status(msg) { if (EL.st) EL.st.textContent = msg; }
+  function status(msg) { var _b=document.getElementById('seCtxStat'); if(_b){ _b.textContent = (String(msg).indexOf('데이터')===0?String(msg):'데이터: '+msg); } }
 
   // ── 클릭 픽킹(인접 ＋합필 / 건물 삭제) ──
   // 핵심: pointerdown에서 '잡을 것'을 판정해 sangeun으로의 전파를 차단(드래그 시작 방지),
@@ -5792,8 +5800,8 @@ window.FitCalcApp = App;
   var AUTO=true, CTX_ON=true, lastSig='', lastParcelCount=0, progDance=false;
   function nbrHideMarkers(){ try{ var g=V().state.neighborsGroup; if(!g) return; g.visible=true; g.children.forEach(function(ch){ if(ch.userData && ch.userData.nIdx!==undefined) ch.visible=false; }); }catch(e){} }
   function seStat(m){ try{ var e=document.getElementById('seCtxStat'); if(e) e.textContent=m; }catch(_){} }
-  function drawNbrContext(){ try{ var v=V(); if(!v||!v.state||!v.state.site){ seStat('주변 컨텍스트: 대지 없음'); return; } var t0=Date.now(); seStat('주변 컨텍스트: 인접 필지 불러오는 중…'); var t=0; var iv=setInterval(function(){ t++; var g=v.state.neighborsGroup; if(g) g.visible=true; var ln=(g&&g.children)?g.children.length:0; var nn=(v.state.neighbors&&v.state.neighbors.length)||0; if(ln>0 && nn>0){ clearInterval(iv); var sec=((Date.now()-t0)/1000).toFixed(1); seStat('주변 컨텍스트: 인접 '+nn+'필지 ('+sec+'초)'); } else if(t>80){ clearInterval(iv); var pc=(v.state.parcelCache&&v.state.parcelCache.length)||0; seStat(pc?('주변 컨텍스트: 인접 필지 없음 — 데이터 '+pc+'건, 인접범위 밖'):'주변 컨텍스트: 필지 데이터 미수신 — API 응답 없음'); } }, 150); }catch(e){ seStat('주변 컨텍스트: 오류'); } }
-  function hideNbrContext(){ try{ var g=V().state.neighborsGroup; if(g) g.visible=false; seStat('주변 컨텍스트: OFF'); }catch(e){} }
+  function drawNbrContext(){ try{ var v=V(); if(!v||!v.state||!v.state.site){ seStat('데이터: 대지 없음'); return; } var t0=Date.now(); seStat('데이터: 인접 필지 불러오는 중…'); var t=0; var iv=setInterval(function(){ t++; var g=v.state.neighborsGroup; if(g) g.visible=true; var ln=(g&&g.children)?g.children.length:0; var nn=(v.state.neighbors&&v.state.neighbors.length)||0; if(ln>0 && nn>0){ clearInterval(iv); var sec=((Date.now()-t0)/1000).toFixed(1); seStat('데이터: 인접 '+nn+'필지 ('+sec+'초)'); } else if(t>80){ clearInterval(iv); var pc=(v.state.parcelCache&&v.state.parcelCache.length)||0; seStat(pc?('데이터: 인접 필지 없음 — 데이터 '+pc+'건, 인접범위 밖'):'데이터: 필지 데이터 미수신 — API 응답 없음'); } }, 150); }catch(e){ seStat('데이터: 오류'); } }
+  function hideNbrContext(){ try{ var g=V().state.neighborsGroup; if(g) g.visible=false; seStat('데이터: OFF'); }catch(e){} }
   function applyContext(){ try{ var v=V(); if(!v||!v.state||!v.state.site) return; if(v.showBuildings) v.showBuildings(false); if(v.showGround) v.showGround(false); if(CTX_ON){ drawNbrContext(); } else { hideNbrContext(); } }catch(e){} }
   function sig(){
     var v=V(); if(!v||!v.state||!v.state.site) return '';
@@ -5817,20 +5825,68 @@ window.FitCalcApp = App;
   function addToggle(){
     if(document.getElementById('seAlignToggle')) return;
     var b=document.createElement('button');
-    b.id='seAlignToggle'; b.textContent='\uB300\uC9C0 \uC790\uB3D9\uC815\uB82C: ON';
+    b.id='seAlignToggle'; b.textContent='대지 자동정렬 : ON';
     b.style.cssText='position:fixed;left:12px;bottom:12px;z-index:99999;padding:7px 10px;font:12px/1.2 sans-serif;background:#1f2733;color:#e8eef6;border:1px solid #3a4658;border-radius:8px;cursor:pointer;opacity:.92';
-    b.onclick=function(){ AUTO=!AUTO; b.textContent='\uB300\uC9C0 \uC790\uB3D9\uC815\uB82C: '+(AUTO?'ON':'OFF'); if(AUTO){ lastSig=''; } else { var _v=V(); if(_v&&_v.state){ _v.state.xform.rot=0; if(_v.state.rootGroup) _v.state.rootGroup.rotation.y=0; } syncCompass(); } };
+    b.onclick=function(){ AUTO=!AUTO; b.textContent='대지 자동정렬 : '+(AUTO?'ON':'OFF'); if(AUTO){ lastSig=''; } else { var _v=V(); if(_v&&_v.state){ _v.state.xform.rot=0; if(_v.state.rootGroup) _v.state.rootGroup.rotation.y=0; } syncCompass(); } };
     document.body.appendChild(b);
     var c=document.createElement('button');
-    c.id='seCtxToggle'; c.textContent='\uC8FC\uBCC0 \uCEE8\uD14D\uC2A4\uD2B8: ON';
+    c.id='seCtxToggle'; c.textContent='데이터: ON';
     c.style.cssText='position:fixed;left:12px;bottom:46px;z-index:99999;padding:7px 10px;font:12px/1.2 sans-serif;background:#1f2733;color:#e8eef6;border:1px solid #3a4658;border-radius:8px;cursor:pointer;opacity:.92';
-    c.onclick=function(){ CTX_ON=!CTX_ON; c.textContent='\uC8FC\uBCC0 \uCEE8\uD14D\uC2A4\uD2B8: '+(CTX_ON?'ON':'OFF'); applyContext(); };
+    c.onclick=function(){ CTX_ON=!CTX_ON; c.textContent='데이터: '+(CTX_ON?'ON':'OFF'); applyContext(); };
     var stt=document.createElement('div');
-    stt.id='seCtxStat'; stt.textContent='주변 컨텍스트: 대기';
+    stt.id='seCtxStat'; stt.textContent='데이터: 대기';
     stt.style.cssText='position:fixed;left:12px;bottom:80px;z-index:99999;max-width:300px;padding:6px 9px;font:11px/1.3 sans-serif;background:#101722;color:#a9b6c6;border:1px solid #2a3340;border-radius:8px;opacity:.93';
     document.body.appendChild(stt);
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', addToggle); else addToggle();
+  function relocateVW(){
+    try{
+      var xf=document.getElementById('fitCtxXform'), al=document.getElementById('seAlignToggle'), rs=document.getElementById('fitCtxXReset');
+      if(xf && al && rs){
+        var bw=xf.querySelector('.xfbtns'); if(!bw){ bw=document.createElement('div'); bw.className='xfbtns'; xf.appendChild(bw); }
+        if(al.parentNode!==bw){ al.style.cssText=''; al.type='button'; bw.appendChild(al); }
+        if(rs.parentNode!==bw){ bw.appendChild(rs); }
+      }
+      try{ if(step!==1){ var _amx=document.getElementById('fitCtxAddMode'); if(_amx && _amx.checked){ _amx.checked=false; _amx.dispatchEvent(new Event('change')); } } }catch(_e){}
+      var _sx=document.getElementById('fitCtxSt'); if(_sx) _sx.style.display='none';
+      var _am=document.getElementById('fitCtxAddMode'); if(_am){ var _aml=_am.closest('.addmode'); if(_aml) _aml.classList.toggle('on', _am.checked); }
+      var _dlc=document.getElementById('fitCtxDel'); if(_dlc){ var _dll=_dlc.closest('label'); if(_dll) _dll.classList.toggle('on', _dlc.checked); }
+      var tg=document.getElementById('seCtxToggle');
+      if(tg){ tg.style.left='50%'; tg.style.right='auto'; tg.style.transform='translateX(-50%)'; }
+      var st=document.getElementById('seCtxStat');
+      if(st){ st.style.left='50%'; st.style.right='auto'; st.style.transform='translateX(-50%)'; st.style.maxWidth='none'; st.style.textAlign='center'; }
+    }catch(e){}
+  }
+  function alignStat(){
+    try{
+      var st=document.getElementById('seCtxStat'); if(!st) return;
+      var navEl=null, ids=['nav1','nav2','nav3','nav4','nav5'];
+      for(var i=0;i<ids.length;i++){ var n=document.getElementById(ids[i]); if(n && !n.classList.contains('hide') && getComputedStyle(n).display!=='none'){ navEl=n; break; } }
+      if(!navEl){ var nr=document.getElementById('navReset'); if(nr && !nr.classList.contains('hide') && getComputedStyle(nr).display!=='none') navEl=nr; }
+      if(!navEl) return;
+      var btn=navEl.querySelector('button')||navEl, r=btn.getBoundingClientRect();
+      if(!r.height) return;
+      var sb=Math.max(8, window.innerHeight - r.bottom);
+      st.style.bottom=sb+'px';
+      var tg=document.getElementById('seCtxToggle');
+      if(tg){ var sh=st.getBoundingClientRect().height||28; tg.style.bottom=(sb+sh+8)+'px'; }
+    }catch(e){}
+  }
+  function positionPanelB(){
+    try{
+      var pA=document.getElementById('fitCtxPanel'), pB=document.getElementById('fitCtxPanelB'); if(!pB) return;
+      var sc=window._VWUI_S||1; var s1=false; try{ s1=(step===1); }catch(_){}
+      if(s1 && pA && getComputedStyle(pA).display!=='none'){
+        var ra=pA.getBoundingClientRect();
+        pB.style.top=(ra.bottom+8)+'px'; pB.style.bottom='auto'; pB.style.right='28px'; pB.style.left='auto'; pB.style.transformOrigin='right top';
+      } else {
+        var S=Math.max(46, Math.round(96*sc)); var vy=30+Math.round(38*sc); var clear=vy+S+8;
+        pB.style.top='auto'; pB.style.right='28px'; pB.style.left='auto'; pB.style.bottom=clear+'px'; pB.style.transformOrigin='right bottom';
+      }
+    }catch(e){}
+  }
+  function _vwTick(){ relocateVW(); positionPanelB(); alignStat(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ addToggle(); _vwTick(); }); else { addToggle(); _vwTick(); }
+  setInterval(_vwTick, 350);
 })();
 </script>
 </body>
