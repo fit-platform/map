@@ -411,7 +411,7 @@
         <div class="label"><span class="dot"></span>구조체</div>
 
         <!-- 매스 -->
-        <label class="check"><input type="checkbox" id="impMassOn" checked onchange="rerenderImported()"> 매스(규모) 표시</label>
+        <label class="check"><input type="checkbox" id="impMassOn" onchange="rerenderImported()"> 매스(규모) 표시</label>
         <div class="row" style="margin-top:6px;"><span class="field">밝기</span>
             <input id="massBrightRange" type="range" min="0" max="255" value="235" step="1" oninput="onMassBright()">
             <span id="massBrightVal" class="field" style="min-width:34px; text-align:right;">235</span></div>
@@ -420,13 +420,13 @@
             <span id="massAlphaVal" class="field" style="min-width:34px; text-align:right;">100%</span></div>
 
         <!-- 슬래브 -->
-        <label class="check" style="margin-top:12px;"><input type="checkbox" id="slabOn" onchange="onSlabToggle()"> 슬래브(각 층) 표시</label>
+        <label class="check" style="margin-top:12px;"><input type="checkbox" id="slabOn" checked onchange="onSlabToggle()"> 슬래브(각 층) 표시</label>
         <div class="row" style="margin-top:6px;"><span class="field">두께</span>
             <input id="slabThick" type="range" min="100" max="1000" value="200" step="10" oninput="onSlabThick()">
             <span id="slabThickVal" class="field" style="min-width:56px; text-align:right;">200 mm</span></div>
         <div class="row" style="margin-top:4px;"><span class="field">밝기</span>
-            <input id="slabBrightRange" type="range" min="0" max="255" value="205" step="1" oninput="onSlabBright()">
-            <span id="slabBrightVal" class="field" style="min-width:34px; text-align:right;">205</span></div>
+            <input id="slabBrightRange" type="range" min="0" max="255" value="100" step="1" oninput="onSlabBright()">
+            <span id="slabBrightVal" class="field" style="min-width:34px; text-align:right;">100</span></div>
         <div class="row" style="margin-top:4px;"><span class="field">불투명도</span>
             <input id="slabAlphaRange" type="range" min="0" max="100" value="100" step="1" oninput="onSlabAlpha()">
             <span id="slabAlphaVal" class="field" style="min-width:34px; text-align:right;">100%</span></div>
@@ -434,8 +434,8 @@
         <!-- 코어 -->
         <label class="check" style="margin-top:12px;"><input type="checkbox" id="impCoreOn" checked onchange="rerenderImported()"> 코어 표시</label>
         <div class="row" style="margin-top:6px;"><span class="field">밝기</span>
-            <input id="coreBrightRange" type="range" min="0" max="255" value="142" step="1" oninput="onCoreBright()">
-            <span id="coreBrightVal" class="field" style="min-width:34px; text-align:right;">142</span></div>
+            <input id="coreBrightRange" type="range" min="0" max="255" value="150" step="1" oninput="onCoreBright()">
+            <span id="coreBrightVal" class="field" style="min-width:34px; text-align:right;">150</span></div>
         <div class="row" style="margin-top:4px;"><span class="field">불투명도</span>
             <input id="coreAlphaRange" type="range" min="0" max="100" value="100" step="1" oninput="onCoreAlpha()">
             <span id="coreAlphaVal" class="field" style="min-width:34px; text-align:right;">100%</span></div>
@@ -550,8 +550,8 @@
             </div>
             <div class="row" style="margin-top:10px;">
                 <span class="field" style="min-width:48px;">가로 크기</span>
-                <input id="letterScaleX" type="range" min="20" max="300" value="100" step="5" oninput="onLetterScale()">
-                <span id="letterScaleXVal" class="field" style="min-width:36px;text-align:right;">100%</span>
+                <input id="letterScaleX" type="range" min="20" max="300" value="230" step="5" oninput="onLetterScale()">
+                <span id="letterScaleXVal" class="field" style="min-width:36px;text-align:right;">230%</span>
             </div>
             <div class="row" style="margin-top:6px;">
                 <span class="field" style="min-width:48px;">세로 크기</span>
@@ -2886,7 +2886,7 @@
     var importOffX = 0, importOffY = 0;   // 배치 이동(동서 m, 남북 m)
     var lastPlace = null;                 // 마지막 배치 중심 {lon, lat, baseH} — 뷰체크용
     var massBright = 235;                 // 매스 밝기(0~255 그레이)
-    var massAlpha = 255, coreBright = 142, coreAlpha = 255;  // 매스/코어 불투명도·코어밝기
+    var massAlpha = 255, coreBright = 150, coreAlpha = 255;  // 매스/코어 불투명도·코어밝기
     var cartRatio2 = 0.5;                 // 스킨 모듈에서 cart-2가 뽑힐 확률(0~1)
     var TYPE_COLOR = { skin:[176,172,163], hvac:[230,141,57], door:[74,134,197], none:[237,235,230], corner:[122,118,110] };
     function typeColorBytes(t) { var c = TYPE_COLOR[t] || [150,150,150]; return Cesium.Color.fromBytes(c[0], c[1], c[2], t === "none" ? 165 : 240); }
@@ -2903,10 +2903,11 @@
 
     // ── 패턴: 랜덤(cart-1·2 믹싱) / 레터링(선택 면에 글자 모양으로 cart-2 배치) ──
     var patternMode = "random";    // "random" | "lettering"
+    var _preLetterState = null;    // 레터링 진입 전 매스밝기/불투명/카트리지 값 백업(나가면 복구)
     var letterFaceKey = null;      // 레터링 적용 면 key
     var letterText = "";           // 입력 글자(한/영/숫자, 최대 2자)
     var letterShape = "";          // 프리셋 도형("" | "smiley" | "heart" | "star") — 있으면 글자 대신 도형 배치
-    var letterScaleX = 1, letterScaleY = 1;   // 글자/도형 가로·세로 크기 배율
+    var letterScaleX = 2.3, letterScaleY = 1;   // 글자/도형 가로·세로 크기 배율(가로 230% 기본)
     var letterSelectMode = false;  // 면 클릭 선택 대기 상태
     var faceMap = {};              // module idx → { key, col, row, ncols, nrows }
     var faceGeom = {};             // face key → { A, B, bot, top } (호버 하이라이트용 면 외곽)
@@ -3101,8 +3102,24 @@
             var p = document.getElementById("pp-" + n); if (p) p.style.display = (n === name) ? "block" : "none";
             var b = document.getElementById("pt-" + n); if (b) b.classList.toggle("on", n === name);
         });
+        var prev = patternMode;
         patternMode = name;
         if (name !== "lettering" && letterSelectMode) toggleLetterSelect();
+        if (name === "lettering" && prev !== "lettering") {   // 진입: 현재 값 백업 후 레터링 기본값 적용
+            _preLetterState = {
+                mb: document.getElementById("massBrightRange").value,
+                ma: document.getElementById("massAlphaRange").value,
+                cr: document.getElementById("cartRatioRange2").value
+            };
+            var mb = document.getElementById("massBrightRange"); if (mb) { mb.value = 100; onMassBright(); }   // 매스 밝기100
+            var ma = document.getElementById("massAlphaRange"); if (ma) { ma.value = 95; onMassAlpha(); }      // 불투명95
+            var cr = document.getElementById("cartRatioRange2"); if (cr) { cr.value = 0; onCartRatio(); }      // cart-1 100%
+        } else if (name !== "lettering" && prev === "lettering" && _preLetterState) {   // 이탈: 진입 전 값 복구
+            var mb2 = document.getElementById("massBrightRange"); if (mb2) { mb2.value = _preLetterState.mb; onMassBright(); }
+            var ma2 = document.getElementById("massAlphaRange"); if (ma2) { ma2.value = _preLetterState.ma; onMassAlpha(); }
+            var cr2 = document.getElementById("cartRatioRange2"); if (cr2) { cr2.value = _preLetterState.cr; onCartRatio(); }
+            _preLetterState = null;
+        }
         if (lastModel) renderImportedModel(lastModel);
     }
     function toggleLetterSelect() {
@@ -3447,7 +3464,7 @@
         if (lastModel) renderImportedModel(lastModel, false, moveMode);
     }
     // 슬래브(각 층 바닥·천장 판)
-    var slabOn = false, slabThickMm = 200, slabBright = 205, slabAlpha = 255;
+    var slabOn = true, slabThickMm = 200, slabBright = 100, slabAlpha = 255;
     function onSlabToggle() {
         slabOn = document.getElementById("slabOn").checked;
         if (lastModel) renderImportedModel(lastModel, false, moveMode);
@@ -3631,6 +3648,14 @@
         }
         return null;
     }
+    // 대지 경계 자체의 무게중심(코너 분류 기준 — lastPlace 같은 외부 중심에 영향 안 받음)
+    function parcelCentroid() {
+        if (siteBoundaryCoords && siteBoundaryCoords.length >= 3) {
+            var slon = 0, slat = 0; siteBoundaryCoords.forEach(function (c) { slon += c.lon; slat += c.lat; });
+            return { lon: slon / siteBoundaryCoords.length, lat: slat / siteBoundaryCoords.length };
+        }
+        return null;
+    }
     // 정사투영(orthographic) 전환 — 정사투영 + roll 0 이면 건물 세로 모서리가 화면에서 정확히 수직.
     var _perspFrustum = null;
     function useOrtho(width) {
@@ -3655,7 +3680,7 @@
     }
     function updateCornerPresets() {   // 대지 경계 바뀔 때 호출 → 4코너 산출 + 버튼 라벨 갱신
         cornerViews = [];
-        var ctr = siteCenter();
+        var ctr = parcelCentroid();
         if (ctr && siteBoundaryCoords && siteBoundaryCoords.length >= 3) {
             var mPerLon = 111320 * Math.cos(ctr.lat * Math.PI / 180);
             [[1, 1], [1, -1], [-1, -1], [-1, 1]].forEach(function (d) {   // NE·SE·SW·NW 대각으로 가장 먼 정점 = 코너
@@ -3677,7 +3702,8 @@
     }
     function flyCorner(i) {
         if (!viewer) return;
-        var ctr = siteCenter();
+        var pc = parcelCentroid(), sc = siteCenter();
+        var ctr = pc ? { lon: pc.lon, lat: pc.lat, baseH: (sc && sc.baseH) || 0 } : sc;
         if (!ctr) { alert("먼저 ‘대지’ 탭에서 주소를 불러오세요."); return; }
         var W = (lastModel && lastModel.mass && lastModel.mass.W) || 40;
         var D = (lastModel && lastModel.mass && lastModel.mass.D) || 30;
