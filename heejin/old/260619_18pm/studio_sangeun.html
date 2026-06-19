@@ -3488,7 +3488,99 @@ window.FitCalcApp = App;
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bind); else bind();
 })();
 </script>
-<!-- ===== FIT 컨텍스트 모듈(독립): 주소→대지 윤곽선 + VWORLD 인근 건물. 베이스 갱신 시 이 한 줄만 다시 추가 ===== -->
-<script src="modules/context/vworld_context.js"></script>
+
+<!-- ===== render studio 앱으로 모델 내보내기 (split-screen 브리지) ===== -->
+<script>
+(function(){
+  // sangeun 상단 스코프의 전역(tHalfW…, facesGeo/effType…)을 그대로 읽어 명시적 모듈 지오메트리를 만든다.
+  function buildFitModel(){
+    var W = tHalfW*2, D = tHalfD*2;
+    var poly = (footprint && footprint.length>=3) ? footprint.map(function(q){return {x:q.x, z:q.z};}) : null;
+    var floorHm = tFloorH, frameWm = frameW/1000, frameDm = frameD/1000, frameHm = frameH/1000;
+    var rowsPF = Math.max(1, frameHm>0 ? Math.floor(floorHm/frameHm) : 1);
+    var FA = facesGeo(W, D), CO = cornersGeo(W, D);
+    var modules = [];
+    FA.forEach(function(fa){
+      if(!fa || !fSel(fa.i)) return;
+      var bg = bayGeo(fa.L);
+      for(var b=0; b<bg.cols; b++){
+        var along = bg.off + (b+0.5)*bg.w;            // 면 시작점 p0에서 베이 중심까지 거리
+        var px = fa.p0x + fa.ux*along, pz = fa.p0z + fa.uz*along;
+        for(var f=fitFrom; f<=fitTo; f++){
+          var t = effType(f, fa.i, b);
+          if(t==='noframe') continue;                 // 프레임 없음 = 생략
+          var ty = (t==='door' || effDoor(f, fa.i, b)) ? 'door' : t;
+          for(var r=0; r<rowsPF; r++){
+            modules.push({ mode:'flush', x:px, z:pz, ux:fa.ux, uz:fa.uz, nx:fa.nx, nz:fa.nz,
+              w:frameWm, d:frameDm, y0:(f-1)*floorHm + r*frameHm, h:frameHm, type:ty });
+          }
+        }
+      }
+    });
+    if(!poly){   // 박스: old방 코너 필러 (면 외측벽 끝↔모서리 빈틈) — 중간 cart-1, 외측 frame-3/4
+      var dd=frameDm, dh=frameDm/2, hw=W/2, hd=D/2;
+      var VV=[[-hw,-hd],[hw,-hd],[hw,hd],[-hw,hd]], NN=[[0,-1],[1,0],[0,1],[-1,0]];
+      var emap=[2,1,0,3];   // 내부 변 i → sangeun faceSel 인덱스
+      var addFill=function(x1,z1,x2,z2,key){
+        for(var f=fitFrom; f<=fitTo; f++) for(var r=0; r<rowsPF; r++)
+          modules.push({ mode:'fill', x1:x1, z1:z1, x2:x2, z2:z2, y0:(f-1)*floorHm + r*frameHm, h:frameHm, mat:key });
+      };
+      for(var ci=0; ci<4; ci++){
+        if(!fSel(emap[ci])) continue;
+        var cj=(ci+1)%4, cp=(ci+3)%4, Vi=VV[ci], Vj=VV[cj], ni=NN[ci], np=NN[cp], nj=NN[cj];
+        addFill(Vi[0]+(np[0]+ni[0])*dd, Vi[1]+(np[1]+ni[1])*dd, Vi[0]+ni[0]*dd, Vi[1]+ni[1]*dd, 'f4');
+        addFill(Vj[0]+ni[0]*dd, Vj[1]+ni[1]*dd, Vj[0]+(ni[0]+nj[0])*dd, Vj[1]+(ni[1]+nj[1])*dd, 'f3');
+        addFill(Vi[0]+(np[0]+ni[0])*dh, Vi[1]+(np[1]+ni[1])*dh, Vi[0]+ni[0]*dh, Vi[1]+ni[1]*dh, 'cart1');
+        addFill(Vj[0]+ni[0]*dh, Vj[1]+ni[1]*dh, Vj[0]+(ni[0]+nj[0])*dh, Vj[1]+(ni[1]+nj[1])*dh, 'cart1');
+      }
+    } else {     // 부정형 footprint: 기존 center 코너
+      CO.forEach(function(c){
+        if(!c || !c.on) return;
+        for(var f=fitFrom; f<=fitTo; f++) for(var r=0; r<rowsPF; r++)
+          modules.push({ mode:'center', x:c.cx, z:c.cz, ux:1, uz:0, nx:0, nz:1,
+            w:c.cs, d:c.cs, y0:(f-1)*floorHm + r*frameHm, h:frameHm, type:'corner' });
+      });
+    }
+    var r1 = function(v){ return Math.round(v * 10) / 10; };   // 규모 값 소수점 첫째자리까지(massing studio과 동일)
+    return {
+      type:'fitModel', ts: Date.now(),
+      floors: tFloors, floorH: r1(floorHm),
+      mass: poly ? {shape:'poly', pts:poly} : {shape:'box', W:r1(W), D:r1(D)},
+      core: {W:r1(tcHalfW*2), D:r1(tcHalfD*2), cx:r1(tcx), cz:r1(tcz)},
+      frame: {W:frameW, D:frameD, H:frameH},
+      fit: {from:fitFrom, to:fitTo},
+      modules: modules
+    };
+  }
+  function exportToHeejin(){
+    var s = document.getElementById('toHeejinStatus');
+    try{
+      var m = buildFitModel();
+      if(window.parent && window.parent !== window){
+        window.parent.postMessage(m, '*');
+        window.parent.postMessage({ type:'split', v:15 }, '*');   // render studio 크게(15:85)로 부드럽게 전환
+      }
+      if(s){ s.textContent = '→ 보냄 · 모듈 ' + m.modules.length + '개'; }
+    }catch(e){ console.error('export error', e); if(s) s.textContent = '오류: ' + e.message; }
+  }
+  window.exportToHeejin = exportToHeejin;
+  function inject(){
+    if(document.getElementById('toHeejinBtn')) return;
+    var b = document.createElement('button');
+    b.id = 'toHeejinBtn'; b.textContent = '→ render studio으로 보내기';
+    b.style.cssText = 'position:fixed;top:14px;right:14px;z-index:99999;padding:10px 16px;'
+      + 'background:#1a1a1a;color:#e68d39;border:1px solid #e68d39;border-radius:4px;'
+      + "font:600 13px/1 'IBM Plex Sans KR',sans-serif;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.18);";
+    b.onmouseenter = function(){ b.style.background = '#e68d39'; b.style.color = '#fff'; };
+    b.onmouseleave = function(){ b.style.background = '#1a1a1a'; b.style.color = '#e68d39'; };
+    b.onclick = exportToHeejin;
+    var s = document.createElement('div');
+    s.id = 'toHeejinStatus';
+    s.style.cssText = 'position:fixed;top:52px;right:14px;z-index:99999;font:600 11px/1.4 sans-serif;color:#1a1a1a;text-align:right;max-width:240px;';
+    document.body.appendChild(b); document.body.appendChild(s);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', inject); else inject();
+})();
+</script>
 </body>
 </html>
