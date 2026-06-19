@@ -4535,7 +4535,7 @@ window.FitCalcApp = App;
     busy: false
   };
   var MAX_PARCELS = 10;
-  var CACHE_R = 220;   // 첫 대지 주변 이 반경(m)의 필지를 1회 캐시 → 합필 중 재조회 안 함
+  var CACHE_R = 300;   // 첫 대지 주변 이 반경(m)의 필지를 1회 캐시 → 합필 중 재조회 안 함
 
   // ====================== 스크립트 로더 ======================
   function injectScript(src) {
@@ -5310,11 +5310,9 @@ window.FitCalcApp = App;
       if (ST.addMode) {
         if (!ST.site) { status("먼저 대지를 불러오세요."); EL.addMode.checked = false; ST.addMode = false; return; }
         status("필지 추가 모드 ON — 옅게 표시된 인접 필지의 ＋를 누르면 합필됩니다.");
-        refreshNeighbors();
+        if (ST.neighborsGroup) { nbrSetMarkers(true); } else { refreshNeighbors(); }
       } else {
-        var scene = H().scene;
-        if (ST.neighborsGroup) { getRoot().remove(ST.neighborsGroup); disposeGroup(ST.neighborsGroup); ST.neighborsGroup = null; }
-        ST.neighbors = [];
+        if (ST.neighborsGroup) { nbrSetMarkers(false); }
         status("필지 추가 모드 종료(합필 모드 OFF).");
       }
     });
@@ -5522,17 +5520,17 @@ window.FitCalcApp = App;
   }
   async function refreshNeighbors() {
     // 기존 ＋는 새 목록이 준비될 때까지 그대로 둠(깜빡임/끊김 방지). 조기종료시에만 즉시 제거.
-    if (!ST.addMode || !ST.site || !ST.site.parcels.length) { clearNeighbors(); return; }
+    if (!ST.site || !ST.site.parcels.length) { clearNeighbors(); return; }
     if (ST.site.parcels.length >= MAX_PARCELS) { clearNeighbors(); status("필지 " + MAX_PARCELS + "개(최대) 도달 — 모드를 끄거나 일부 제거하세요."); return; }
     try {
       // 캐시(첫 1회만 네트워크) → 이후 인접 계산은 로컬에서만 → ＋ 깜빡임/사라짐 없음
       var cache = await ensureParcelCache(ST.site.lon0, ST.site.lat0);
-      if (!ST.addMode || !ST.site) { clearNeighbors(); return; }
+      if (!ST.site) { clearNeighbors(); return; }
       if (!cache.length) { status("주변 필지 데이터를 받지 못했습니다. 잠시 후 다시 시도하세요."); return; }
       var lat0 = ST.site.lat0, mPerLat = 111320, mPerLon = 111320 * Math.cos(lat0 * Math.PI / 180);
       var w = 1e9, s = 1e9, e = -1e9, n = -1e9;
       ST.site.parcels.forEach(function (pc) { pc.ring.forEach(function (p) { if (p.lon < w) w = p.lon; if (p.lon > e) e = p.lon; if (p.lat < s) s = p.lat; if (p.lat > n) n = p.lat; }); });
-      var padLat = 60 / mPerLat, padLon = 60 / mPerLon;   // 합필 bbox 주변만 후보로(경량 사전필터)
+      var padLat = 150 / mPerLat, padLon = 150 / mPerLon;   // 합필 bbox 주변만 후보로(경량 사전필터)
       var siteCens = ST.site.parcels.map(function (pc) { return ringCentroid(pc.ring); });
       function distM(p, q) { var dx = (p.lon - q.lon) * mPerLon, dy = (p.lat - q.lat) * mPerLat; return Math.sqrt(dx * dx + dy * dy); }
       // 점 p에서 선분 a-b 까지 거리(m) — 경계선(변) 기준 인접 판정(꼭짓점 불일치/일반화 오차 흡수)
@@ -5542,7 +5540,7 @@ window.FitCalcApp = App;
         var cx = ax + t * dx, cy = ay + t * dy; return Math.sqrt(cx * cx + cy * cy);
       }
       function ptRingDist(p, ring) { var m = Infinity; for (var i = 0; i < ring.length; i++) { var d = segDistM(p, ring[i], ring[(i + 1) % ring.length]); if (d < m) { m = d; if (m < 0.5) return m; } } return m; }
-      var TH = 10; // 인접 임계(경계 간 거리 m): 일반화 오차/좁은 골목 흡수, 넓은 도로 건너편 제외
+      var TH = 40; // 인접 임계(경계 간 거리 m): 일반화 오차/좁은 골목 흡수, 넓은 도로 건너편 제외
       function nearSite(ring) {
         for (var k = 0; k < ST.site.parcels.length; k++) {
           var sr = ST.site.parcels[k].ring;
@@ -5593,15 +5591,17 @@ window.FitCalcApp = App;
     ST.neighbors.forEach(function (nb, idx) {
       var pts = nb.ring.map(function (p) { var P = geodeticToECEF(p.lon, p.lat, 0).sub(info.A).applyMatrix4(info.Rw2l); return new T.Vector3(P.x, 0.05, P.z); });
       ST.neighborsGroup.add(new T.LineLoop(new T.BufferGeometry().setFromPoints(pts), nb.road ? lineRed : lineBlue));
-      try { var mesh = new T.Mesh(new T.ShapeGeometry(new T.Shape(pts.map(function (v) { return new T.Vector2(v.x, v.z); }))), nb.road ? fillRed : fillBlue); mesh.rotation.x = Math.PI / 2; mesh.position.y = 0.03; ST.neighborsGroup.add(mesh); } catch (e) {}
-      if (nb.road) return;   // 도로는 ＋마커 없음(추가 불가)
+      if (!nb.road) { try { var mesh = new T.Mesh(new T.ShapeGeometry(new T.Shape(pts.map(function (v) { return new T.Vector2(v.x, v.z); }))), fillBlue); mesh.rotation.x = Math.PI / 2; mesh.position.y = 0.03; ST.neighborsGroup.add(mesh); } catch (e) {} }
+      if (nb.road) return;   // 도로는 ＋마커 없음
       var c = geodeticToECEF(nb.cen.lon, nb.cen.lat, 0).sub(info.A).applyMatrix4(info.Rw2l);
       var mk = new T.Mesh(new T.PlaneGeometry(7, 7), new T.MeshBasicMaterial({ map: plusTexture(), transparent: true, depthWrite: false, depthTest: false }));
-      mk.rotation.x = -Math.PI / 2; mk.position.set(c.x, 0.3, c.z); mk.renderOrder = 6; mk.userData.nIdx = idx;
+      mk.rotation.x = -Math.PI / 2; mk.position.set(c.x, 0.3, c.z); mk.renderOrder = 6; mk.userData.nIdx = idx; mk.visible = !!ST.addMode;
       ST.neighborsGroup.add(mk);
     });
     getRoot().add(ST.neighborsGroup);
   }
+
+  function nbrSetMarkers(show){ if(!ST.neighborsGroup) return; ST.neighborsGroup.children.forEach(function(ch){ if(ch.userData && ch.userData.nIdx!==undefined) ch.visible=!!show; }); }
 
   // ＋마커 클릭 → 그 인접 필지를 합필
   function addNeighbor(idx) {
@@ -5707,11 +5707,12 @@ window.FitCalcApp = App;
   }
   var _lastNorth=null;
   function syncCompass(){ try{ var v=V(); if(!v||!v.state||!v.state.rootGroup) return; var ry=v.state.rootGroup.rotation.y; if(window.__seCompass) window.__seCompass.rotation.y=ry; var deg=ry*180/Math.PI; if(_lastNorth===null || Math.abs(deg-_lastNorth)>0.01){ _lastNorth=deg; window.__planNorthDeg=-deg; if(typeof buildPlan==='function'){ try{ buildPlan(); }catch(e){} } } }catch(e){} }
-  var AUTO=true, CTX_ON=true, lastSig='';
+  var AUTO=true, CTX_ON=true, lastSig='', lastParcelCount=0, progDance=false;
   function nbrHideMarkers(){ try{ var g=V().state.neighborsGroup; if(!g) return; g.visible=true; g.children.forEach(function(ch){ if(ch.userData && ch.userData.nIdx!==undefined) ch.visible=false; }); }catch(e){} }
-  function drawNbrContext(){ try{ var v=V(); if(!v||!v.state||!v.state.site) return; var cb=document.getElementById('fitCtxAddMode'); if(!cb) return; cb.checked=true; cb.dispatchEvent(new Event('change')); v.state.addMode=false; var t=0; var iv=setInterval(function(){ t++; var g=v.state.neighborsGroup; if(g&&g.children&&g.children.length>0){ nbrHideMarkers(); v.state.addMode=false; try{cb.checked=false;}catch(e){} clearInterval(iv); } else if(t>40){ clearInterval(iv); try{ v.state.addMode=false; cb.checked=false; }catch(e){} } }, 200); }catch(e){} }
-  function hideNbrContext(){ try{ var g=V().state.neighborsGroup; if(g) g.visible=false; }catch(e){} }
-  function applyContext(){ try{ var v=V(); if(!v||!v.state||!v.state.site) return; if(v.showBuildings) v.showBuildings(0); if(v.showGround) v.showGround(0); if(CTX_ON){ drawNbrContext(); } else { hideNbrContext(); } }catch(e){} }
+  function seStat(m){ try{ var e=document.getElementById('seCtxStat'); if(e) e.textContent=m; }catch(_){} }
+  function drawNbrContext(){ try{ var v=V(); if(!v||!v.state||!v.state.site){ seStat('주변 컨텍스트: 대지 없음'); return; } var t0=Date.now(); seStat('주변 컨텍스트: 인접 필지 불러오는 중…'); var t=0; var iv=setInterval(function(){ t++; var g=v.state.neighborsGroup; if(g) g.visible=true; var ln=(g&&g.children)?g.children.length:0; var nn=(v.state.neighbors&&v.state.neighbors.length)||0; if(ln>0 && nn>0){ clearInterval(iv); var sec=((Date.now()-t0)/1000).toFixed(1); seStat('주변 컨텍스트: 인접 '+nn+'필지 ('+sec+'초)'); } else if(t>80){ clearInterval(iv); var pc=(v.state.parcelCache&&v.state.parcelCache.length)||0; seStat(pc?('주변 컨텍스트: 인접 필지 없음 — 데이터 '+pc+'건, 인접범위 밖'):'주변 컨텍스트: 필지 데이터 미수신 — API 응답 없음'); } }, 150); }catch(e){ seStat('주변 컨텍스트: 오류'); } }
+  function hideNbrContext(){ try{ var g=V().state.neighborsGroup; if(g) g.visible=false; seStat('주변 컨텍스트: OFF'); }catch(e){} }
+  function applyContext(){ try{ var v=V(); if(!v||!v.state||!v.state.site) return; if(v.showBuildings) v.showBuildings(false); if(v.showGround) v.showGround(false); if(CTX_ON){ drawNbrContext(); } else { hideNbrContext(); } }catch(e){} }
   function sig(){
     var v=V(); if(!v||!v.state||!v.state.site) return '';
     var st=v.state.site, ps=(st.parcels||[]);
@@ -5720,7 +5721,13 @@ window.FitCalcApp = App;
   setInterval(function(){
     syncCompass();
     var x=sig();
-    if(x && x!==lastSig){ lastSig=x; if(AUTO) setTimeout(align, 80); if(CTX_ON) setTimeout(applyContext, 200); }
+    if(x && x!==lastSig){
+      var _v=V(); var _pc=(_v&&_v.state&&_v.state.site&&_v.state.site.parcels)?_v.state.site.parcels.length:0;
+      var _fresh=(_pc<=1)||(_pc<lastParcelCount);
+      lastSig=x; lastParcelCount=_pc;
+      if(AUTO) setTimeout(align, 80);
+      if(_fresh){ setTimeout(function(){ var v=V(); if(v){ if(v.showBuildings)v.showBuildings(false); if(v.showGround)v.showGround(false); } if(CTX_ON) drawNbrContext(); else hideNbrContext(); }, 250); setTimeout(function(){ var v=V(); if(v&&v.state&&v.state.bldState!==0&&v.showBuildings) v.showBuildings(false); }, 900); }
+    }
   }, 350);
   window.alignBuildingToSite = align;
   window.setAutoAlignToSite = function(on){ AUTO=!!on; if(AUTO) lastSig=''; };
@@ -5736,7 +5743,10 @@ window.FitCalcApp = App;
     c.id='seCtxToggle'; c.textContent='\uC8FC\uBCC0 \uCEE8\uD14D\uC2A4\uD2B8: ON';
     c.style.cssText='position:fixed;left:12px;bottom:46px;z-index:99999;padding:7px 10px;font:12px/1.2 sans-serif;background:#1f2733;color:#e8eef6;border:1px solid #3a4658;border-radius:8px;cursor:pointer;opacity:.92';
     c.onclick=function(){ CTX_ON=!CTX_ON; c.textContent='\uC8FC\uBCC0 \uCEE8\uD14D\uC2A4\uD2B8: '+(CTX_ON?'ON':'OFF'); applyContext(); };
-    document.body.appendChild(c);
+    var stt=document.createElement('div');
+    stt.id='seCtxStat'; stt.textContent='주변 컨텍스트: 대기';
+    stt.style.cssText='position:fixed;left:12px;bottom:80px;z-index:99999;max-width:300px;padding:6px 9px;font:11px/1.3 sans-serif;background:#101722;color:#a9b6c6;border:1px solid #2a3340;border-radius:8px;opacity:.93';
+    document.body.appendChild(stt);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', addToggle); else addToggle();
 })();
