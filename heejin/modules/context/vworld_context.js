@@ -59,15 +59,25 @@
   var ST = {
     loaders: null,         // {gltf, ktx2}
     loaderPromise: null,
-    site: null,            // {lon0, lat0, ring:[{lon,lat}]}
-    siteGroup: null,       // 대지 윤곽선
+    site: null,            // {lon0, lat0, parcels:[{ring,label}]}
+    siteGroup: null,       // 대지(합필) 윤곽선
+    neighbors: [],         // 인접 후보 필지 [{ring,label,cen,road}]
+    neighborsGroup: null,  // 인접 필지 옅은 표시 + ＋마커
+    parcelCache: null,     // 첫 대지 주변 반경 필지 1회 캐시 [{ring,label,road,cen}] (재조회 안정화)
+    rootGroup: null,       // 컨텍스트 전체 루트(이동·회전 기준점)
+    xform: { x: 0, y: 0, rot: 0 },  // 기준점 이동(m)·회전(°)
     buildingsGroup: null,  // 인근 건물
     groundGroup: null,     // 항공사진 지면
     dem: null,             // 실측 DEM 샘플러 캐시 {lon0,lat0,fn}
     deleted: [],           // 삭제(숨김)된 건물 타일 — 복원용
     delMode: false,        // 건물 삭제 모드(클릭 시 삭제)
+    addMode: false,        // 필지 추가 모드(인접 필지 ＋클릭 합필, 최대 10)
+    bldState: 0,           // 주변 건물 가시성: 0=끔 1=재질 2=단색
+    gndState: 0,           // 지형 가시성: 0=끔 1=재질 2=단색
     busy: false
   };
+  var MAX_PARCELS = 10;
+  var CACHE_R = 220;   // 첫 대지 주변 이 반경(m)의 필지를 1회 캐시 → 합필 중 재조회 안 함
 
   // ====================== 스크립트 로더 ======================
   function injectScript(src) {
@@ -272,6 +282,20 @@
         var grp = new T.Group();
         // 3D Tiles 기본 gltfUpAxis=Y → glTF(Y-up)를 ECEF(Z-up)로: +90° about X (Cesium Y_UP_TO_Z_UP)
         g.scene.rotation.x = Math.PI / 2;
+        // 색공간 보정: 텍스처 encoding을 호스트 렌더러의 outputEncoding과 일치시킴.
+        // sangeun 렌더러는 outputEncoding=Linear이라, GLTFLoader가 sRGB로 표시한 텍스처가
+        // sRGB→linear 디코드만 되고 출력 인코딩이 없어 어둡게 보임 → VWORLD처럼 맞춰줌.
+        var rd = H().renderer, outEnc = (rd && rd.outputEncoding) || T.LinearEncoding;
+        g.scene.traverse(function (o) {
+          if (!o.isMesh) return;
+          var mats = Array.isArray(o.material) ? o.material : [o.material];
+          mats.forEach(function (mm) {
+            if (!mm) return;
+            if (mm.map) { mm.map.encoding = outEnc; mm.map.needsUpdate = true; }
+            if (mm.emissiveMap) { mm.emissiveMap.encoding = outEnc; mm.emissiveMap.needsUpdate = true; }
+            mm.needsUpdate = true;
+          });
+        });
         grp.add(g.scene);
         if (ex.rtc) grp.position.set(ex.rtc[0], ex.rtc[1], ex.rtc[2]); // 진짜 ECEF (RTC_CENTER)
         res(grp);
@@ -280,29 +304,29 @@
   }
 
   // ====================== 대지 윤곽선 ======================
-  function drawOutline(ring, lon0, lat0) {
+  // 여러 필지(합필) 윤곽선·채움을 한 번에 그림. 중심(lon0/lat0) 기준 로컬좌표.
+  function drawSite(parcels, lon0, lat0) {
     var T = H().THREE, scene = H().scene;
-    if (ST.siteGroup) { scene.remove(ST.siteGroup); disposeGroup(ST.siteGroup); }
+    if (ST.siteGroup) { getRoot().remove(ST.siteGroup); disposeGroup(ST.siteGroup); }
     ST.siteGroup = new T.Group(); ST.siteGroup.name = "fitSiteOutline";
     var info = worldToLocalMatrix(lon0, lat0);
-    var pts = ring.map(function (p) {
-      var P = geodeticToECEF(p.lon, p.lat, 0).sub(info.A).applyMatrix4(info.Rw2l); // 회전만(translation 0)
-      return new T.Vector3(P.x, 0.06, P.z);
+    var lineMat = new T.LineBasicMaterial({ color: 0x1a73e8 });
+    var fillMat = new T.MeshBasicMaterial({ color: 0x1a73e8, transparent: true, opacity: 0.10, side: T.DoubleSide, depthWrite: false });
+    parcels.forEach(function (pc) {
+      var ring = pc.ring;
+      if (!ring || ring.length < 2) return;
+      var pts = ring.map(function (p) {
+        var P = geodeticToECEF(p.lon, p.lat, 0).sub(info.A).applyMatrix4(info.Rw2l); // 회전만
+        return new T.Vector3(P.x, 0.06, P.z);
+      });
+      ST.siteGroup.add(new T.LineLoop(new T.BufferGeometry().setFromPoints(pts), lineMat));
+      try {
+        var mesh = new T.Mesh(new T.ShapeGeometry(new T.Shape(pts.map(function (v) { return new T.Vector2(v.x, v.z); }))), fillMat);
+        mesh.rotation.x = Math.PI / 2; mesh.position.y = 0.04;
+        ST.siteGroup.add(mesh);
+      } catch (e) {}
     });
-    pts.push(pts[0].clone());
-    var line = new T.LineLoop(new T.BufferGeometry().setFromPoints(pts.slice(0, -1)),
-      new T.LineBasicMaterial({ color: 0x1a73e8, linewidth: 2 }));
-    ST.siteGroup.add(line);
-    // 얇은 채움(반투명)
-    var shapePts = pts.slice(0, -1).map(function (v) { return new T.Vector2(v.x, v.z); });
-    try {
-      var shape = new T.Shape(shapePts);
-      var geo = new T.ShapeGeometry(shape);
-      var mesh = new T.Mesh(geo, new T.MeshBasicMaterial({ color: 0x1a73e8, transparent: true, opacity: 0.10, side: T.DoubleSide, depthWrite: false }));
-      mesh.rotation.x = Math.PI / 2; mesh.position.y = 0.04;
-      ST.siteGroup.add(mesh);
-    } catch (e) {}
-    scene.add(ST.siteGroup);
+    getRoot().add(ST.siteGroup);
   }
 
   // ====================== 인근 건물 ======================
@@ -314,7 +338,7 @@
     if (!leaves.length) { onStatus && onStatus("주변 건물 타일을 찾지 못했습니다."); return 0; }
     onStatus && onStatus("건물 " + leaves.length + "동 불러오는 중…");
 
-    if (ST.buildingsGroup) { scene.remove(ST.buildingsGroup); disposeGroup(ST.buildingsGroup); ST.buildingsGroup = null; }
+    if (ST.buildingsGroup) { getRoot().remove(ST.buildingsGroup); disposeGroup(ST.buildingsGroup); ST.buildingsGroup = null; }
     ST.deleted = [];   // 새로 로드 → 삭제 이력 초기화
     var info = worldToLocalMatrix(lon0, lat0);
     var bg = new T.Group(); bg.name = "fitContextBuildings";
@@ -339,7 +363,7 @@
     }
     if (skipped) console.info("[VWorldContext] 광역 덩어리 타일 " + skipped + "개 제외");
 
-    scene.add(bg); bg.updateMatrixWorld(true);
+    getRoot().add(bg); bg.updateMatrixWorld(true);
 
     // ── 건물 재안착: 각 타일 바닥을 실측 DEM 지형 높이에 앉힘(지형·건물 완전 일치) ──
     var centerElev = dem ? dem(lon0, lat0) : 0, v = new T.Vector3();
@@ -547,11 +571,11 @@
     geo.setAttribute("uv", new T.BufferAttribute(uv, 2));
     geo.setIndex(idx); geo.computeVertexNormals();
 
-    if (ST.groundGroup) { scene.remove(ST.groundGroup); disposeGroup(ST.groundGroup); }
+    if (ST.groundGroup) { getRoot().remove(ST.groundGroup); disposeGroup(ST.groundGroup); }
     var mesh = new T.Mesh(geo, new T.MeshBasicMaterial({ map: tex, side: T.DoubleSide }));
     mesh.renderOrder = -1;                 // 건물보다 먼저(밑바탕)
     var gg = new T.Group(); gg.name = "fitContextGround"; gg.add(mesh);
-    scene.add(gg); ST.groundGroup = gg;
+    getRoot().add(gg); ST.groundGroup = gg;
     onStatus && onStatus("항공사진 지면 표시됨 · " + (dem ? "실측 지형(DEM)" : "평탄(DEM 없음)"));
     return got;
   }
@@ -592,12 +616,119 @@
     } catch (e) { return null; }
   }
 
+  // 컨텍스트 전체 루트(모든 컨텍스트 그룹의 부모). 이 루트의 position/rotation으로 한꺼번에 이동·회전.
+  function getRoot() {
+    var T = H().THREE, sc = H().scene;
+    if (!ST.rootGroup && T && sc) { ST.rootGroup = new T.Group(); ST.rootGroup.name = "fitContextRoot"; sc.add(ST.rootGroup); applyXform(); }
+    return ST.rootGroup;
+  }
+  function applyXform() {
+    if (!ST.rootGroup) return;
+    ST.rootGroup.position.set(ST.xform.x, 0, ST.xform.y);  // X=동서, Y(슬라이더)=남북(Z축)
+    ST.rootGroup.rotation.y = ST.xform.rot * Math.PI / 180; // 대지 중심(원점) 기준 회전
+    ST.rootGroup.updateMatrixWorld(true);
+  }
+  function syncXformUI() {
+    if (!EL.x) return;
+    EL.x.value = ST.xform.x; EL.xv.textContent = Math.round(ST.xform.x) + "m";
+    EL.y.value = ST.xform.y; EL.yv.textContent = Math.round(ST.xform.y) + "m";
+    EL.r.value = ST.xform.rot; EL.rv.textContent = Math.round(ST.xform.rot) + "°";
+  }
+
   function disposeGroup(g) {
     g.traverse(function (o) {
       if (o.geometry) o.geometry.dispose && o.geometry.dispose();
-      if (o.material) { var m = Array.isArray(o.material) ? o.material : [o.material];
-        m.forEach(function (mm) { if (mm.map) mm.map.dispose && mm.map.dispose(); mm.dispose && mm.dispose(); }); }
+      var list = [];
+      if (o.material) list = list.concat(Array.isArray(o.material) ? o.material : [o.material]);
+      if (o.userData && o.userData._origMat) list = list.concat(Array.isArray(o.userData._origMat) ? o.userData._origMat : [o.userData._origMat]);
+      list.forEach(function (mm) {
+        if (!mm || (mm.userData && mm.userData.shared)) return;   // 공유 단색재질은 dispose 안 함
+        if (mm.map) mm.map.dispose && mm.map.dispose();
+        mm.dispose && mm.dispose();
+      });
     });
+  }
+
+  // 켜기/끄기 = 씬에서 추가/제거(단순 visible=false가 아니라). 끄면 매 프레임 행렬 순회·
+  // 렌더에서 완전히 제외돼 조작이 가벼워짐. 다시 켜면 재로드 없이 즉시 복귀.
+  function setGroupActive(g, on) {
+    if (!g) return;
+    if (on) { if (!g.parent) getRoot().add(g); }
+    else if (g.parent) getRoot().remove(g);
+  }
+
+  // ── 가시성 3단계(끔/재질/단색) ──
+  function highlightSeg(seg, s) {
+    if (!seg) return;
+    seg.querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", parseInt(b.getAttribute("data-s"), 10) === s); });
+  }
+  function segEnable(on) {
+    if (EL.bldSeg) EL.bldSeg.classList.toggle("dis", !on);
+    if (EL.gndSeg) EL.gndSeg.classList.toggle("dis", !on);
+  }
+  // 단색 모드용 조명(1회). 실사(MeshBasic, unlit)는 영향 없음 — sangeun 기존 화면도 무영향.
+  function ensureLights() {
+    var T = H().THREE, sc = H().scene;
+    if (ST._lights || !T || !sc) return;
+    ST._lights = new T.Group(); ST._lights.name = "fitContextLights";
+    ST._lights.add(new T.HemisphereLight(0xffffff, 0x6b7280, 0.9));
+    var dir = new T.DirectionalLight(0xffffff, 0.6); dir.position.set(0.5, 1, 0.35);
+    ST._lights.add(dir);
+    sc.add(ST._lights);
+  }
+  // 단색 공유 재질: flatShading(면셰이딩) → 면/모서리·기복이 음영으로 드러남
+  function plainMat(key, color) {
+    var T = H().THREE;
+    ST._plain = ST._plain || {};
+    if (!ST._plain[key]) {
+      var m = new T.MeshPhongMaterial({ color: color, flatShading: true, shininess: 0, specular: 0x111111 });
+      m.userData.shared = true;   // disposeGroup이 공유재질을 dispose하지 않도록
+      ST._plain[key] = m;
+    }
+    return ST._plain[key];
+  }
+  // 재질(실사) 켜기/끄기: on=원본 재질 복원, off=단색(flat-shaded) 공유재질로 교체.
+  function setMeshTex(group, on, key, color) {
+    if (!group) return;
+    if (!on) ensureLights();
+    var pm = on ? null : plainMat(key, color);
+    group.traverse(function (o) {
+      if (!o.isMesh) return;
+      if (!o.userData._origMat) o.userData._origMat = o.material;   // 실사 원본 보관
+      o.material = on ? o.userData._origMat : pm;
+    });
+  }
+  async function ensureBuildings() {
+    if (ST.buildingsGroup) return true;
+    if (!ST.site) { status("먼저 대지를 불러오세요."); return false; }
+    if (ST.busy) return false;
+    ST.busy = true;
+    try { await loadBuildings(ST.site.lon0, ST.site.lat0, status); } catch (e) { status("건물 로드 실패: " + e.message); } finally { ST.busy = false; }
+    return !!ST.buildingsGroup;
+  }
+  async function ensureGround() {
+    if (ST.groundGroup) return true;
+    if (!ST.site) { status("먼저 대지를 불러오세요."); return false; }
+    if (ST.busy) return false;
+    ST.busy = true;
+    try { await loadGround(ST.site.lon0, ST.site.lat0, status); } catch (e) { status("지면 로드 실패: " + e.message); } finally { ST.busy = false; }
+    return !!ST.groundGroup;
+  }
+  async function setBldState(s) {
+    if (s !== 0 && !ST.site) { status("먼저 대지를 불러오세요."); return; }
+    ST.bldState = s; highlightSeg(EL.bldSeg, s);
+    if (s === 0) { if (ST.buildingsGroup) setGroupActive(ST.buildingsGroup, false); return; }
+    if (!(await ensureBuildings())) { ST.bldState = 0; highlightSeg(EL.bldSeg, 0); return; }
+    setGroupActive(ST.buildingsGroup, true);
+    setMeshTex(ST.buildingsGroup, s === 1, "bld", 0xbcbcbc);   // 1=재질, 2=단색(회색,음영)
+  }
+  async function setGndState(s) {
+    if (s !== 0 && !ST.site) { status("먼저 대지를 불러오세요."); return; }
+    ST.gndState = s; highlightSeg(EL.gndSeg, s);
+    if (s === 0) { if (ST.groundGroup) setGroupActive(ST.groundGroup, false); return; }
+    if (!(await ensureGround())) { ST.gndState = 0; highlightSeg(EL.gndSeg, 0); return; }
+    setGroupActive(ST.groundGroup, true);
+    setMeshTex(ST.groundGroup, s === 1, "gnd", 0xa9b59a);     // 1=항공사진, 2=단색(지면,음영)
   }
 
   // ====================== UI ======================
@@ -629,14 +760,64 @@
       '#fitCtxPanel .delrow button:hover{border-color:#e68d39;color:#1a1a1a;}' +
       '#fitCtxPanel .st{margin-top:9px;font-size:11px;line-height:1.45;color:#888;min-height:15px;}' +
       '#fitCtxPanel .min{position:absolute;top:10px;right:10px;border:none;background:none;color:#bbb;font-size:14px;cursor:pointer;padding:0;line-height:1;}' +
+      '#fitCtxPanel .addrow{display:flex;align-items:center;gap:8px;margin-top:6px;}' +
+      '#fitCtxPanel .addrow button{font:inherit;font-size:11px;font-weight:600;padding:5px 10px;border:1px solid #dcdcd6;background:#fff;color:#555;border-radius:4px;cursor:pointer;}' +
+      '#fitCtxPanel .addrow button:hover{border-color:#1a73e8;color:#1a73e8;}' +
+      '#fitCtxPanel .addrow span{font-size:11px;color:#1a73e8;font-weight:600;}' +
+      '#fitCtxPanel .addmode{display:flex;align-items:center;gap:7px;margin-top:7px;font-size:12px;color:#1a73e8;font-weight:600;cursor:pointer;}' +
+      '#fitCtxPanel .addmode input{width:15px;height:15px;accent-color:#1a73e8;}' +
+      '#fitCtxPanel .cnt{display:block;font-size:11px;color:#1a73e8;font-weight:600;margin-top:4px;}' +
+      '#fitCtxPanel .xform{margin-top:10px;padding-top:9px;border-top:1px solid #eee;}' +
+      '#fitCtxPanel .xform .xftit{font-size:11px;font-weight:700;color:#b3ac9f;letter-spacing:.04em;margin-bottom:4px;}' +
+      '#fitCtxPanel .xfrow{display:flex;align-items:center;gap:7px;margin-top:4px;font-size:11px;color:#555;}' +
+      '#fitCtxPanel .xfrow span{flex:0 0 34px;}' +
+      '#fitCtxPanel .xfrow input[type=range]{flex:1;min-width:0;accent-color:#e68d39;}' +
+      '#fitCtxPanel .xfrow b{flex:0 0 40px;text-align:right;color:#1a1a1a;font-weight:600;}' +
+      '#fitCtxPanel .xform button{margin-top:7px;font:inherit;font-size:11px;font-weight:600;padding:4px 10px;border:1px solid #dcdcd6;background:#fff;color:#555;border-radius:4px;cursor:pointer;}' +
+      '#fitCtxPanel .xform button:hover{border-color:#e68d39;color:#1a1a1a;}' +
+      '#fitCtxPanel .plist{margin-top:6px;display:flex;flex-direction:column;gap:3px;}' +
+      '#fitCtxPanel .prow{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:11px;color:#444;background:#f3f6fc;border:1px solid #e1e8f5;border-radius:4px;padding:3px 4px 3px 7px;}' +
+      '#fitCtxPanel .prow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
+      '#fitCtxPanel .prow button{flex:0 0 auto;border:none;background:none;color:#1a73e8;font-size:14px;font-weight:700;cursor:pointer;line-height:1;padding:0 4px;}' +
+      '#fitCtxPanel .prow button:hover{color:#d9534f;}' +
+      '#fitCtxPanel .sectit{font-size:11px;font-weight:700;color:#e68d39;letter-spacing:.03em;margin:11px 0 5px;padding-top:9px;border-top:1px solid #eee;}' +
+      '#fitCtxPanel .sectit.first{border-top:none;padding-top:0;margin-top:2px;}' +
+      '#fitCtxPanel .visrow{display:flex;align-items:center;gap:8px;margin-top:5px;font-size:12px;color:#555;}' +
+      '#fitCtxPanel .visrow>span{flex:0 0 52px;}' +
+      '#fitCtxPanel .seg{display:flex;flex:1;border:1px solid #dcdcd6;border-radius:4px;overflow:hidden;}' +
+      '#fitCtxPanel .seg.dis{opacity:.45;pointer-events:none;}' +
+      '#fitCtxPanel .seg button{flex:1;font:inherit;font-size:11px;padding:5px 0;border:none;border-left:1px solid #eee;background:#fff;color:#666;cursor:pointer;}' +
+      '#fitCtxPanel .seg button:first-child{border-left:none;}' +
+      '#fitCtxPanel .seg button.on{background:#e68d39;color:#fff;font-weight:700;}' +
       '</style>' +
       '<h4><span class="d"></span>주변 컨텍스트 (VWORLD)</h4>' +
+      // 1) 대지 불러오기
+      '<div class="sectit first">대지 불러오기</div>' +
       '<div class="ci"><input id="fitCtxAddr" type="text" placeholder="도로명/지번 주소" autocomplete="off">' +
-        '<button class="go" id="fitCtxGo">대지 불러오기</button></div>' +
+        '<button class="go" id="fitCtxGo">불러오기</button></div>' +
       '<div class="pre" id="fitCtxPre"></div>' +
-      '<label class="tog dis" id="fitCtxTogWrap"><input type="checkbox" id="fitCtxTog" disabled> 주변 건물 표시</label>' +
-      '<label class="tog dis" id="fitCtxGndWrap" style="margin-top:6px;padding-top:0;border-top:none;"><input type="checkbox" id="fitCtxGnd" disabled> 땅(항공사진) 표시</label>' +
-      '<div class="delrow" id="fitCtxDelRow"><label><input type="checkbox" id="fitCtxDel"> 건물 삭제 모드(클릭)</label>' +
+      // 2) 합필 (선택)
+      '<div class="sectit">합필 (선택)</div>' +
+      '<label class="addmode"><input type="checkbox" id="fitCtxAddMode"> 인접 필지 추가 모드 (＋클릭·최대 10)</label>' +
+      '<span id="fitCtxCnt" class="cnt"></span>' +
+      '<div class="plist" id="fitCtxList"></div>' +
+      // 3) 기준점·축 설정
+      '<div class="sectit">기준점·축 설정 (컨텍스트 전체)</div>' +
+      '<div class="xform" id="fitCtxXform">' +
+        '<div class="xfrow"><span>이동 X</span><input type="range" id="fitCtxX" min="-300" max="300" step="1" value="0"><b id="fitCtxXv">0m</b></div>' +
+        '<div class="xfrow"><span>이동 Y</span><input type="range" id="fitCtxY" min="-300" max="300" step="1" value="0"><b id="fitCtxYv">0m</b></div>' +
+        '<div class="xfrow"><span>회전</span><input type="range" id="fitCtxR" min="-180" max="180" step="1" value="0"><b id="fitCtxRv">0°</b></div>' +
+        '<button id="fitCtxXReset" type="button">기준점 초기화</button>' +
+      '</div>' +
+      // 4) 가시성 (끔 / 재질 / 단색)
+      '<div class="sectit">가시성</div>' +
+      '<div class="visrow"><span>주변 건물</span>' +
+        '<div class="seg dis" id="fitCtxBldSeg"><button data-s="0">끔</button><button data-s="1">재질</button><button data-s="2">단색</button></div></div>' +
+      '<div class="visrow"><span>지형</span>' +
+        '<div class="seg dis" id="fitCtxGndSeg"><button data-s="0">끔</button><button data-s="1">재질</button><button data-s="2">단색</button></div></div>' +
+      // 5) 건물 삭제
+      '<div class="sectit">건물 삭제</div>' +
+      '<div class="delrow" id="fitCtxDelRow"><label><input type="checkbox" id="fitCtxDel"> 삭제 모드(클릭)</label>' +
         '<button id="fitCtxRestore" type="button">복원</button></div>' +
       '<div class="st" id="fitCtxSt">주소를 입력하고 대지 윤곽선을 불러오세요.</div>' +
       '<button class="min" id="fitCtxMin" title="접기">—</button>';
@@ -644,10 +825,15 @@
 
     EL.addr = document.getElementById("fitCtxAddr");
     EL.go = document.getElementById("fitCtxGo");
-    EL.tog = document.getElementById("fitCtxTog");
-    EL.togWrap = document.getElementById("fitCtxTogWrap");
-    EL.gnd = document.getElementById("fitCtxGnd");
-    EL.gndWrap = document.getElementById("fitCtxGndWrap");
+    EL.addMode = document.getElementById("fitCtxAddMode");
+    EL.cnt = document.getElementById("fitCtxCnt");
+    EL.list = document.getElementById("fitCtxList");
+    EL.x = document.getElementById("fitCtxX"); EL.xv = document.getElementById("fitCtxXv");
+    EL.y = document.getElementById("fitCtxY"); EL.yv = document.getElementById("fitCtxYv");
+    EL.r = document.getElementById("fitCtxR"); EL.rv = document.getElementById("fitCtxRv");
+    EL.xreset = document.getElementById("fitCtxXReset");
+    EL.bldSeg = document.getElementById("fitCtxBldSeg");
+    EL.gndSeg = document.getElementById("fitCtxGndSeg");
     EL.del = document.getElementById("fitCtxDel");
     EL.restore = document.getElementById("fitCtxRestore");
     EL.st = document.getElementById("fitCtxSt");
@@ -661,21 +847,40 @@
     });
 
     EL.go.onclick = runSite;
+    EL.addMode.addEventListener("change", function () {
+      ST.addMode = EL.addMode.checked;
+      if (ST.addMode) {
+        if (!ST.site) { status("먼저 대지를 불러오세요."); EL.addMode.checked = false; ST.addMode = false; return; }
+        status("필지 추가 모드 ON — 옅게 표시된 인접 필지의 ＋를 누르면 합필됩니다.");
+        refreshNeighbors();
+      } else {
+        var scene = H().scene;
+        if (ST.neighborsGroup) { getRoot().remove(ST.neighborsGroup); disposeGroup(ST.neighborsGroup); ST.neighborsGroup = null; }
+        ST.neighbors = [];
+        status("필지 추가 모드 종료(합필 모드 OFF).");
+      }
+    });
     EL.addr.addEventListener("keydown", function (e) { if (e.key === "Enter") runSite(); });
-    EL.tog.addEventListener("change", function () {
-      if (ST.buildingsGroup) { ST.buildingsGroup.visible = EL.tog.checked; }
-      else if (EL.tog.checked) { runBuildings(); }
-    });
-    EL.gnd.addEventListener("change", function () {
-      if (ST.groundGroup) { ST.groundGroup.visible = EL.gnd.checked; }
-      else if (EL.gnd.checked) { runGround(); }
-    });
+    // 가시성 세그먼트(끔/재질/단색)
+    function wireSeg(seg, fn) {
+      seg.querySelectorAll("button").forEach(function (b) {
+        b.addEventListener("click", function () { fn(parseInt(b.getAttribute("data-s"), 10)); });
+      });
+    }
+    wireSeg(EL.bldSeg, setBldState);
+    wireSeg(EL.gndSeg, setGndState);
+    highlightSeg(EL.bldSeg, 0); highlightSeg(EL.gndSeg, 0); segEnable(false);
     EL.del.addEventListener("change", function () {
       ST.delMode = EL.del.checked;
       var cv = canvasEl(); if (cv) cv.style.cursor = ST.delMode ? "crosshair" : "";
       status(ST.delMode ? "삭제 모드: 지울 건물을 클릭하세요." : "삭제 모드 해제됨.");
     });
     EL.restore.addEventListener("click", restoreBuildings);
+    // 기준점 이동·회전
+    EL.x.addEventListener("input", function () { ST.xform.x = +EL.x.value; EL.xv.textContent = Math.round(ST.xform.x) + "m"; applyXform(); });
+    EL.y.addEventListener("input", function () { ST.xform.y = +EL.y.value; EL.yv.textContent = Math.round(ST.xform.y) + "m"; applyXform(); });
+    EL.r.addEventListener("input", function () { ST.xform.rot = +EL.r.value; EL.rv.textContent = Math.round(ST.xform.rot) + "°"; applyXform(); });
+    EL.xreset.onclick = function () { ST.xform = { x: 0, y: 0, rot: 0 }; syncXformUI(); applyXform(); status("기준점을 초기화했습니다."); };
     attachPicking();
     var min = document.getElementById("fitCtxMin"), body = wrap.children, collapsed = false;
     min.onclick = function () {
@@ -689,33 +894,52 @@
   }
   function status(msg) { if (EL.st) EL.st.textContent = msg; }
 
-  // ── 클릭 삭제 / 복원 ──
-  var _ray = null, _ndc = null, _down = null;
+  // ── 클릭 픽킹(인접 ＋합필 / 건물 삭제) ──
+  // 핵심: pointerdown에서 '잡을 것'을 판정해 sangeun으로의 전파를 차단(드래그 시작 방지),
+  // pointerup에서도 대칭 차단 후 동작 실행. 양쪽을 같이 막아야 sangeun의 드래그 상태가 끼이지 않음
+  // (예전엔 pointerup만 막아 sangeun이 '드래그 중'에서 못 빠져나와 호버만으로 화면이 돌던 문제).
+  var _ray = null, _ndc = null, _down = null, _cap = null;
   function canvasEl() { var r = H().renderer; return r ? r.domElement : null; }
   function attachPicking() {
     var cv = canvasEl(); if (!cv || cv.__fitPick) return;
     cv.__fitPick = true;
-    cv.addEventListener("pointerdown", function (e) { _down = { x: e.clientX, y: e.clientY }; }, true);
+    cv.addEventListener("pointerdown", onPickDown, true);
     cv.addEventListener("pointerup", onPickUp, true);
   }
-  function onPickUp(e) {
-    if (!ST.delMode || !ST.buildingsGroup) return;
-    var d = _down; _down = null;
-    if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) return; // 드래그(궤도회전)은 삭제 안 함
-    var T = H().THREE, cam = H().camera, cv = canvasEl(); if (!T || !cam || !cv) return;
+  function rayFromEvent(e) {
+    var T = H().THREE, cam = H().camera, cv = canvasEl(); if (!T || !cam || !cv) return false;
     if (!_ray) { _ray = new T.Raycaster(); _ndc = new T.Vector2(); }
     var r = cv.getBoundingClientRect();
     _ndc.x = ((e.clientX - r.left) / r.width) * 2 - 1;
     _ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1;
     _ray.setFromCamera(_ndc, cam);
-    var hits = _ray.intersectObjects(ST.buildingsGroup.children, true);
-    if (!hits.length) return;                    // 빈 곳 클릭 → 통과(궤도 등)
-    var o = hits[0].object;                       // 최상위 타일까지 거슬러 올라감
-    while (o && o.parent !== ST.buildingsGroup) o = o.parent;
-    if (o && o.visible) {
-      o.visible = false; ST.deleted.push(o);
+    return true;
+  }
+  function onPickDown(e) {
+    _down = { x: e.clientX, y: e.clientY }; _cap = null;
+    var canAdd = ST.addMode && ST.neighborsGroup, canDel = ST.delMode && ST.buildingsGroup;
+    if (!canAdd && !canDel) return;                 // 잡을 것 없음 → sangeun이 정상 처리(궤도)
+    if (!rayFromEvent(e)) return;
+    if (canAdd) {
+      var nh = _ray.intersectObjects(ST.neighborsGroup.children, true);
+      for (var i = 0; i < nh.length; i++) { var no = nh[i].object;
+        if (no && no.userData && no.userData.nIdx !== undefined) { _cap = { type: "add", idx: no.userData.nIdx }; break; } }
+    }
+    if (!_cap && canDel) {
+      var hits = _ray.intersectObjects(ST.buildingsGroup.children, true);
+      if (hits.length) { var o = hits[0].object; while (o && o.parent !== ST.buildingsGroup) o = o.parent; if (o) _cap = { type: "del", obj: o }; }
+    }
+    if (_cap) { e.stopImmediatePropagation(); e.preventDefault(); }  // sangeun 드래그 시작 차단
+  }
+  function onPickUp(e) {
+    var d = _down; _down = null; var cap = _cap; _cap = null;
+    if (!cap) return;                               // 잡은 것 없음 → sangeun(궤도 등) 정상
+    e.stopImmediatePropagation(); e.preventDefault();
+    if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) return; // 드래그였으면 동작 취소
+    if (cap.type === "add") addNeighbor(cap.idx);
+    else if (cap.type === "del" && cap.obj && cap.obj.visible) {
+      cap.obj.visible = false; ST.deleted.push(cap.obj);
       status("건물 삭제됨 (" + ST.deleted.length + "개) · 복원으로 되돌리기");
-      e.stopImmediatePropagation(); e.preventDefault();   // sangeun으로 전파 차단
     }
   }
   function restoreBuildings() {
@@ -727,76 +951,257 @@
   }
 
   // ====================== 동작 ======================
+  // 주소 → 그 필지 링(없으면 점 기준 사각형). { ring, refined, exact }
+  async function fetchParcelForAddr(addr) {
+    var pt = await geocode(addr);
+    if (!pt) return null;
+    var ring = await fetchParcel(pt.lon, pt.lat);
+    return { ring: ring || squareRing(pt.lon, pt.lat, 15), refined: pt.refined || addr, exact: !!ring };
+  }
+
+  // 필지 목록을 확정: 중심=모든 필지 꼭짓점 평균, 전체 윤곽 그리기, 건물/지면은 중심이 바뀌므로 정리.
+  function commitSite(parcels) {
+    var scene = H().scene, slon = 0, slat = 0, n = 0;
+    parcels.forEach(function (pc) { pc.ring.forEach(function (p) { slon += p.lon; slat += p.lat; n++; }); });
+    if (!n) return;
+    var lon0 = slon / n, lat0 = slat / n;
+    drawSite(parcels, lon0, lat0);
+    ST.site = { lon0: lon0, lat0: lat0, parcels: parcels };
+    // 중심 이동 → 기존 건물/지면 무효화(다시 토글하면 새 중심으로 로드)
+    if (ST.buildingsGroup) { getRoot().remove(ST.buildingsGroup); disposeGroup(ST.buildingsGroup); ST.buildingsGroup = null; }
+    if (ST.groundGroup) { getRoot().remove(ST.groundGroup); disposeGroup(ST.groundGroup); ST.groundGroup = null; }
+    ST.dem = null; ST.deleted = [];
+    // 중심 이동 → 가시성 초기화(끔), 세그먼트 활성화
+    ST.bldState = 0; ST.gndState = 0;
+    highlightSeg(EL.bldSeg, 0); highlightSeg(EL.gndSeg, 0); segEnable(true);
+    if (EL.cnt) EL.cnt.textContent = "필지 " + parcels.length + "개";
+    renderParcelList();
+    refreshNeighbors();   // 접한 인접 필지 옅게 표시 + ＋마커 (비동기)
+  }
+
+  // 합필 필지 목록 렌더(라벨 + × 삭제)
+  function renderParcelList() {
+    if (!EL.list) return;
+    EL.list.innerHTML = "";
+    var parcels = (ST.site && ST.site.parcels) || [];
+    parcels.forEach(function (p, i) {
+      var row = document.createElement("div"); row.className = "prow";
+      var nm = document.createElement("span"); nm.textContent = (i + 1) + ". " + (p.label || "필지");
+      var x = document.createElement("button"); x.type = "button"; x.textContent = "×"; x.title = "이 필지 제거";
+      x.onclick = function () { removeParcel(i); };
+      row.appendChild(nm); row.appendChild(x); EL.list.appendChild(row);
+    });
+  }
+
+  // 목록에서 필지 1개 제거 → 재합필(마지막 1개 제거 시 대지 비움)
+  function removeParcel(i) {
+    if (ST.busy || !ST.site || !ST.site.parcels) return;
+    var parcels = ST.site.parcels.slice();
+    parcels.splice(i, 1);
+    if (!parcels.length) { clearSite(); return; }
+    commitSite(parcels);
+    status("필지 제거됨 · 남은 필지 " + parcels.length + "개");
+  }
+
+  // 대지 전체 비우기(필지 0개)
+  function clearSite() {
+    var scene = H().scene;
+    if (ST.siteGroup) { getRoot().remove(ST.siteGroup); disposeGroup(ST.siteGroup); ST.siteGroup = null; }
+    if (ST.neighborsGroup) { getRoot().remove(ST.neighborsGroup); disposeGroup(ST.neighborsGroup); ST.neighborsGroup = null; }
+    if (ST.buildingsGroup) { getRoot().remove(ST.buildingsGroup); disposeGroup(ST.buildingsGroup); ST.buildingsGroup = null; }
+    if (ST.groundGroup) { getRoot().remove(ST.groundGroup); disposeGroup(ST.groundGroup); ST.groundGroup = null; }
+    ST.site = null; ST.neighbors = []; ST.parcelCache = null; ST.dem = null; ST.deleted = [];
+    ST.addMode = false; if (EL.addMode) EL.addMode.checked = false;
+    ST.bldState = 0; ST.gndState = 0;
+    highlightSeg(EL.bldSeg, 0); highlightSeg(EL.gndSeg, 0); segEnable(false);
+    if (EL.cnt) EL.cnt.textContent = "";
+    renderParcelList();
+    status("대지를 비웠습니다. 주소를 입력해 다시 시작하세요.");
+  }
+
+  // ====================== 인접 필지(접한 대지) 표시 + ＋합필 ======================
+  // BOX 영역 내 지적 필지 다건 조회
+  async function fetchParcelsInBox(w, s, e, n, size) {
+    var url = "https://api.vworld.kr/req/data?service=data&version=2.0&request=GetFeature&format=json" +
+      "&data=LP_PA_CBND_BUBUN&key=" + CFG.VWORLD_KEY +
+      "&domain=" + encodeURIComponent(location.origin || location.href) +
+      "&geomFilter=BOX(" + w + "," + s + "," + e + "," + n + ")&geometry=true&attribute=true&crs=EPSG:4326&size=" + (size || 300);
+    // VWORLD 데이터 API는 간헐적으로 빈 결과를 반환 → 비면 잠깐 후 재시도(껐다켜야 뜨던 문제 해결)
+    for (var attempt = 0; attempt < 4; attempt++) {
+      try {
+        var d = await jsonpGet(url);
+        var fc = d.response && d.response.result && d.response.result.featureCollection;
+        var arr = ((fc && fc.features) ? fc.features : []).map(function (f) {
+          var ring = extractOuterRing(f.geometry), pr = f.properties || {};
+          return ring && ring.length >= 3 ? { ring: ring, label: pr.jibun || pr.addr || "필지", road: isRoadJibun(pr.jibun) } : null;
+        }).filter(Boolean);
+        if (arr.length) return arr;
+      } catch (e) { /* 재시도 */ }
+      await wait(400);
+    }
+    return [];
+  }
+  function ringCentroid(ring) { var a = 0, b = 0; ring.forEach(function (p) { a += p.lon; b += p.lat; }); return { lon: a / ring.length, lat: b / ring.length }; }
+  // 지번 끝 글자가 지목 '도'(도로)면 도로 필지 → 합필 불가, 빨간색 표시
+  function isRoadJibun(jibun) { if (!jibun) return false; var s = String(jibun).trim(); return s.charAt(s.length - 1) === "도"; }
+
+  // 첫 대지 주변 반경 CACHE_R 의 필지를 1회만 받아 캐시(이후 합필 중엔 네트워크 조회 안 함 → ＋ 안정).
+  async function ensureParcelCache(lon0, lat0) {
+    if (ST.parcelCache) return ST.parcelCache;
+    var dLat = CACHE_R / 111320, dLon = CACHE_R / (111320 * Math.cos(lat0 * Math.PI / 180));
+    var arr = await fetchParcelsInBox(lon0 - dLon, lat0 - dLat, lon0 + dLon, lat0 + dLat, 1000);
+    if (!arr.length) return [];                 // 빈 응답이면 캐시하지 않음(다음에 재시도)
+    arr.forEach(function (p) { p.cen = ringCentroid(p.ring); });
+    ST.parcelCache = arr;
+    return arr;
+  }
+
+  // 현재 합필 대지에 '접한'(꼭짓점 공유) 인접 필지를 찾아 옅게 표시 + ＋마커
+  function clearNeighbors() {
+    var scene = H().scene;
+    if (ST.neighborsGroup) { getRoot().remove(ST.neighborsGroup); disposeGroup(ST.neighborsGroup); ST.neighborsGroup = null; }
+    ST.neighbors = [];
+  }
+  async function refreshNeighbors() {
+    // 기존 ＋는 새 목록이 준비될 때까지 그대로 둠(깜빡임/끊김 방지). 조기종료시에만 즉시 제거.
+    if (!ST.addMode || !ST.site || !ST.site.parcels.length) { clearNeighbors(); return; }
+    if (ST.site.parcels.length >= MAX_PARCELS) { clearNeighbors(); status("필지 " + MAX_PARCELS + "개(최대) 도달 — 모드를 끄거나 일부 제거하세요."); return; }
+    try {
+      // 캐시(첫 1회만 네트워크) → 이후 인접 계산은 로컬에서만 → ＋ 깜빡임/사라짐 없음
+      var cache = await ensureParcelCache(ST.site.lon0, ST.site.lat0);
+      if (!ST.addMode || !ST.site) { clearNeighbors(); return; }
+      if (!cache.length) { status("주변 필지 데이터를 받지 못했습니다. 잠시 후 다시 시도하세요."); return; }
+      var lat0 = ST.site.lat0, mPerLat = 111320, mPerLon = 111320 * Math.cos(lat0 * Math.PI / 180);
+      var w = 1e9, s = 1e9, e = -1e9, n = -1e9;
+      ST.site.parcels.forEach(function (pc) { pc.ring.forEach(function (p) { if (p.lon < w) w = p.lon; if (p.lon > e) e = p.lon; if (p.lat < s) s = p.lat; if (p.lat > n) n = p.lat; }); });
+      var padLat = 60 / mPerLat, padLon = 60 / mPerLon;   // 합필 bbox 주변만 후보로(경량 사전필터)
+      var siteCens = ST.site.parcels.map(function (pc) { return ringCentroid(pc.ring); });
+      function distM(p, q) { var dx = (p.lon - q.lon) * mPerLon, dy = (p.lat - q.lat) * mPerLat; return Math.sqrt(dx * dx + dy * dy); }
+      // 점 p에서 선분 a-b 까지 거리(m) — 경계선(변) 기준 인접 판정(꼭짓점 불일치/일반화 오차 흡수)
+      function segDistM(p, a, b) {
+        var ax = (a.lon - p.lon) * mPerLon, ay = (a.lat - p.lat) * mPerLat, bx = (b.lon - p.lon) * mPerLon, by = (b.lat - p.lat) * mPerLat;
+        var dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy, t = L2 > 0 ? -(ax * dx + ay * dy) / L2 : 0; t = t < 0 ? 0 : t > 1 ? 1 : t;
+        var cx = ax + t * dx, cy = ay + t * dy; return Math.sqrt(cx * cx + cy * cy);
+      }
+      function ptRingDist(p, ring) { var m = Infinity; for (var i = 0; i < ring.length; i++) { var d = segDistM(p, ring[i], ring[(i + 1) % ring.length]); if (d < m) { m = d; if (m < 0.5) return m; } } return m; }
+      var TH = 10; // 인접 임계(경계 간 거리 m): 일반화 오차/좁은 골목 흡수, 넓은 도로 건너편 제외
+      function nearSite(ring) {
+        for (var k = 0; k < ST.site.parcels.length; k++) {
+          var sr = ST.site.parcels[k].ring;
+          for (var i = 0; i < ring.length; i++) if (ptRingDist(ring[i], sr) < TH) return true;
+          for (var j = 0; j < sr.length; j++) if (ptRingDist(sr[j], ring) < TH) return true;
+        }
+        return false;
+      }
+      var found = [];
+      cache.forEach(function (c) {
+        var cc = c.cen || ringCentroid(c.ring);
+        if (cc.lon < w - padLon || cc.lon > e + padLon || cc.lat < s - padLat || cc.lat > n + padLat) return; // bbox 밖 사전제외(경량)
+        for (var k = 0; k < siteCens.length; k++) if (distM(cc, siteCens[k]) < 2) return; // 이미 합필된 필지
+        if (!nearSite(c.ring)) return;                                                    // 접하지 않으면 제외
+        found.push({ ring: c.ring, label: c.label, cen: cc, road: c.road });
+      });
+      ST.neighbors = found;
+      drawNeighbors();
+      status(found.length
+        ? "인접 필지 " + found.length + "개 — 파란 ＋를 누르면 합필 (현재 " + ST.site.parcels.length + "/" + MAX_PARCELS + ", 빨강=도로 불가)"
+        : "접한 인접 필지가 더 없습니다. 현재 " + ST.site.parcels.length + "개 합필됨.");
+    } catch (err) {
+      status("인접 필지 조회 오류: " + (err && err.message) + " — 다시 시도해 주세요.");
+    }
+  }
+
+  function plusTexture() {
+    var T = H().THREE;
+    if (ST._plusTex) return ST._plusTex;
+    var cv = document.createElement("canvas"); cv.width = cv.height = 64; var x = cv.getContext("2d");
+    x.fillStyle = "rgba(26,115,232,0.92)"; x.beginPath(); x.arc(32, 32, 27, 0, Math.PI * 2); x.fill();
+    x.strokeStyle = "#fff"; x.lineWidth = 7; x.lineCap = "round";
+    x.beginPath(); x.moveTo(32, 17); x.lineTo(32, 47); x.moveTo(17, 32); x.lineTo(47, 32); x.stroke();
+    ST._plusTex = new T.CanvasTexture(cv);
+    return ST._plusTex;
+  }
+
+  function drawNeighbors() {
+    var T = H().THREE, scene = H().scene;
+    if (ST.neighborsGroup) { getRoot().remove(ST.neighborsGroup); disposeGroup(ST.neighborsGroup); }
+    ST.neighborsGroup = new T.Group(); ST.neighborsGroup.name = "fitNeighbors";
+    var info = worldToLocalMatrix(ST.site.lon0, ST.site.lat0);
+    // 일반 인접=파랑(추가 가능), 도로=빨강(추가 불가)
+    var lineBlue = new T.LineBasicMaterial({ color: 0x9bb7e6, transparent: true, opacity: 0.65 });
+    var fillBlue = new T.MeshBasicMaterial({ color: 0x9bb7e6, transparent: true, opacity: 0.06, side: T.DoubleSide, depthWrite: false });
+    var lineRed = new T.LineBasicMaterial({ color: 0xd9534f, transparent: true, opacity: 0.8 });
+    var fillRed = new T.MeshBasicMaterial({ color: 0xd9534f, transparent: true, opacity: 0.12, side: T.DoubleSide, depthWrite: false });
+    ST.neighbors.forEach(function (nb, idx) {
+      var pts = nb.ring.map(function (p) { var P = geodeticToECEF(p.lon, p.lat, 0).sub(info.A).applyMatrix4(info.Rw2l); return new T.Vector3(P.x, 0.05, P.z); });
+      ST.neighborsGroup.add(new T.LineLoop(new T.BufferGeometry().setFromPoints(pts), nb.road ? lineRed : lineBlue));
+      try { var mesh = new T.Mesh(new T.ShapeGeometry(new T.Shape(pts.map(function (v) { return new T.Vector2(v.x, v.z); }))), nb.road ? fillRed : fillBlue); mesh.rotation.x = Math.PI / 2; mesh.position.y = 0.03; ST.neighborsGroup.add(mesh); } catch (e) {}
+      if (nb.road) return;   // 도로는 ＋마커 없음(추가 불가)
+      var c = geodeticToECEF(nb.cen.lon, nb.cen.lat, 0).sub(info.A).applyMatrix4(info.Rw2l);
+      var mk = new T.Mesh(new T.PlaneGeometry(7, 7), new T.MeshBasicMaterial({ map: plusTexture(), transparent: true, depthWrite: false, depthTest: false }));
+      mk.rotation.x = -Math.PI / 2; mk.position.set(c.x, 0.3, c.z); mk.renderOrder = 6; mk.userData.nIdx = idx;
+      ST.neighborsGroup.add(mk);
+    });
+    getRoot().add(ST.neighborsGroup);
+  }
+
+  // ＋마커 클릭 → 그 인접 필지를 합필
+  function addNeighbor(idx) {
+    if (ST.busy || !ST.site) return;
+    if (ST.site.parcels.length >= MAX_PARCELS) { status("최대 " + MAX_PARCELS + "개까지 합필됩니다."); return; }
+    var nb = ST.neighbors[idx]; if (!nb) return;
+    if (nb.road) { status("도로 필지는 합필할 수 없습니다."); return; }
+    var parcels = ST.site.parcels.slice();
+    parcels.push({ ring: nb.ring, label: nb.label });
+    commitSite(parcels);
+    status("합필됨 · 필지 " + parcels.length + "개 (인접: " + nb.label + ")");
+  }
+
+  // 대지 불러오기 = 새로 시작(단일 필지로 초기화)
   async function runSite() {
     if (ST.busy) return;
     var addr = (EL.addr.value || "").trim();
     if (!addr) { status("주소를 입력하세요."); return; }
-    ST.busy = true; EL.go.disabled = true; status("주소 검색 중…");
-    // 새 대지를 불러오면 이전 위치의 건물/지면은 정리(위치 불일치 방지)
-    if (ST.buildingsGroup) { H().scene.remove(ST.buildingsGroup); disposeGroup(ST.buildingsGroup); ST.buildingsGroup = null; }
-    if (ST.groundGroup) { H().scene.remove(ST.groundGroup); disposeGroup(ST.groundGroup); ST.groundGroup = null; }
-    ST.dem = null;   // 새 대지 → DEM 캐시 무효화
-    ST.deleted = [];
-    EL.tog.checked = false; EL.gnd.checked = false;
+    ST.busy = true; EL.go.disabled = true; if (EL.add) EL.add.disabled = true; status("주소·대지 조회 중…");
+    ST.parcelCache = null;   // 새 대지 → 주변 필지 캐시 무효화(새 위치로 다시 받음)
+    ST.xform = { x: 0, y: 0, rot: 0 }; syncXformUI(); applyXform();  // 새 대지는 기준점 0에서 시작
     try {
-      var pt = await geocode(addr);
-      if (!pt) { status("주소를 찾지 못했습니다."); return; }
-      status("대지 경계 조회 중…");
-      var ring = await fetchParcel(pt.lon, pt.lat);
-      var lon0 = pt.lon, lat0 = pt.lat;
-      if (ring) {
-        // 대지 중심을 원점으로
-        var s = 0, slon = 0, slat = 0;
-        ring.forEach(function (p) { slon += p.lon; slat += p.lat; s++; });
-        lon0 = slon / s; lat0 = slat / s;
-        drawOutline(ring, lon0, lat0);
-        status("대지 윤곽선 표시됨 · " + (pt.refined || addr));
-      } else {
-        // 대지 경계 실패 시 점 기준 작은 사각형으로 표시
-        drawOutline(squareRing(pt.lon, pt.lat, 15), pt.lon, pt.lat);
-        status("대지 경계 미확인 — 위치만 표시(" + (pt.refined || addr) + ")");
-      }
-      ST.site = { lon0: lon0, lat0: lat0, ring: ring };
-      EL.tog.disabled = false; EL.togWrap.classList.remove("dis");
-      EL.gnd.disabled = false; EL.gndWrap.classList.remove("dis");
-    } catch (e) {
-      status("오류: " + e.message);
-    } finally {
-      ST.busy = false; EL.go.disabled = false;
-    }
+      var r = await fetchParcelForAddr(addr);
+      if (!r) { status("주소를 찾지 못했습니다."); return; }
+      commitSite([{ ring: r.ring, label: r.refined }]);
+      status((r.exact ? "대지 윤곽선 표시됨" : "대지 경계 미확인 — 위치만 표시") + " · " + r.refined + " · ‘＋필지 추가’로 합필 가능");
+    } catch (e) { status("오류: " + e.message); }
+    finally { ST.busy = false; EL.go.disabled = false; if (EL.add) EL.add.disabled = false; }
+  }
+
+  // ＋필지 추가 = 현재 대지에 입력 주소의 필지를 합필
+  async function addParcel() {
+    if (ST.busy) return;
+    if (!ST.site || !ST.site.parcels) { return runSite(); } // 아직 없으면 새로 시작
+    var addr = (EL.addr.value || "").trim();
+    if (!addr) { status("추가할 필지 주소를 입력하세요."); return; }
+    ST.busy = true; EL.go.disabled = true; if (EL.add) EL.add.disabled = true; status("합필할 필지 조회 중…");
+    try {
+      var r = await fetchParcelForAddr(addr);
+      if (!r) { status("주소를 찾지 못했습니다."); return; }
+      var parcels = ST.site.parcels.slice(); parcels.push({ ring: r.ring, label: r.refined });
+      commitSite(parcels);
+      status("합필됨 · 필지 " + parcels.length + "개 (방금 추가: " + r.refined + ")");
+    } catch (e) { status("오류: " + e.message); }
+    finally { ST.busy = false; EL.go.disabled = false; if (EL.add) EL.add.disabled = false; }
   }
   function squareRing(lon, lat, half) {
     var dLat = half / 111320, dLon = half / (111320 * Math.cos(lat * Math.PI / 180));
     return [{ lon: lon - dLon, lat: lat - dLat }, { lon: lon + dLon, lat: lat - dLat },
             { lon: lon + dLon, lat: lat + dLat }, { lon: lon - dLon, lat: lat + dLat }];
   }
-  async function runBuildings() {
-    if (!ST.site) { status("먼저 대지를 불러오세요."); EL.tog.checked = false; return; }
-    if (ST.busy) return;
-    ST.busy = true; EL.tog.disabled = true;
-    try {
-      await loadBuildings(ST.site.lon0, ST.site.lat0, status);
-      // 지면이 켜져 있으면 새 건물 바닥에 맞춰 지형 재피팅
-      if (ST.groundGroup && EL.gnd.checked) await loadGround(ST.site.lon0, ST.site.lat0, status);
-    }
-    catch (e) { status("건물 로드 실패: " + e.message); EL.tog.checked = false; }
-    finally { ST.busy = false; EL.tog.disabled = false; }
-  }
-  async function runGround() {
-    if (!ST.site) { status("먼저 대지를 불러오세요."); EL.gnd.checked = false; return; }
-    if (ST.busy) return;
-    ST.busy = true; EL.gnd.disabled = true;
-    try { await loadGround(ST.site.lon0, ST.site.lat0, status); }
-    catch (e) { status("지면 로드 실패: " + e.message); EL.gnd.checked = false; }
-    finally { ST.busy = false; EL.gnd.disabled = false; }
-  }
-
   // ====================== 공개 API ======================
   window.VWorldContext = {
     config: CFG,
     loadSite: function (addr) { EL.addr.value = addr; return runSite(); },
-    showBuildings: function (v) { EL.tog.checked = v !== false; runBuildings(); },
-    showGround: function (v) { EL.gnd.checked = v !== false; runGround(); },
+    addParcel: function (addr) { EL.addr.value = addr; return addParcel(); },
+    showBuildings: function (v) { setBldState(v === false ? 0 : (v === 2 ? 2 : 1)); },
+    showGround: function (v) { setGndState(v === false ? 0 : (v === 2 ? 2 : 1)); },
     state: ST
   };
 

@@ -53,7 +53,7 @@
             outline:none; transition:border-color .15s; font-family:inherit; }
         input[type="text"]:focus, input[type="number"]:focus{ border-color:var(--ink); }
         input[readonly]{ background:var(--soft); color:#6b7077; }
-        #address{ flex:1; width:auto; }
+        #address{ flex:1 1 0; width:auto; min-width:0; }
         .row > input[type="number"]{ flex:0 0 auto; }
         input[type="range"]{ flex:1; accent-color:var(--ink); }
 
@@ -273,7 +273,7 @@
         <div class="label"><span class="dot"></span>위치 검색</div>
         <div class="row">
             <input id="address" type="text" placeholder="주소 또는 장소 입력">
-            <button class="btn-primary btn-search" style="flex:0 0 auto; padding:9px 16px;"
+            <button class="btn-primary btn-search" style="flex:0 0 auto; padding:9px 12px; white-space:nowrap;"
                     onclick="searchAddress()">여기로 불러오기</button>
         </div>
         <div class="hint" id="searchHint">도로명 주소를 입력하면 대지경계선이 지도에 표시됩니다. 그 다음 ‘신축 매스·입면’ 탭에서 건물을 올리세요.</div>
@@ -551,12 +551,12 @@
     <div class="card">
         <div class="label"><span class="dot"></span>Gemini API 키</div>
         <div class="row">
-            <input id="aiKey" class="ai-key" type="password" placeholder="AIza... 붙여넣기"
-                   style="flex:1; width:auto;">
+            <input id="aiKey" class="ai-key" type="password" placeholder="키 뒤 2글자만 입력"
+                   value="AIzaSyDb3HUaL5dHueXJKHluVyq-VV0ExhjFx" style="flex:1; width:auto;">
             <button class="btn-ghost" style="flex:0 0 auto; padding:9px 12px;"
                     onclick="saveAiKey()">저장</button>
         </div>
-        <div class="hint">키는 이 브라우저에만 저장됩니다(localStorage). aistudio.google.com 에서 발급.</div>
+        <div class="hint">키 앞부분은 미리 입력돼 있습니다. <b>뒤 2글자만</b> 이어서 입력 후 ‘저장’하세요. (이 브라우저에만 저장)</div>
         <div class="row" style="margin-top:8px;">
             <span class="field">모델</span>
             <input id="aiModel" type="text" value="gemini-3.1-flash-image"
@@ -824,7 +824,7 @@
     }
 
     function initAiTab() {
-        try { document.getElementById("aiKey").value = localStorage.getItem("geminiKey") || ""; } catch (e) {}
+        try { var _sv = localStorage.getItem("geminiKey"); if (_sv) document.getElementById("aiKey").value = _sv; } catch (e) {}
         applyAiPreset(); // 기본 프롬프트 채우기
     }
 
