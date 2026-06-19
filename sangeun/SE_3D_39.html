@@ -194,9 +194,9 @@
   .btn.ghost.on{border-color:var(--accent);color:var(--accent);}
   .btn:hover{filter:brightness(1.05);}
   .controls{top:68px;right:28px;text-align:right;}
-  .controls .hint{font-size:12px;color:var(--sub);line-height:1.95;font-weight:300;}
+  .controls .hint{font-size:8.4px;color:var(--sub);line-height:1.37;font-weight:300;}
   .controls .hint b{color:var(--text);font-weight:600;}
-  .controls .hint .dot{color:var(--accent);font-size:9px;vertical-align:1px;}
+  .controls .hint .dot{color:var(--accent);font-size:6.3px;vertical-align:1px;}
   .rst{margin-top:16px;font-size:11px;letter-spacing:0.18em;font-weight:500;color:var(--sub);
     background:transparent;border:1px solid var(--line);border-radius:2px;padding:9px 18px;cursor:pointer;transition:all .18s;text-transform:uppercase;}
   .rst:hover{border-color:var(--accent);color:var(--accent);}
@@ -625,6 +625,7 @@ body.calc-mode .steps, body.calc-mode .dimtag, body.calc-mode #goTextCalc, body.
 <script>
 const MIN_HALF=2,MAX_HALF=100,MIN_FLOORS=1,MAX_FLOORS=120,CORE_MIN=1.5,MIN_FH=3,MAX_FH=8;
 let tHalfW=12,tHalfD=12,tFloors=5,tFloorH=4, sHalfW=12,sHalfD=12,sFloorH=4,sHeight=20;
+let bcx=0,bcz=0,sbcx=0,sbcz=0,bldGrp=null;
 let perFloorMode=false,lowN=1,midN=1,topN=1,fhLow=4,fhTop=4;
 function floorHt(j){ if(!perFloorMode)return tFloorH; if(j<=lowN)return fhLow; if(j<=lowN+midN)return tFloorH; return fhTop; }
 function levelY(i){ var s=0; for(var j=1;j<=i;j++)s+=floorHt(j); return s; }
@@ -937,17 +938,17 @@ function updateDrawUI(){ const main=document.getElementById('drawSegMain'),edit=
   if(info)info.style.display=drawMode?'':'none'; if(hint)hint.style.display=drawMode?'':'none';
   if(bRect)bRect.classList.toggle('on', !footprint && !drawMode);
   if(bDraw)bDraw.classList.toggle('on', !!footprint && !drawMode); }
-function startDraw(){ if(step!==1) setStep(1); if(!footprint) preDraw={tHalfW:tHalfW,tHalfD:tHalfD}; drawMode=true; drawPts=[]; drawHover=null; pendingDraw=false; polyMassSig=''; updateDrawUI(); renderDraw(); }
+function startDraw(){ if(step!==1) setStep(1); if(!footprint) preDraw={tHalfW:tHalfW,tHalfD:tHalfD,bcx:bcx,bcz:bcz}; drawMode=true; drawPts=[]; drawHover=null; bcx=0;bcz=0;sbcx=0;sbcz=0; pendingDraw=false; polyMassSig=''; updateDrawUI(); renderDraw(); }
 function cancelDraw(){ drawMode=false; drawPts=[]; drawHover=null; renderDraw(); updateDrawUI(); }
 function finishDraw(){ if(drawPts.length<3){ alert('점을 3개 이상 찍어 평면을 닫아주세요.'); return; }
   pushUndo();
-  const b=polyBounds(drawPts), cx=(b.minx+b.maxx)/2, cz=(b.minz+b.maxz)/2;
+  const b=polyBounds(drawPts), cx=(b.minx+b.maxx)/2, cz=(b.minz+b.maxz)/2; bcx=cx; bcz=cz; sbcx=cx; sbcz=cz;
   footprint=drawPts.map(q=>({x:snapHalf(q.x-cx), z:snapHalf(q.z-cz)})); polySel=new Array(nFaces()).fill(true);
   drawMode=false; drawPts=[]; drawHover=null; polyMassSig=''; syncBBox(); renderDraw(); renderFootprintDims(); updateDrawUI(); updateReadout(); }
-function clearFootprint(){ if(footprint) pushUndo(); footprint=null; drawMode=false; drawPts=[]; drawHover=null; polyMassSig=''; vtxCount=-1;
+function clearFootprint(){ if(footprint) pushUndo(); footprint=null; bcx=0;bcz=0; drawMode=false; drawPts=[]; drawHover=null; polyMassSig=''; vtxCount=-1;
   polyMass.children.forEach(o=>o.geometry&&o.geometry.dispose()); polyMass.clear(); polyMass.visible=false;
   vtxHandles.children.forEach(o=>o.geometry&&o.geometry.dispose()); vtxHandles.clear(); vtxHandles.visible=false;
-  if(preDraw){ tHalfW=preDraw.tHalfW; tHalfD=preDraw.tHalfD; clampCore(); } preDraw=null;
+  if(preDraw){ tHalfW=preDraw.tHalfW; tHalfD=preDraw.tHalfD; if(preDraw.bcx!=null){bcx=preDraw.bcx;bcz=preDraw.bcz;sbcx=bcx;sbcz=bcz;} clampCore(); } preDraw=null;
   renderDraw(); updateDrawUI(); updateReadout(); }
 
 const coreFaceMat=new THREE.MeshBasicMaterial({color:ACCENT,transparent:true,opacity:0.2,depthWrite:false});
@@ -1006,6 +1007,8 @@ const frSlabMat=new THREE.MeshBasicMaterial({color:'#b0aca3',transparent:true,op
 const ftMatCache={}; function ftMat(i){ if(!ftMatCache[i]){ const m=frSlabMat.clone(); m.color=new THREE.Color(ftCol(i)); m.opacity=0.3; ftMatCache[i]=m; } return ftMatCache[i]; }
 const cornerSgn=[[1,1],[-1,1],[-1,-1],[1,-1]];
 const frVol=new THREE.Group(); scene.add(frVol);
+bldGrp=new THREE.Group(); scene.add(bldGrp);
+[box,edges,floorLines,slabs,drawGroup,polyMass,polyFaces,polyBands,coreBox,coreEdges,extraGrp,extraHandles,vtxHandles,topH,fhH,fhHa,fhHb,fhHc,fitBottomH,fitTopH,frUnit,frUnitEdge,frGrid,frVol,frWH,frHH,frDH].concat(corners,cCorners,facePlanes,bandMeshes).forEach(function(o){ if(o) bldGrp.add(o); });
 // 유닛 타입(step5): 베이스(none/skin/hvac) + 도어 오버레이(겹침 가능)
 let unitVer=0; const baseType={}, floorOv={}, baseDoor={}, floorDoor={}, prevType={}; let unitMode='all', editFloor=1, activeType='skin'; let hvacAuto=false;
 const TYPE_COL={none:'#edebe6',skin:'#b0aca3',hvac:'#e68d39',door:'#4a86c5',noframe:'#ffffff'};
@@ -1178,9 +1181,12 @@ function onMove(e){ wake(); if(pinching)return; setNDC(e);
   }
   if(drag){
     if(drag.type==='corner'){const p=groundHit(); if(p){
-      tHalfW=snapGrid(clamp(Math.abs(p.x),MIN_HALF,MAX_HALF),0.5,0.18);
-      tHalfD=snapGrid(clamp(Math.abs(p.z),MIN_HALF,MAX_HALF),0.5,0.18); clampCore();}}
-    else if(drag.type==='vtx'){ const p=groundHit(); if(p && footprint && footprint[drag.i]){
+      var _i=drag.i, _sx=(_i===0||_i===3)?1:-1, _sz=(_i===0||_i===1)?1:-1;
+      var _fx=bcx-_sx*tHalfW, _fz=bcz-_sz*tHalfD;
+      tHalfW=snapGrid(clamp(Math.abs(p.x-_fx)/2,MIN_HALF,MAX_HALF),0.5,0.18);
+      tHalfD=snapGrid(clamp(Math.abs(p.z-_fz)/2,MIN_HALF,MAX_HALF),0.5,0.18);
+      bcx=_fx+_sx*tHalfW; bcz=_fz+_sz*tHalfD; clampCore();}}
+    else if(drag.type==='vtx'){ const p=groundHit(); if(p && footprint && footprint[drag.i]){ p.x-=bcx;p.z-=bcz;
       moveVertexOrtho(drag.i, p.x, p.z); polyMassSig=''; updateFootprintDimValues(); }}
     else if(drag.type==='top'){const y=vDragY(0,0); if(y!=null){ if(perFloorMode){ var _fx=lowN*fhLow+topN*fhTop; var _mn=Math.round((y-_fx)/Math.max(0.001,tFloorH)); midN=Math.max(0,Math.min(MAX_FLOORS,_mn)); if(lowN+midN+topN<1)midN=1; tFloors=lowN+midN+topN; if($('pfMidN'))$('pfMidN').value=midN; if($('inFloors'))$('inFloors').value=tFloors; frSig='';slabSig='';polyMassSig='';floorSig=''; if(typeof updateReadout==='function')updateReadout(); } else { tFloors=clamp(Math.round(y/tFloorH),MIN_FLOORS,MAX_FLOORS); } }}
     else if(drag.type==='floorh'){const _fr=fhRefXZ(); const y=vDragY(_fr.x,_fr.z); if(y!=null) tFloorH=clamp(snapGrid(y,0.1,0.05),MIN_FH,MAX_FH);}
@@ -1205,7 +1211,7 @@ function onMove(e){ wake(); if(pinching)return; setNDC(e);
           else if(coreOK(tcx,nz,tcHalfW,tcHalfD,0)){tcz=nz;} } }
       else { var _s1=snapCoreEdges(nx,nz,tcHalfW,tcHalfD,0,1.6), _m1=coreCenterMagnet(_s1.x,_s1.z,tcHalfW,tcHalfD,1.4); nx=_m1.x; nz=_m1.z; if(coreOK(nx,nz,tcHalfW,tcHalfD,0)){tcx=nx;tcz=nz;} else if(coreOK(nx,tcz,tcHalfW,tcHalfD,0)){tcx=nx;} else if(coreOK(tcx,nz,tcHalfW,tcHalfD,0)){tcz=nz;} }
       clampCore(); { var _mc=coreCenterMagnet(tcx,tcz,tcHalfW,tcHalfD,1.4); tcx=_mc.x; tcz=_mc.z; }}}
-    else if(drag.type==='ccorner'){const p=groundHit(); if(p){coreTouched=true;
+    else if(drag.type==='ccorner'){const p=groundHit(); if(p){p.x-=bcx;p.z-=bcz;coreTouched=true;
       const i=drag.i,sx=(i===0||i===3)?1:-1,sz=(i===0||i===1)?1:-1;
       const fixX=tcx-sx*tcHalfW,fixZ=tcz-sz*tcHalfD;
       const pw=tcHalfW,pd=tcHalfD,ppx=tcx,ppz=tcz;
@@ -1222,7 +1228,7 @@ function onMove(e){ wake(); if(pinching)return; setNDC(e);
       else if(coreOK(nx,nz,c.hw,c.hd,I)){c.cx=nx;c.cz=nz;}
       else if(coreOK(nx,c.cz,c.hw,c.hd,I)){c.cx=nx;}
       else if(coreOK(c.cx,nz,c.hw,c.hd,I)){c.cz=nz;} }}
-    else if(drag.type==='xccorner'){const p=groundHit(); if(p&&cores[drag.ci]){ const c=cores[drag.ci]; coreTouched=true;
+    else if(drag.type==='xccorner'){const p=groundHit(); if(p&&cores[drag.ci]){ p.x-=bcx;p.z-=bcz; const c=cores[drag.ci]; coreTouched=true;
       const i=drag.i,sx=(i===0||i===3)?1:-1,sz=(i===0||i===1)?1:-1;
       const fixX=c.cx-sx*c.hw,fixZ=c.cz-sz*c.hd, pw=c.hw,pd=c.hd,ppx=c.cx,ppz=c.cz;
       { const S=coreSnapLines(drag.ci+1); p.x=snapValTo(p.x,S.Xs,0.7); p.z=snapValTo(p.z,S.Zs,0.7); }
@@ -1464,7 +1470,7 @@ function applyDesignState(d){ if(!d||typeof d!=='object'||d.app!=='FIT-MASSING')
     var bz=d.bays||{}; clr(baseType);Object.assign(baseType,bz.baseType||{}); clr(floorOv);Object.assign(floorOv,bz.floorOv||{}); clr(baseDoor);Object.assign(baseDoor,bz.baseDoor||{}); clr(floorDoor);Object.assign(floorDoor,bz.floorDoor||{}); clr(prevType);Object.assign(prevType,bz.prevType||{});
     var R=d.rates||{}; if(R.delivRate!=null)delivRate=R.delivRate; if(R.constRate!=null)constRate=R.constRate;
     if(d.items){ ESTIMATE_ITEMS.forEach(function(it){ if(it[0] in d.items) itemSel[it[0]]=!!d.items[it[0]]; }); }
-    sHalfW=tHalfW; sHalfD=tHalfD; sFloorH=tFloorH; sHeight=totalH(); scHalfW=tcHalfW; scHalfD=tcHalfD; scx=tcx; scz=tcz;
+    sHalfW=tHalfW; sHalfD=tHalfD; sFloorH=tFloorH; sHeight=totalH(); sbcx=bcx; sbcz=bcz; scHalfW=tcHalfW; scHalfD=tcHalfD; scx=tcx; scz=tcz;
     clampCore(); clampFit(); editFloor=clamp(editFloor,fitFrom,fTopEff());
     setGlass(glassType); setSkin(skinType);
     if($('inDeliv'))$('inDeliv').value=delivRate; if($('inConst'))$('inConst').value=constRate;
@@ -1773,7 +1779,7 @@ $('rzB').addEventListener('pointerdown',e=>startRsz('B',e));
 $('rzBL').addEventListener('pointerdown',e=>startRsz('BL',e));
 $('reset').onclick=()=>{
   pushUndo();
-  tHalfW=12;tHalfD=12;tFloors=5;tFloorH=4;
+  tHalfW=12;tHalfD=12;tFloors=5;tFloorH=4; bcx=0;bcz=0;
   fitFrom=2;fitTo=tFloors;faceSel=[true,true,true,true]; fitTouched=false;
   frameW=1200;frameD=1200;frameH=4000; frameWMode='face'; frameTypesEx=[]; autoGrpFrame=false; grpTypeIdx=[0,0,0]; lastAutoSig=''; glassType='low'; frameMount='attach'; frameInset=0; slabTh=0.2; perFloorMode=false; lowN=1; midN=1; topN=1; fhLow=4; fhTop=4; if($('pfRows'))$('pfRows').style.display='none'; if($('flrRow'))$('flrRow').style.display='flex'; if($('pfLowN'))$('pfLowN').value=1; if($('pfMidN'))$('pfMidN').value=1; if($('pfTopN'))$('pfTopN').value=1; if($('slabThIn'))$('slabThIn').value=200; slabSig=''; for(const k in frameTypeMap)delete frameTypeMap[k]; activeFType=0;
   coreTouched=false; cores=[]; rebuildExtraCores(); coreDefault(); clampCore();
@@ -1871,7 +1877,7 @@ function updateReadout(){ wake(); clampFit();
 
 const tmp=new THREE.Vector3(), tmp2=new THREE.Vector3();
 let _canvasRect=null;
-function place(tag,x,y,z){if(!tag)return;
+function place(tag,x,y,z){if(!tag)return; x+=sbcx; z+=sbcz;
   tmp2.set(x,y,z).applyMatrix4(camera.matrixWorldInverse);
   const inFront=tmp2.z<0;
   tmp.set(x,y,z).project(camera);
@@ -1883,7 +1889,7 @@ function place(tag,x,y,z){if(!tag)return;
 function tick(){requestAnimationFrame(tick);
   if(document.body.classList.contains('calc-mode')) return;
   const k=0.18;
-  sHalfW+=(tHalfW-sHalfW)*k; sHalfD+=(tHalfD-sHalfD)*k; sFloorH+=(tFloorH-sFloorH)*k;
+  sHalfW+=(tHalfW-sHalfW)*k; sHalfD+=(tHalfD-sHalfD)*k; sbcx+=(bcx-sbcx)*k; sbcz+=(bcz-sbcz)*k; sFloorH+=(tFloorH-sFloorH)*k;
   sHeight+=(totalH()-sHeight)*k;
   scHalfW+=(tcHalfW-scHalfW)*k; scHalfD+=(tcHalfD-scHalfD)*k; scx+=(tcx-scx)*k; scz+=(tcz-scz)*k;
   if(!(drag&&drag.type==='corner')){const span=Math.max(tHalfW*2, tHalfD*2, tFloors*tFloorH); tRadius=Math.max(16, span*zoomK*zoomMul);}
@@ -1901,6 +1907,18 @@ function tick(){requestAnimationFrame(tick);
   box.visible=!poly&&!drawMode; edges.visible=!poly&&!drawMode; floorLines.visible=!poly&&!drawMode;
   polyMass.visible=poly&&!drawMode; drawGroup.visible=drawMode;
   if(poly) rebuildPolyMass(h);
+  if(bldGrp) bldGrp.position.set(sbcx,0,sbcz);
+  try{ var _VC=window.VWorldContext, _ST=_VC&&_VC.state, _s1=step===1;
+      var _pa=document.getElementById('fitCtxPanel'); if(_pa) _pa.style.display=_s1?'':'none';
+    if(_ST){
+      var _sg=_ST.siteGroup;
+      if(_sg){ for(var _si=0;_si<_sg.children.length;_si++){ var _sc=_sg.children[_si]; if(_sc.userData&&_sc.userData.seam) _sc.visible=_s1; else if(_sc.isMesh) _sc.visible=_s1; } }
+      if(_ST._siteLineMat) _ST._siteLineMat.color.setHex(_s1?0x1a73e8:0x0d3b8c);
+      var _ng=_ST.neighborsGroup;
+      if(_ng){ for(var _ni=0;_ni<_ng.children.length;_ni++){ var _nc=_ng.children[_ni]; if(_nc.isMesh && !(_nc.userData&&_nc.userData.nIdx!==undefined)) _nc.visible=_s1; } }
+      if(_ST._nbrBlueMat) _ST._nbrBlueMat.opacity=_s1?0.65:0.5;
+      if(_ST._nbrRedMat)  _ST._nbrRedMat.opacity=_s1?0.8:0.35;
+    } }catch(e){}
   if(!poly && !drawMode){ box.scale.set(w,h,d); box.position.y=h/2; edges.scale.set(w,h,d); edges.position.y=h/2; rebuildFloors(w,h,d,tFloors); }
   slabs.visible = !drawMode && (step>=2); if(slabs.visible) rebuildSlabs(poly,w,h,d,tFloors);
 
@@ -4769,20 +4787,29 @@ window.FitCalcApp = App;
     ST.siteGroup = new T.Group(); ST.siteGroup.name = "fitSiteOutline";
     var info = worldToLocalMatrix(lon0, lat0);
     var lineMat = new T.LineBasicMaterial({ color: 0x1a73e8 });
+    var seamMat = new T.LineBasicMaterial({ color: 0x34a853 }); ST._siteLineMat = lineMat;
     var fillMat = new T.MeshBasicMaterial({ color: 0x1a73e8, transparent: true, opacity: 0.10, side: T.DoubleSide, depthWrite: false });
+    var _eps=1e-5, _same=function(a,b){return Math.abs(a.lon-b.lon)<_eps&&Math.abs(a.lat-b.lat)<_eps;};
+    var _alledges=[]; parcels.forEach(function(pc){ var r=pc.ring; if(!r||r.length<2)return; for(var m=0;m<r.length;m++) _alledges.push([r[m],r[(m+1)%r.length]]); });
+    function _shared(a,b){ var n=0; for(var k=0;k<_alledges.length;k++){ var e=_alledges[k]; if((_same(a,e[0])&&_same(b,e[1]))||(_same(a,e[1])&&_same(b,e[0]))) n++; } return n>1; }
     parcels.forEach(function (pc) {
       var ring = pc.ring;
       if (!ring || ring.length < 2) return;
       var pts = ring.map(function (p) {
-        var P = geodeticToECEF(p.lon, p.lat, 0).sub(info.A).applyMatrix4(info.Rw2l); // 회전만
+        var P = geodeticToECEF(p.lon, p.lat, 0).sub(info.A).applyMatrix4(info.Rw2l);
         return new T.Vector3(P.x, 0.06, P.z);
       });
-      ST.siteGroup.add(new T.LineLoop(new T.BufferGeometry().setFromPoints(pts), lineMat));
       try {
         var mesh = new T.Mesh(new T.ShapeGeometry(new T.Shape(pts.map(function (v) { return new T.Vector2(v.x, v.z); }))), fillMat);
         mesh.rotation.x = Math.PI / 2; mesh.position.y = 0.04;
         ST.siteGroup.add(mesh);
       } catch (e) {}
+      for (var i=0;i<pts.length;i++){
+        var _sh=_shared(ring[i], ring[(i+1)%ring.length]);
+        var seg=new T.Line(new T.BufferGeometry().setFromPoints([pts[i], pts[(i+1)%pts.length]]), _sh?seamMat:lineMat);
+        if (_sh) seg.userData.seam=true;
+        ST.siteGroup.add(seg);
+      }
     });
     getRoot().add(ST.siteGroup);
   }
@@ -5196,57 +5223,67 @@ window.FitCalcApp = App;
     wrap.id = "fitCtxPanel";
     wrap.innerHTML =
       '<style>' +
-      '#fitCtxPanel{position:fixed;top:14px;left:14px;z-index:9000;width:262px;font-family:"IBM Plex Sans KR","Apple SD Gothic Neo",sans-serif;' +
-        'background:#fff;border:1px solid #dcdcd6;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.12);padding:13px 14px;color:#1a1a1a;}' +
-      '#fitCtxPanel h4{margin:0 0 9px;font-size:12px;font-weight:700;letter-spacing:.04em;color:#1a1a1a;display:flex;align-items:center;gap:6px;}' +
-      '#fitCtxPanel h4 .d{width:7px;height:7px;border-radius:50%;background:#e68d39;display:inline-block;}' +
-      '#fitCtxPanel .ci{display:flex;gap:6px;}' +
-      '#fitCtxPanel input[type=text]{flex:1;min-width:0;font:inherit;font-size:12px;padding:7px 8px;border:1px solid #dcdcd6;border-radius:4px;outline:none;}' +
-      '#fitCtxPanel input[type=text]:focus{border-color:#e68d39;}' +
-      '#fitCtxPanel button.go{font:inherit;font-size:12px;font-weight:600;padding:7px 10px;border:1px solid #e68d39;background:#e68d39;color:#fff;border-radius:4px;cursor:pointer;white-space:nowrap;}' +
-      '#fitCtxPanel button.go:disabled{opacity:.5;cursor:default;}' +
-      '#fitCtxPanel .pre{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 0;}' +
-      '#fitCtxPanel .pre b{font:inherit;font-size:10px;font-weight:600;padding:3px 6px;border:1px solid #e6e6e0;border-radius:3px;background:#faf9f7;color:#666;cursor:pointer;}' +
-      '#fitCtxPanel .pre b:hover{border-color:#e68d39;color:#1a1a1a;}' +
-      '#fitCtxPanel .tog{display:flex;align-items:center;gap:7px;margin-top:11px;padding-top:10px;border-top:1px solid #eee;font-size:12px;color:#555;}' +
-      '#fitCtxPanel .tog input{width:15px;height:15px;accent-color:#e68d39;}' +
-      '#fitCtxPanel .tog.dis{opacity:.45;}' +
-      '#fitCtxPanel .delrow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;padding-top:9px;border-top:1px solid #eee;font-size:12px;color:#555;}' +
-      '#fitCtxPanel .delrow label{display:flex;align-items:center;gap:7px;cursor:pointer;}' +
-      '#fitCtxPanel .delrow input{width:15px;height:15px;accent-color:#d9534f;}' +
-      '#fitCtxPanel .delrow button{font:inherit;font-size:11px;font-weight:600;padding:4px 10px;border:1px solid #dcdcd6;background:#fff;color:#555;border-radius:4px;cursor:pointer;}' +
-      '#fitCtxPanel .delrow button:hover{border-color:#e68d39;color:#1a1a1a;}' +
-      '#fitCtxPanel .st{margin-top:9px;font-size:11px;line-height:1.45;color:#888;min-height:15px;}' +
-      '#fitCtxPanel .min{position:absolute;top:10px;right:10px;border:none;background:none;color:#bbb;font-size:14px;cursor:pointer;padding:0;line-height:1;}' +
-      '#fitCtxPanel .addrow{display:flex;align-items:center;gap:8px;margin-top:6px;}' +
-      '#fitCtxPanel .addrow button{font:inherit;font-size:11px;font-weight:600;padding:5px 10px;border:1px solid #dcdcd6;background:#fff;color:#555;border-radius:4px;cursor:pointer;}' +
-      '#fitCtxPanel .addrow button:hover{border-color:#1a73e8;color:#1a73e8;}' +
-      '#fitCtxPanel .addrow span{font-size:11px;color:#1a73e8;font-weight:600;}' +
-      '#fitCtxPanel .addmode{display:flex;align-items:center;gap:7px;margin-top:7px;font-size:12px;color:#1a73e8;font-weight:600;cursor:pointer;}' +
-      '#fitCtxPanel .addmode input{width:15px;height:15px;accent-color:#1a73e8;}' +
-      '#fitCtxPanel .cnt{display:block;font-size:11px;color:#1a73e8;font-weight:600;margin-top:4px;}' +
-      '#fitCtxPanel .xform{margin-top:10px;padding-top:9px;border-top:1px solid #eee;}' +
-      '#fitCtxPanel .xform .xftit{font-size:11px;font-weight:700;color:#b3ac9f;letter-spacing:.04em;margin-bottom:4px;}' +
-      '#fitCtxPanel .xfrow{display:flex;align-items:center;gap:7px;margin-top:4px;font-size:11px;color:#555;}' +
-      '#fitCtxPanel .xfrow span{flex:0 0 34px;}' +
-      '#fitCtxPanel .xfrow input[type=range]{flex:1;min-width:0;accent-color:#e68d39;}' +
-      '#fitCtxPanel .xfrow b{flex:0 0 40px;text-align:right;color:#1a1a1a;font-weight:600;}' +
-      '#fitCtxPanel .xform button{margin-top:7px;font:inherit;font-size:11px;font-weight:600;padding:4px 10px;border:1px solid #dcdcd6;background:#fff;color:#555;border-radius:4px;cursor:pointer;}' +
-      '#fitCtxPanel .xform button:hover{border-color:#e68d39;color:#1a1a1a;}' +
-      '#fitCtxPanel .plist{margin-top:6px;display:flex;flex-direction:column;gap:3px;}' +
-      '#fitCtxPanel .prow{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:11px;color:#444;background:#f3f6fc;border:1px solid #e1e8f5;border-radius:4px;padding:3px 4px 3px 7px;}' +
-      '#fitCtxPanel .prow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
-      '#fitCtxPanel .prow button{flex:0 0 auto;border:none;background:none;color:#1a73e8;font-size:14px;font-weight:700;cursor:pointer;line-height:1;padding:0 4px;}' +
-      '#fitCtxPanel .prow button:hover{color:#d9534f;}' +
-      '#fitCtxPanel .sectit{font-size:11px;font-weight:700;color:#e68d39;letter-spacing:.03em;margin:11px 0 5px;padding-top:9px;border-top:1px solid #eee;}' +
-      '#fitCtxPanel .sectit.first{border-top:none;padding-top:0;margin-top:2px;}' +
-      '#fitCtxPanel .visrow{display:flex;align-items:center;gap:8px;margin-top:5px;font-size:12px;color:#555;}' +
-      '#fitCtxPanel .visrow>span{flex:0 0 52px;}' +
-      '#fitCtxPanel .seg{display:flex;flex:1;border:1px solid #dcdcd6;border-radius:4px;overflow:hidden;}' +
-      '#fitCtxPanel .seg.dis{opacity:.45;pointer-events:none;}' +
-      '#fitCtxPanel .seg button{flex:1;font:inherit;font-size:11px;padding:5px 0;border:none;border-left:1px solid #eee;background:#fff;color:#666;cursor:pointer;}' +
-      '#fitCtxPanel .seg button:first-child{border-left:none;}' +
-      '#fitCtxPanel .seg button.on{background:#e68d39;color:#fff;font-weight:700;}' +
+      '.vwui{position:absolute;top:14px;left:14px;z-index:9000;width:300px;font-family:inherit;background:#fff;border:1px solid var(--line,#dcdcd6);border-radius:4px;box-shadow:0 4px 18px rgba(0,0,0,.12);padding:16px;color:var(--text,#111);}' +
+      '.vwui h4{margin:0 0 13px;font-size:10px;font-weight:700;letter-spacing:.2em;color:var(--accent,#e68d39);display:flex;align-items:center;gap:7px;text-transform:uppercase;}' +
+      '.vwui h4 .d{width:6px;height:6px;border-radius:50%;background:var(--accent,#e68d39);display:inline-block;}' +
+      '.vwui .sectit{font-size:10px;font-weight:600;color:var(--muted,#9a9a92);letter-spacing:.2em;text-transform:uppercase;margin:15px 0 8px;padding-top:13px;border-top:1px solid var(--line,#dcdcd6);}' +
+      '.vwui .sectit.first{border-top:none;padding-top:0;margin-top:0;}' +
+      '.vwui .ci{display:flex;gap:7px;}' +
+      '.vwui input[type=text]{flex:1;min-width:0;font:inherit;font-size:13px;font-weight:400;padding:8px 9px;border:1px solid var(--line,#dcdcd6);border-radius:2px;outline:none;color:var(--text,#111);background:#fff;}' +
+      '.vwui input[type=text]:focus{border-color:var(--accent,#e68d39);}' +
+      '.vwui button.go{font:inherit;font-size:11px;font-weight:600;letter-spacing:.03em;padding:8px 13px;border:1px solid var(--accent,#e68d39);background:var(--accent,#e68d39);color:#fff;border-radius:2px;cursor:pointer;white-space:nowrap;}' +
+      '.vwui button.go:disabled{opacity:.4;cursor:default;}' +
+      '.vwui .pre{display:flex;flex-wrap:wrap;gap:5px;margin:9px 0 0;}' +
+      '.vwui .pre b{font:inherit;font-size:10px;font-weight:500;letter-spacing:.02em;padding:4px 8px;border:1px solid var(--line,#dcdcd6);border-radius:2px;background:#fff;color:var(--sub,#555);cursor:pointer;}' +
+      '.vwui .pre b:hover{border-color:var(--accent,#e68d39);color:var(--text,#111);}' +
+      '.vwui .addmode{display:flex;align-items:flex-start;gap:8px;margin-top:0;font-size:12px;color:var(--text,#111);font-weight:500;cursor:pointer;line-height:1.45;}' +
+      '.vwui .addmode input{width:15px;height:15px;accent-color:var(--accent,#e68d39);flex:0 0 auto;margin-top:1px;}' +
+      '.vwui .cnt{display:block;font-size:11px;color:var(--accent,#e68d39);font-weight:600;margin-top:5px;}' +
+      '.vwui .addrow{display:flex;align-items:center;gap:8px;margin-top:7px;}' +
+      '.vwui .addrow button{font:inherit;font-size:11px;font-weight:600;padding:6px 12px;border:1px solid var(--line,#dcdcd6);background:#fff;color:var(--sub,#555);border-radius:2px;cursor:pointer;}' +
+      '.vwui .addrow button:hover{border-color:var(--accent,#e68d39);color:var(--text,#111);}' +
+      '.vwui .addrow span{font-size:11px;color:var(--accent,#e68d39);font-weight:600;}' +
+      '.vwui .plist{margin-top:8px;display:flex;flex-direction:column;gap:4px;}' +
+      '.vwui .prow{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:11px;color:var(--text,#111);background:#f7f7f5;border:1px solid var(--line,#dcdcd6);border-radius:2px;padding:5px 5px 5px 9px;}' +
+      '.vwui .prow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
+      '.vwui .prow button{flex:0 0 auto;border:none;background:none;color:var(--muted,#9a9a92);font-size:14px;font-weight:700;cursor:pointer;line-height:1;padding:0 4px;}' +
+      '.vwui .prow button:hover{color:#d9534f;}' +
+      '.vwui .xform{margin-top:2px;}' +
+      '.vwui .xform .xftit{display:none;}' +
+      '.vwui .xfrow{display:flex;align-items:center;gap:9px;margin-top:7px;font-size:11px;color:var(--sub,#555);}' +
+      '.vwui .xfrow span{flex:0 0 38px;letter-spacing:.02em;}' +
+      '.vwui .xfrow input[type=range]{flex:1;min-width:0;accent-color:var(--accent,#e68d39);}' +
+      '.vwui .xfrow b{flex:0 0 44px;text-align:right;color:var(--text,#111);font-weight:600;}' +
+      '.vwui .xform button{margin-top:11px;font:inherit;font-size:11px;font-weight:600;letter-spacing:.02em;padding:6px 12px;border:1px solid var(--line,#dcdcd6);background:#fff;color:var(--sub,#555);border-radius:2px;cursor:pointer;}' +
+      '.vwui .xform button:hover{border-color:var(--accent,#e68d39);color:var(--text,#111);}' +
+      '.vwui .visrow{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:12px;color:var(--sub,#555);}' +
+      '.vwui .visrow>span{flex:0 0 52px;font-size:11px;letter-spacing:.02em;}' +
+      '.vwui .seg{display:flex;flex:1;border:1px solid var(--line,#dcdcd6);border-radius:2px;overflow:hidden;}' +
+      '.vwui .seg.dis{opacity:.4;pointer-events:none;}' +
+      '.vwui .seg button{flex:1;font:inherit;font-size:11px;font-weight:500;letter-spacing:.02em;padding:6px 0;border:none;border-left:1px solid var(--line,#dcdcd6);background:#fff;color:var(--sub,#555);cursor:pointer;}' +
+      '.vwui .seg button:first-child{border-left:none;}' +
+      '.vwui .seg button.on{background:var(--accent,#e68d39);color:#fff;font-weight:600;}' +
+      '.vwui .delrow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;font-size:12px;color:var(--sub,#555);}' +
+      '.vwui .delrow label{display:flex;align-items:center;gap:8px;cursor:pointer;}' +
+      '.vwui .delrow input{width:15px;height:15px;accent-color:#d9534f;}' +
+      '.vwui .delrow button{font:inherit;font-size:11px;font-weight:600;letter-spacing:.02em;padding:6px 12px;border:1px solid var(--line,#dcdcd6);background:#fff;color:var(--sub,#555);border-radius:2px;cursor:pointer;}' +
+      '.vwui .delrow button:hover{border-color:var(--accent,#e68d39);color:var(--text,#111);}' +
+      '.vwui .tog{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:12px;color:var(--sub,#555);}' +
+      '.vwui .tog input{width:15px;height:15px;accent-color:var(--accent,#e68d39);}' +
+      '.vwui .tog.dis{opacity:.4;}' +
+      '.vwui .st{margin-top:12px;font-size:11px;line-height:1.5;color:var(--muted,#9a9a92);min-height:15px;}' +
+      '.vwui .min{display:none;}' +
+      '.vwui .vwzoom{position:absolute;top:13px;right:14px;display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--text,#111);}' +
+      '.vwui .vwzb{width:22px;height:22px;border:1px solid var(--line,#dcdcd6);border-radius:3px;background:#fff;color:var(--sub,#555);font-size:13px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;}' +
+      '.vwui .vwzb:hover{border-color:var(--accent,#e68d39);color:var(--text,#111);}' +
+      '.vwui .vwzl{min-width:34px;text-align:center;cursor:pointer;}' +
+      '.vwui .vwrz{position:absolute;z-index:3;}' +
+      '.vwui .vwrz-l{left:-3px;top:12px;bottom:12px;width:8px;cursor:ew-resize;}' +
+      '.vwui .vwrz-b{left:12px;right:12px;bottom:-3px;height:8px;cursor:ns-resize;}' +
+      '.vwui .vwrz-t{left:12px;right:12px;top:-3px;height:8px;cursor:ns-resize;}' +
+      '.vwui .vwrz-bl{left:0;bottom:0;width:14px;height:14px;cursor:nesw-resize;border-left:2px solid var(--accent,#e68d39);border-bottom:2px solid var(--accent,#e68d39);border-bottom-left-radius:4px;opacity:.55;}' +
+      '.vwui .vwrz-tl{left:0;top:0;width:14px;height:14px;cursor:nwse-resize;border-left:2px solid var(--accent,#e68d39);border-top:2px solid var(--accent,#e68d39);border-top-left-radius:4px;opacity:.55;}' +
+      '#fitCtxPanel{top:174px;right:28px;left:auto;width:328px;}#fitCtxPanelB{top:auto;left:auto;right:28px;bottom:26px;}' +
       '</style>' +
       '<h4><span class="d"></span>주변 컨텍스트 (VWORLD)</h4>' +
       // 1) 대지 불러오기
@@ -5270,16 +5307,61 @@ window.FitCalcApp = App;
       // 4) 가시성 (끔 / 재질 / 단색)
       '<div class="sectit">가시성</div>' +
       '<div class="visrow"><span>주변 건물</span>' +
-        '<div class="seg dis" id="fitCtxBldSeg"><button data-s="0">끔</button><button data-s="1">재질</button><button data-s="2">단색</button></div></div>' +
+        '<div class="seg dis" id="fitCtxBldSeg"><button data-s="0">끔</button><button data-s="2">단색</button><button data-s="1">재질</button></div></div>' +
       '<div class="visrow"><span>지형</span>' +
-        '<div class="seg dis" id="fitCtxGndSeg"><button data-s="0">끔</button><button data-s="1">재질</button><button data-s="2">단색</button></div></div>' +
+        '<div class="seg dis" id="fitCtxGndSeg"><button data-s="0">끔</button><button data-s="2">단색</button><button data-s="1">재질</button></div></div>' +
       // 5) 건물 삭제
       '<div class="sectit">건물 삭제</div>' +
       '<div class="delrow" id="fitCtxDelRow"><label><input type="checkbox" id="fitCtxDel"> 삭제 모드(클릭)</label>' +
         '<button id="fitCtxRestore" type="button">복원</button></div>' +
       '<div class="st" id="fitCtxSt">주소를 입력하고 대지 윤곽선을 불러오세요.</div>' +
       '<button class="min" id="fitCtxMin" title="접기">—</button>';
+    wrap.classList.add('vwui');
+    try{
+      var _pB=document.createElement('div'); _pB.id='fitCtxPanelB'; _pB.className='vwui';
+      var _h=document.createElement('h4'); _h.innerHTML='<span class="d"></span>\uAC00\uC2DC\uC131 \u00B7 \uAC74\uBB3C \uC0AD\uC81C'; _pB.appendChild(_h);
+      var _vt=null, _sts=wrap.querySelectorAll('.sectit');
+      for(var _i=0;_i<_sts.length;_i++){ if(_sts[_i].textContent.indexOf('\uAC00\uC2DC\uC131')>=0){ _vt=_sts[_i]; break; } }
+      var _dr=wrap.querySelector('#fitCtxDelRow');
+      if(_vt && _dr){ var _n=_vt, _stop=false; while(_n && !_stop){ var _nx=_n.nextSibling; if(_n===_dr) _stop=true; _pB.appendChild(_n); _n=_nx; } }
+      document.body.appendChild(_pB);
+    }catch(e){}
     document.body.appendChild(wrap);
+
+    try{
+      var _VWBASE=1.2;
+      function _vwZoom(pn, org, vEdge, growY){
+        if(!pn) return; var sc=1;
+        pn.style.transformOrigin=org;
+        var bar=document.createElement('div'); bar.className='vwzoom';
+        bar.innerHTML='<button class="vwzb" type="button">−</button><span class="vwzl">100%</span><button class="vwzb" type="button">＋</button>';
+        pn.appendChild(bar);
+        var bs=bar.getElementsByClassName('vwzb'), lb=bar.getElementsByClassName('vwzl')[0];
+        function ap(){ pn.style.transform='scale('+(_VWBASE*sc)+')'; lb.textContent=Math.round(sc*100)+'%'; }
+        function setSc(v){ sc=Math.max(0.85, Math.min(2.0, Math.round(v*100)/100)); ap(); }
+        bs[0].onclick=function(e){ e.stopPropagation(); setSc(sc-0.05); };
+        bs[1].onclick=function(e){ e.stopPropagation(); setSc(sc+0.05); };
+        lb.onclick=function(e){ e.stopPropagation(); setSc(1); };
+        function mkH(cls, axx, axy){
+          var h=document.createElement('div'); h.className='vwrz '+cls;
+          h.addEventListener('pointerdown', function(ev){
+            ev.preventDefault(); ev.stopPropagation();
+            var sx=ev.clientX, sy=ev.clientY, s0=sc;
+            try{ h.setPointerCapture(ev.pointerId); }catch(_){}
+            function mv(e){ var grow=axx*(-(e.clientX-sx)) + axy*(growY*(e.clientY-sy)); setSc(s0+grow/260); }
+            function up(){ document.removeEventListener('pointermove',mv); document.removeEventListener('pointerup',up); }
+            document.addEventListener('pointermove',mv); document.addEventListener('pointerup',up);
+          });
+          pn.appendChild(h);
+        }
+        mkH('vwrz-l',1,0);
+        mkH(vEdge==='b'?'vwrz-b':'vwrz-t',0,1);
+        mkH(vEdge==='b'?'vwrz-bl':'vwrz-tl',1,1);
+        ap();
+      }
+      _vwZoom(wrap, 'top right', 'b', 1);
+      _vwZoom(document.getElementById('fitCtxPanelB'), 'bottom right', 't', -1);
+    }catch(e){}
 
     EL.addr = document.getElementById("fitCtxAddr");
     EL.go = document.getElementById("fitCtxGo");
@@ -5521,7 +5603,7 @@ window.FitCalcApp = App;
   async function refreshNeighbors() {
     // 기존 ＋는 새 목록이 준비될 때까지 그대로 둠(깜빡임/끊김 방지). 조기종료시에만 즉시 제거.
     if (!ST.site || !ST.site.parcels.length) { clearNeighbors(); return; }
-    if (ST.site.parcels.length >= MAX_PARCELS) { clearNeighbors(); status("필지 " + MAX_PARCELS + "개(최대) 도달 — 모드를 끄거나 일부 제거하세요."); return; }
+    if (ST.site.parcels.length >= MAX_PARCELS) { status("필지 " + MAX_PARCELS + "개(최대) 도달 — 추가 모드 비활성화됨. 더 합필하려면 일부 제거하세요."); ST.addMode=false; if(EL.addMode){ EL.addMode.checked=false; EL.addMode.disabled=true; } } else { if(EL.addMode) EL.addMode.disabled=false; }
     try {
       // 캐시(첫 1회만 네트워크) → 이후 인접 계산은 로컬에서만 → ＋ 깜빡임/사라짐 없음
       var cache = await ensureParcelCache(ST.site.lon0, ST.site.lat0);
@@ -5586,7 +5668,7 @@ window.FitCalcApp = App;
     // 일반 인접=파랑(추가 가능), 도로=빨강(추가 불가)
     var lineBlue = new T.LineBasicMaterial({ color: 0x9bb7e6, transparent: true, opacity: 0.65 });
     var fillBlue = new T.MeshBasicMaterial({ color: 0x9bb7e6, transparent: true, opacity: 0.06, side: T.DoubleSide, depthWrite: false });
-    var lineRed = new T.LineBasicMaterial({ color: 0xd9534f, transparent: true, opacity: 0.8 });
+    var lineRed = new T.LineBasicMaterial({ color: 0xd9534f, transparent: true, opacity: 0.8 }); ST._nbrBlueMat=lineBlue; ST._nbrRedMat=lineRed;
     var fillRed = new T.MeshBasicMaterial({ color: 0xd9534f, transparent: true, opacity: 0.12, side: T.DoubleSide, depthWrite: false });
     ST.neighbors.forEach(function (nb, idx) {
       var pts = nb.ring.map(function (p) { var P = geodeticToECEF(p.lon, p.lat, 0).sub(info.A).applyMatrix4(info.Rw2l); return new T.Vector3(P.x, 0.05, P.z); });
@@ -5730,14 +5812,14 @@ window.FitCalcApp = App;
     }
   }, 350);
   window.alignBuildingToSite = align;
-  window.setAutoAlignToSite = function(on){ AUTO=!!on; if(AUTO) lastSig=''; };
+  window.setAutoAlignToSite = function(on){ AUTO=!!on; if(AUTO) lastSig=''; else { var _v=V(); if(_v&&_v.state){ _v.state.xform.rot=0; if(_v.state.rootGroup) _v.state.rootGroup.rotation.y=0; } syncCompass(); } };
   window.setContext = function(on){ CTX_ON=!!on; applyContext(); };
   function addToggle(){
     if(document.getElementById('seAlignToggle')) return;
     var b=document.createElement('button');
     b.id='seAlignToggle'; b.textContent='\uB300\uC9C0 \uC790\uB3D9\uC815\uB82C: ON';
     b.style.cssText='position:fixed;left:12px;bottom:12px;z-index:99999;padding:7px 10px;font:12px/1.2 sans-serif;background:#1f2733;color:#e8eef6;border:1px solid #3a4658;border-radius:8px;cursor:pointer;opacity:.92';
-    b.onclick=function(){ AUTO=!AUTO; b.textContent='\uB300\uC9C0 \uC790\uB3D9\uC815\uB82C: '+(AUTO?'ON':'OFF'); if(AUTO){ lastSig=''; } };
+    b.onclick=function(){ AUTO=!AUTO; b.textContent='\uB300\uC9C0 \uC790\uB3D9\uC815\uB82C: '+(AUTO?'ON':'OFF'); if(AUTO){ lastSig=''; } else { var _v=V(); if(_v&&_v.state){ _v.state.xform.rot=0; if(_v.state.rootGroup) _v.state.rootGroup.rotation.y=0; } syncCompass(); } };
     document.body.appendChild(b);
     var c=document.createElement('button');
     c.id='seCtxToggle'; c.textContent='\uC8FC\uBCC0 \uCEE8\uD14D\uC2A4\uD2B8: ON';
