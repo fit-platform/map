@@ -1638,7 +1638,7 @@ function getDesignState(){ return { v:1, app:'FIT-MASSING', savedAt:new Date().t
   rates:{delivRate:delivRate,constRate:constRate},
   items:Object.assign({},itemSel),
   footprint:(footprint?footprint.map(q=>({x:q.x,z:q.z})):null), polySel:(polySel?polySel.slice():[]),
-  estimate:(window.__massingValues?Object.assign({},window.__massingValues,{items:(window.__massingItems||[]).slice()}):null),
+  estimate:(window.__massingValues?Object.assign({},window.__massingValues,{items:(window.__massingItems||[]).slice()}):null), calcRowOv:((window.__calcRowOv && Object.keys(window.__calcRowOv).length)?JSON.parse(JSON.stringify(window.__calcRowOv)):null),
   floors:{ perFloorMode:perFloorMode, lowN:lowN, midN:midN, topN:topN, fhLow:fhLow, fhTop:fhTop },
   types:{ frameFloorOv:Object.assign({},frameFloorOv), autoGrpFrame:autoGrpFrame, grpTypeIdx:grpTypeIdx.slice(), aTypeFloor:aTypeFloor, activeFType:activeFType },
   options:{ slabTh:slabTh, repPerFloor:repPerFloor },
@@ -1647,7 +1647,7 @@ function getDesignState(){ return { v:1, app:'FIT-MASSING', savedAt:new Date().t
   site:(function(){ try{ var st=window.VWorldContext&&window.VWorldContext.state, ss=st&&st.site; if(!ss||!ss.parcels||!ss.parcels.length) return null; return { lon0:ss.lon0, lat0:ss.lat0, parcels:ss.parcels.map(function(pp){ return { ring:pp.ring, label:pp.label, road:!!pp.road, pnu:pp.pnu||'', zone:pp._zone, zoneErr:pp._zoneErr, areaM2:pp._areaM2 }; }), parcelCache:(st.parcelCache&&st.parcelCache.length?st.parcelCache.map(function(p){return {ring:p.ring,cen:p.cen,road:!!p.road,label:p.label,pnu:p.pnu||''};}):null), bldState:(st.bldState||0), gndState:(st.gndState||0), buildingsGeo:(window.VWorldContext&&window.VWorldContext.serializeBuildings?window.VWorldContext.serializeBuildings():null), xform:(st.xform?{x:st.xform.x,y:st.xform.y,rot:st.xform.rot}:null), autoAlign:(function(){ var _a=document.getElementById('seAlignToggle'); return _a? /ON/.test(_a.textContent): true; })() }; }catch(e){ return null; } })() }; }
 function applyDesignState(d){ if(!d||typeof d!=='object'||d.app!=='FIT-MASSING') return false;
   try{
-    var B=d.building||{}; if(B.tHalfW!=null)tHalfW=B.tHalfW; if(B.tHalfD!=null)tHalfD=B.tHalfD; if(B.tFloors!=null)tFloors=B.tFloors; if(B.tFloorH!=null)tFloorH=B.tFloorH; if(B.bcx!=null)bcx=B.bcx; if(B.bcz!=null)bcz=B.bcz; if(B.sbcx!=null)sbcx=B.sbcx; if(B.sbcz!=null)sbcz=B.sbcz;
+    var B=d.building||{}; if(B.tHalfW!=null)tHalfW=B.tHalfW; if(B.tHalfD!=null)tHalfD=B.tHalfD; if(B.tFloors!=null)tFloors=B.tFloors; if(B.tFloorH!=null)tFloorH=B.tFloorH; if(B.bcx!=null)bcx=B.bcx; if(B.bcz!=null)bcz=B.bcz; if(B.sbcx!=null)sbcx=B.sbcx; if(B.sbcz!=null)sbcz=B.sbcz; window.__calcRowOv=(d.calcRowOv&&typeof d.calcRowOv==='object')?d.calcRowOv:{};
     var C=d.core||{}; if(C.tcHalfW!=null)tcHalfW=C.tcHalfW; if(C.tcHalfD!=null)tcHalfD=C.tcHalfD; if(C.tcx!=null)tcx=C.tcx; if(C.tcz!=null)tcz=C.tcz; coreTouched=!!C.coreTouched;
     cores=Array.isArray(d.cores)?d.cores.map(c=>({hw:+c.hw,hd:+c.hd,cx:+c.cx,cz:+c.cz})):[]; rebuildExtraCores();
     var F=d.fit||{}; if(F.fitFrom!=null)fitFrom=F.fitFrom; if(F.fitTo!=null)fitTo=F.fitTo; if(F.roofOn!=null)roofOn=!!F.roofOn; if(Array.isArray(F.faceSel))faceSel=[!!F.faceSel[0],!!F.faceSel[1],!!F.faceSel[2],!!F.faceSel[3]]; fitTouched=true; { var _rt=document.getElementById('roofToggle'); if(_rt){_rt.textContent=roofOn?'✓ 지붕층 (해제)':'＋ 지붕층 추가'; _rt.classList.toggle('on',roofOn);} }
@@ -3619,8 +3619,9 @@ function App(props) {
   const [editParams, setEditParams] = useState(false);
   const [draft, setDraft] = useState({});
   const [pfMode, setPfMode] = useState({ area: true, frameCount: true, doorCount: true, skinCount: true, cartridge: true });
-  const [rowOv, setRowOv] = useState({});
+  const [rowOv, setRowOv] = useState(window.__calcRowOv || {});
   const [tblEdit, setTblEdit] = useState(false);
+  React.useEffect(() => { window.__calcRowOv = rowOv; }, [rowOv]);
   const estFileRef = useRef(null);
   const [selItems, setSelItems] = useState(injI || []);
   const [projName, setProjName] = useState("");
