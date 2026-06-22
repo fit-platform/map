@@ -1063,12 +1063,12 @@ function makeMaxMassing(){
 window.__makeMaxMassing=makeMaxMassing;
 function _mmBtn(active){ var b=document.getElementById('btnMaxMass'); if(!b) return; if(active){ b.classList.add('on'); b.textContent='기준 매스 자동생성 · 생성중'; } else { b.classList.remove('on'); b.textContent='기준 매스 자동생성 ▶'; } }
 function _mmStopAnim(){ if(window.__mmTimer){ clearInterval(window.__mmTimer); window.__mmTimer=null; } window.__mmAnimOn=false; _mmBtn(false); }
-function toggleMassAnim(){
+function toggleMassAnim(keepGeom){
   if(window.__mmAnimOn){ _mmStopAnim(); return; }
-  var C=_mmCompute(); if(!C){ alert('대지를 먼저 불러와 주세요. (주변 컨텍스트 패널 → 대지 추가)'); return; }
-  pushUndo();
+  var C=_mmCompute(); if(!C){ if(!keepGeom) alert('대지를 먼저 불러와 주세요. (주변 컨텍스트 패널 → 대지 추가)'); return; }
   var _gfa=C.siteA*C.far/100, _uF=Math.max(C.floors, Math.round(tFloors)||1), _uA=_gfa/_uF;   // 현재 층수가 기준보다 높으면 그 층수에 맞춰 용적률 최대
-  _mmApply(C, _uA, _uF); _mmStat(C, _uA, _uF);
+  if(keepGeom){ _mmStat(C, getPlate(), Math.max(1,Math.round(tFloors)||1)); }
+  else { pushUndo(); _mmApply(C, _uA, _uF); _mmStat(C, _uA, _uF); }
   window.__mmBox=_mmWorldBox();
   window.__mmTarget={ gfa:_gfa, siteA:C.siteA, far:C.far, bcr:C.bcr };
   window.__mmAnimOn=true; _mmBtn(true);
@@ -1629,7 +1629,7 @@ const ESTIMATE_ITEMS=[['frame','FIT FRAME'],['skin','스킨카트리지'],['hvac
 const itemSel={}; ESTIMATE_ITEMS.forEach(it=>{itemSel[it[0]]=true; $('item_'+it[0]).onclick=()=>withUndo(()=>{itemSel[it[0]]=!itemSel[it[0]]; $('item_'+it[0]).classList.toggle('on',itemSel[it[0]]); if(step===6)buildReport();});});
 // === 설계 저장/불러오기 ===
 function getDesignState(){ return { v:1, app:'FIT-MASSING', savedAt:new Date().toISOString(),
-  building:{tHalfW:tHalfW,tHalfD:tHalfD,tFloors:tFloors,tFloorH:tFloorH},
+  building:{tHalfW:tHalfW,tHalfD:tHalfD,tFloors:tFloors,tFloorH:tFloorH,bcx:bcx,bcz:bcz,sbcx:sbcx,sbcz:sbcz},
   core:{tcHalfW:tcHalfW,tcHalfD:tcHalfD,tcx:tcx,tcz:tcz,coreTouched:coreTouched}, cores:cores.map(c=>({hw:c.hw,hd:c.hd,cx:c.cx,cz:c.cz})),
   fit:{fitFrom:fitFrom,fitTo:fitTo,faceSel:faceSel.slice(),roofOn:roofOn},
   frame:{frameW:frameW,frameD:frameD,frameH:frameH,frameWMode:frameWMode}, frameTypesEx:frameTypesEx.map(t=>({W:t.W,D:t.D,H:t.H,glass:t.glass,mount:t.mount,inset:t.inset})), frameTypeMap:Object.assign({},frameTypeMap),
@@ -1647,7 +1647,7 @@ function getDesignState(){ return { v:1, app:'FIT-MASSING', savedAt:new Date().t
   site:(function(){ try{ var st=window.VWorldContext&&window.VWorldContext.state, ss=st&&st.site; if(!ss||!ss.parcels||!ss.parcels.length) return null; return { lon0:ss.lon0, lat0:ss.lat0, parcels:ss.parcels.map(function(pp){ return { ring:pp.ring, label:pp.label, road:!!pp.road, pnu:pp.pnu||'', zone:pp._zone, zoneErr:pp._zoneErr, areaM2:pp._areaM2 }; }), parcelCache:(st.parcelCache&&st.parcelCache.length?st.parcelCache.map(function(p){return {ring:p.ring,cen:p.cen,road:!!p.road,label:p.label,pnu:p.pnu||''};}):null), bldState:(st.bldState||0), gndState:(st.gndState||0), buildingsGeo:(window.VWorldContext&&window.VWorldContext.serializeBuildings?window.VWorldContext.serializeBuildings():null), xform:(st.xform?{x:st.xform.x,y:st.xform.y,rot:st.xform.rot}:null), autoAlign:(function(){ var _a=document.getElementById('seAlignToggle'); return _a? /ON/.test(_a.textContent): true; })() }; }catch(e){ return null; } })() }; }
 function applyDesignState(d){ if(!d||typeof d!=='object'||d.app!=='FIT-MASSING') return false;
   try{
-    var B=d.building||{}; if(B.tHalfW!=null)tHalfW=B.tHalfW; if(B.tHalfD!=null)tHalfD=B.tHalfD; if(B.tFloors!=null)tFloors=B.tFloors; if(B.tFloorH!=null)tFloorH=B.tFloorH;
+    var B=d.building||{}; if(B.tHalfW!=null)tHalfW=B.tHalfW; if(B.tHalfD!=null)tHalfD=B.tHalfD; if(B.tFloors!=null)tFloors=B.tFloors; if(B.tFloorH!=null)tFloorH=B.tFloorH; if(B.bcx!=null)bcx=B.bcx; if(B.bcz!=null)bcz=B.bcz; if(B.sbcx!=null)sbcx=B.sbcx; if(B.sbcz!=null)sbcz=B.sbcz;
     var C=d.core||{}; if(C.tcHalfW!=null)tcHalfW=C.tcHalfW; if(C.tcHalfD!=null)tcHalfD=C.tcHalfD; if(C.tcx!=null)tcx=C.tcx; if(C.tcz!=null)tcz=C.tcz; coreTouched=!!C.coreTouched;
     cores=Array.isArray(d.cores)?d.cores.map(c=>({hw:+c.hw,hd:+c.hd,cx:+c.cx,cz:+c.cz})):[]; rebuildExtraCores();
     var F=d.fit||{}; if(F.fitFrom!=null)fitFrom=F.fitFrom; if(F.fitTo!=null)fitTo=F.fitTo; if(F.roofOn!=null)roofOn=!!F.roofOn; if(Array.isArray(F.faceSel))faceSel=[!!F.faceSel[0],!!F.faceSel[1],!!F.faceSel[2],!!F.faceSel[3]]; fitTouched=true; { var _rt=document.getElementById('roofToggle'); if(_rt){_rt.textContent=roofOn?'✓ 지붕층 (해제)':'＋ 지붕층 추가'; _rt.classList.toggle('on',roofOn);} }
@@ -1675,7 +1675,7 @@ function applyDesignState(d){ if(!d||typeof d!=='object'||d.app!=='FIT-MASSING')
     setUnitMode(unitMode); unitVer++; hvacAuto=(function(){ try{ var h=false; [baseType,floorOv].forEach(function(o){ for(var k in o){ if(o[k]==='hvac') h=true; } }); return h; }catch(e){ return true; } })(); frSig=''; if(typeof undoStack!=='undefined'&&undoStack){undoStack.length=0;redoStack.length=0;} setStep(6);
     try{ if(d.site && window.VWorldContext && window.VWorldContext.restoreSite){ window.VWorldContext.restoreSite(d.site); } }catch(e){}
     try{ if(d.legalOv){ window.__legalOv={far:(d.legalOv.far!=null?+d.legalOv.far:null), bcr:(d.legalOv.bcr!=null?+d.legalOv.bcr:null)}; var _ff=$('srFarIn'),_bb=$('srBcrIn'); if(_ff && window.__legalOv.far!=null)_ff.value=window.__legalOv.far; if(_bb && window.__legalOv.bcr!=null)_bb.value=window.__legalOv.bcr; } if(typeof window.__updateSiteReadout==='function') window.__updateSiteReadout(); }catch(e){}
-    if(d.massing && d.massing.on){ setTimeout(function(){ try{ if(!window.__mmAnimOn && typeof window.__toggleMassAnim==='function') window.__toggleMassAnim(); }catch(e){} }, 600); }
+    if(d.massing && d.massing.on){ setTimeout(function(){ try{ if(!window.__mmAnimOn && typeof window.__toggleMassAnim==='function') window.__toggleMassAnim(true); }catch(e){} }, 400); }
     return true;
   }catch(err){ console.error('불러오기 오류',err); return false; }
 }
@@ -5986,7 +5986,7 @@ window.FitCalcApp = App;
     addParcel: function (addr) { EL.addr.value = addr; return addParcel(); },
     showBuildings: function (v) { setBldState(v === false ? 0 : (v === 2 ? 2 : 1)); },
     showGround: function (v) { setGndState(v === false ? 0 : (v === 2 ? 2 : 1)); },
-    restoreSite: function (sv) { try{ if(!sv||!sv.parcels||!sv.parcels.length) return false; window.__legalOv={far:null,bcr:null}; var ps=sv.parcels.map(function(pp){ var o={ ring:pp.ring, label:pp.label, road:!!pp.road, pnu:pp.pnu||'' }; if(pp.zone!==undefined) o._zone=pp.zone; if(pp.zoneErr!==undefined) o._zoneErr=pp.zoneErr; if(pp.areaM2!=null) o._areaM2=pp.areaM2; return o; }); try{ if(sv.parcelCache&&sv.parcelCache.length){ ST.parcelCache=sv.parcelCache.map(function(p){ var o={ring:p.ring,road:!!p.road,label:p.label,pnu:p.pnu||''}; o.cen=p.cen||(typeof ringCentroid==='function'?ringCentroid(p.ring):null); return o; }); } }catch(e){} commitSite(ps); if(sv.xform && ST.xform){ ST.xform.x=+sv.xform.x||0; ST.xform.y=+sv.xform.y||0; ST.xform.rot=+sv.xform.rot||0; if(typeof applyXform==='function') applyXform(); } try{ if(sv.autoAlign===false && window.setAutoAlignToSite){ window.setAutoAlignToSite(false); if(sv.xform){ ST.xform.x=+sv.xform.x||0; ST.xform.y=+sv.xform.y||0; ST.xform.rot=+sv.xform.rot||0; if(typeof applyXform==='function') applyXform(); } var _al=document.getElementById('seAlignToggle'); if(_al)_al.textContent='대지 자동정렬 : OFF'; } }catch(e){} try{ var _bs=+sv.bldState||0, _gs=+sv.gndState||0, _bgeo=sv.buildingsGeo||null; if(_bgeo||_bs>0||_gs>0){ setTimeout(function(){ try{ if(_bgeo){ rebuildBuildingsFromGeo(_bgeo); } else if(_bs>0){ setBldState(_bs); } if(_gs>0){ setGndState(_gs); } }catch(e){} }, 1300); } }catch(e){} return true; }catch(e){ return false; } },
+    restoreSite: function (sv) { try{ if(!sv||!sv.parcels||!sv.parcels.length) return false; window.__legalOv={far:null,bcr:null}; var ps=sv.parcels.map(function(pp){ var o={ ring:pp.ring, label:pp.label, road:!!pp.road, pnu:pp.pnu||'' }; if(pp.zone!==undefined) o._zone=pp.zone; if(pp.zoneErr!==undefined) o._zoneErr=pp.zoneErr; if(pp.areaM2!=null) o._areaM2=pp.areaM2; return o; }); try{ if(sv.parcelCache&&sv.parcelCache.length){ ST.parcelCache=sv.parcelCache.map(function(p){ var o={ring:p.ring,road:!!p.road,label:p.label,pnu:p.pnu||''}; o.cen=p.cen||(typeof ringCentroid==='function'?ringCentroid(p.ring):null); return o; }); } }catch(e){} commitSite(ps); if(sv.xform && ST.xform){ ST.xform.x=+sv.xform.x||0; ST.xform.y=+sv.xform.y||0; ST.xform.rot=+sv.xform.rot||0; if(typeof applyXform==='function') applyXform(); } try{ if(sv.autoAlign===false && window.setAutoAlignToSite){ window.setAutoAlignToSite(false); if(sv.xform){ ST.xform.x=+sv.xform.x||0; ST.xform.y=+sv.xform.y||0; ST.xform.rot=+sv.xform.rot||0; if(typeof applyXform==='function') applyXform(); } var _al=document.getElementById('seAlignToggle'); if(_al)_al.textContent='대지 자동정렬 : OFF'; } }catch(e){} window.__vwRestoreGuard=Date.now()+2500; try{ var _bs=+sv.bldState||0, _gs=+sv.gndState||0, _bgeo=sv.buildingsGeo||null; if(_bgeo||_bs>0||_gs>0){ setTimeout(function(){ try{ if(_bgeo){ rebuildBuildingsFromGeo(_bgeo); } else if(_bs>0){ setBldState(_bs); } if(_gs>0){ setGndState(_gs); } }catch(e){} }, 200); } }catch(e){} return true; }catch(e){ return false; } },
     state: ST
   };
 
@@ -6053,7 +6053,7 @@ window.FitCalcApp = App;
       var _fresh=(_pc<=1)||(_pc<lastParcelCount);
       lastSig=x; lastParcelCount=_pc;
       if(AUTO) setTimeout(align, 80);
-      if(_fresh){ setTimeout(function(){ var v=V(); if(v){ if(v.showBuildings)v.showBuildings(false); if(v.showGround)v.showGround(false); } if(CTX_ON) drawNbrContext(); else hideNbrContext(); }, 250); setTimeout(function(){ var v=V(); if(v&&v.state&&v.state.bldState!==0&&v.showBuildings) v.showBuildings(false); }, 900); }
+      if(_fresh){ setTimeout(function(){ var v=V(); var _g=(window.__vwRestoreGuard&&Date.now()<window.__vwRestoreGuard); if(v && !_g){ if(v.showBuildings)v.showBuildings(false); if(v.showGround)v.showGround(false); } if(CTX_ON) drawNbrContext(); else hideNbrContext(); }, 250); setTimeout(function(){ var _g=(window.__vwRestoreGuard&&Date.now()<window.__vwRestoreGuard); var v=V(); if(!_g && v&&v.state&&v.state.bldState!==0&&v.showBuildings) v.showBuildings(false); }, 900); }
     }
   }, 350);
   window.alignBuildingToSite = align;
