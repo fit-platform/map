@@ -1972,6 +1972,7 @@ function setStep(s){ wake(); step=s;
   if(s===1){tPhi=1.0;zoomK=3.3;} else if(s===2){tPhi=0.5;zoomK=3.0; if((footprint&&footprint.length>=3 && !coreFits(tcx,tcz,tcHalfW,tcHalfD)) || !coreTouched)coreDefault(); clampCore();} else if(s===3){tPhi=0.92;zoomK=3.55; if(!fitTouched) fitTo=tFloors; clampFit();} else if(s===4){tPhi=0.95;zoomK=3.4;clampFit(); editFloor=clamp(editFloor,fitFrom,fTopEff()); floorUI(); modeLine(); autoGroupFrames(); aTypeFloor=fTypeFirstFloor(activeFType); frSig=''; buildPlan();} else if(s===5){tPhi=0.9;zoomK=4.6;clampFit(); editFloor=clamp(editFloor,fitFrom,fTopEff()); floorUI(); modeLine(); if(!hvacAuto){autoPlaceHvac();hvacAuto=true;} frSig=''; buildPlan();} else if(s===7){tPhi=0.9;zoomK=4.4;clampFit(); editFloor=clamp(editFloor,fitFrom,fTopEff()); frSig='';} else {tPhi=0.86;zoomK=4.1;clampFit(); frSig=''; buildReport();}
   toggle('glasssel',s===4); toggle('planwrap',s===4||s===5); toggle('skinsel',s===5); toggle('drawsel',s===1); toggle('coresel',s===2); toggle('roofsel',s===3);
   toggle('mainpanel',s!==6); toggle('ctrlhud',s!==6); toggle('report',s===6); toggle('navReset',s!==6);
+  { var _rc=document.getElementById('rtCamPanel'); if(_rc) _rc.style.display=(s===7)?'block':'none'; }
   if(s===4) setActiveType('noframe'); else if(s===5 && activeType==='noframe') setActiveType('skin');
   toggle('palSkin',s===5); toggle('palHvac',s===5); toggle('palDoor',s===5); toggle('palNone',s===5); toggle('palNoframe',false);
   { const fp=$('ftPal'); if(fp)fp.style.display=(s===4)?'grid':'none'; } toggle('ftaddsel',s===4); if(s===4){ renderFTypeChips(); renderFTypeInputs(); }
@@ -2560,8 +2561,8 @@ function tick(){requestAnimationFrame(tick);
   } else { polyFaces.children.forEach(m=>m.visible=false); polyBands.children.forEach(m=>m.visible=false); }
   { const _fr=poly?fitRefXZ():{x:-sHalfW,z:sHalfD}; fitBottomH.position.set(_fr.x, levelY(b0)*_hs, _fr.z); fitTopH.position.set(_fr.x, levelY(b1)*_hs, _fr.z); }
 
-  // FIT FRAME (step4) / 유닛 타입 (step5)
-  if(s4||s5||s6){
+  // FIT FRAME (step4) / 유닛 타입 (step5) / 렌더 (step7)
+  if(s4||s5||s6||s7){
     const fWm=frameW/1000, fDm=frameD/1000, fHm=frameH/1000, yBot=levelY(b0)*_hs, fitHm=bandH, floorHm=fh;
     const aD=fTypeDims(aFi()), afDm=aD.D/1000, afHm=aD.H/1000;
     const rowsPF=Math.max(1, fHm>0?Math.floor(floorHm/fHm):1), tileH=rowsPF*fHm;
@@ -2578,7 +2579,7 @@ function tick(){requestAnimationFrame(tick);
       frHH.position.set(ec.x+pfa.nx*(pOff+popOut), uy+afHm, ec.z+pfa.nz*(pOff+popOut));
       frDH.position.set(ec.x+pfa.nx*(pOff+afDm/2+popOut), uy+afHm/2, ec.z+pfa.nz*(pOff+afDm/2+popOut));
     } else { frPrev=null; }
-    const sig=[Math.round(w*50),Math.round(d*50),Math.round(h*50),fitFrom,fitTo,faceSel.join(''),(footprint?footprint.map(q=>q.x.toFixed(1)+','+q.z.toFixed(1)).join(';')+'|'+polySel.join(''):''),frameW,frameH,frameD,frameMount,frameInset, frameTypesEx.map(t=>t.W+'x'+t.D+'x'+t.H+'x'+(t.mount||'a')+'x'+(t.inset||0)).join(','), (s4||s5||s6)?('U'+unitVer+'_'+unitMode+'_'+editFloor):'F'].join('|');
+    const sig=[Math.round(w*50),Math.round(d*50),Math.round(h*50),fitFrom,fitTo,faceSel.join(''),(footprint?footprint.map(q=>q.x.toFixed(1)+','+q.z.toFixed(1)).join(';')+'|'+polySel.join(''):''),frameW,frameH,frameD,frameMount,frameInset, frameTypesEx.map(t=>t.W+'x'+t.D+'x'+t.H+'x'+(t.mount||'a')+'x'+(t.inset||0)).join(','), (s4||s5||s6||s7)?('U'+unitVer+'_'+unitMode+'_'+editFloor):'F'].join('|');
     if(sig!==frSig){ frSig=sig; wake(2);
       frGrid.children.forEach(o=>o.geometry.dispose()); frGrid.clear();
       frVol.children.forEach(o=>o.geometry.dispose()); frVol.clear();
@@ -2588,13 +2589,13 @@ function tick(){requestAnimationFrame(tick);
         const EP=(t)=>({x:fa.p0x+fa.ux*t, z:fa.p0z+fa.uz*t}); const BC=(bay)=>bg.off+(bay+0.5)*cellW;
         const tw=(t,y)=>{ const e=EP(t); return new THREE.Vector3(e.x+fa.nx*eps, y, e.z+fa.nz*eps); };
         for(let f=fitFrom;f<=fTopEff();f++){ const base=levelY(f-1)*_hs;
-          if(s5||s6){ let bay=0;
+          if(s5||s6||s7){ let bay=0;
             while(bay<cols){ const ti=effFType(f,i,bay); let end=bay; while(end+1<cols && effFType(f,i,end+1)===ti)end++;
               const _r0=bg.off+bay*cellW, _rl0=(end-bay+1)*cellW, _ra=insetRunAdj(ti,fa,bay,end,cols,_r0,_rl0), runStart=_ra[0], runLen=_ra[1]; const td=fTypeDims(ti), Tw=Math.max(td.W/1000,0.2), bD=td.D/1000, bHm=td.H/1000, bRows=Math.max(1,bHm>0?Math.floor(fh/bHm):1), bTile=bRows*bHm;
               const rf=runFrames(runLen,Tw,end-bay+1,cellW), n=rf.n, fw=rf.fw, roff=rf.off, eps2=nOff(ti,bD)+bD/2+0.012, rS=runStart+roff;
               const tw2=(t,y)=>{ const ee=EP(t); return new THREE.Vector3(ee.x+fa.nx*eps2,y,ee.z+fa.nz*eps2); }; const bTop=base+bRows*bHm;
               for(let k=0;k<n;k++){ const tE0=rS+k*fw, cT=tE0+fw/2, e=EP(cT); const cb=(n===(end-bay+1))?(bay+k):Math.min(end,Math.max(bay,Math.floor((cT-bg.off)/cellW))); const bt=effType(f,i,cb); if(bt==='noframe')continue;
-                const m=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),bt==='none'?matHit:baseMat(bt)); m.rotation.y=fa.ry; m.renderOrder=2; m.userData={fc:i,by:cb,fl:f}; m.scale.set(fw,bTile,bD); m.position.set(e.x+fa.nx*nOff(ti,bD), base+bTile/2, e.z+fa.nz*nOff(ti,bD)); frVol.add(m);
+                const m=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),bt==='none'?matHit:baseMat(bt)); m.rotation.y=fa.ry; m.renderOrder=2; m.userData={fc:i,by:cb,fl:f,nx:fa.nx,nz:fa.nz,ux:fa.ux,uz:fa.uz}; m.scale.set(fw,bTile,bD); m.position.set(e.x+fa.nx*nOff(ti,bD), base+bTile/2, e.z+fa.nz*nOff(ti,bD)); frVol.add(m);
                 if(effDoor(f,i,cb)){ const dH=Math.min(2.3,bTile); const dm=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),matDoor); dm.rotation.y=fa.ry; dm.renderOrder=1; dm.userData={fc:i,by:cb,fl:f}; dm.scale.set(fw*0.92,dH,0.08); dm.position.set(e.x+fa.nx*(nOff(ti,bD)-bD/2), base+dH/2, e.z+fa.nz*(nOff(ti,bD)-bD/2)); frVol.add(dm); }
                 const tE1=tE0+fw; addLine(tw2(tE0,base),tw2(tE0,bTop)); addLine(tw2(tE1,base),tw2(tE1,bTop)); for(let r=0;r<=bRows;r++){ const y=base+r*bHm; addLine(tw2(tE0,y),tw2(tE1,y)); } }
               bay=end+1; } }
@@ -2604,7 +2605,7 @@ function tick(){requestAnimationFrame(tick);
               const rf=runFrames(runLen,Tw,end-bay+1,cellW), n=rf.n, fw=rf.fw, roff=rf.off, eps2=nOff(ti,bD)+bD/2+0.012, rS=runStart+roff;
               const tw2=(t,y)=>{ const ee=EP(t); return new THREE.Vector3(ee.x+fa.nx*eps2,y,ee.z+fa.nz*eps2); }; const bTop=base+bRows*bHm;
               for(let k=0;k<n;k++){ const tE0=rS+k*fw, cT=tE0+fw/2, e=EP(cT); const cellBay=Math.min(end,Math.max(bay,Math.floor((cT-bg.off)/cellW))); const nf=effType(f,i,cellBay)==='noframe';
-                const m=new THREE.Mesh(new THREE.BoxGeometry(1,1,1), nf?matHit:ftMat(ti)); m.rotation.y=fa.ry; m.renderOrder=2; m.userData={fc:i,by:cellBay,fl:f}; m.scale.set(fw,bTile,bD); m.position.set(e.x+fa.nx*nOff(ti,bD), base+bTile/2, e.z+fa.nz*nOff(ti,bD)); frVol.add(m);
+                const m=new THREE.Mesh(new THREE.BoxGeometry(1,1,1), nf?matHit:ftMat(ti)); m.rotation.y=fa.ry; m.renderOrder=2; m.userData={fc:i,by:cellBay,fl:f,nx:fa.nx,nz:fa.nz}; m.scale.set(fw,bTile,bD); m.position.set(e.x+fa.nx*nOff(ti,bD), base+bTile/2, e.z+fa.nz*nOff(ti,bD)); frVol.add(m);
                 if(!nf){ const tE1=tE0+fw; addLine(tw2(tE0,base),tw2(tE0,bTop)); addLine(tw2(tE1,base),tw2(tE1,bTop)); for(let r=0;r<=bRows;r++){ const y=base+r*bHm; addLine(tw2(tE0,y),tw2(tE1,y)); } } }
               bay=end+1; } }
           else { const e=EP(fa.L/2); const m=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),frSlabMat); m.rotation.y=fa.ry; m.renderOrder=2; m.scale.set(fa.L,tileH,fDm);
@@ -2615,10 +2616,14 @@ function tick(){requestAnimationFrame(tick);
         const fA=(c.fA!=null)?_FA[c.fA]:null, fB=(c.fB!=null)?_FA[c.fB]:null;
         const useRect=!!(fA&&fB&&c.nAx!=null);
         const ry=useRect?c.ryB:c.ry;
+        const _endFr=(fa,nx,nz)=>{ if(!fa)return 'f3'; const mx=fa.p0x+fa.ux*fa.L/2, mz=fa.p0z+fa.uz*fa.L/2, dd=(c.Vx-mx)*nz+(c.Vz-mz)*(-nx); return dd>0?'f3':'f4'; };
+        const aFrame=_endFr(fA,c.nAx,c.nAz), bFrame=_endFr(fB,c.nBx,c.nBz);
+        const _tdir=(fa)=>{ if(!fa)return [0,0]; const mx=fa.p0x+fa.ux*fa.L/2, mz=fa.p0z+fa.uz*fa.L/2; let dx=mx-c.Vx, dz=mz-c.Vz; const L=Math.hypot(dx,dz)||1; return [dx/L,dz/L]; };
+        const tA=_tdir(fA), tB=_tdir(fB);
         for(let f=fitFrom;f<=fTopEff();f++){ const base=levelY(f-1)*_hs; const bt=effType(f,c.key,0); const ti=effFType(f,c.key,0), ctd=fTypeDims(ti), cHm=ctd.H/1000, cRows=Math.max(1,cHm>0?Math.floor(fh/cHm):1), cTile=cRows*cHm, topY=base+cTile; if(mountOf(ti)==='insert')continue;
           const DA=(fA?fTypeDims(effFType(f,c.fA, cornerNearBay(fA,c.Vx,c.Vz))).D:frameD)/1000; const DB=(fB?fTypeDims(effFType(f,c.fB, cornerNearBay(fB,c.Vx,c.Vz))).D:frameD)/1000; const wX=useRect?DA:c.cs, wZ=useRect?DB:c.cs; const ccx=useRect?(c.Vx+c.nAx*DA/2+c.nBx*DB/2):c.cx, ccz=useRect?(c.Vz+c.nAz*DA/2+c.nBz*DB/2):c.cz; const rectC=useRect?[[c.Vx,c.Vz],[c.Vx+c.nAx*DA,c.Vz+c.nAz*DA],[c.Vx+c.nAx*DA+c.nBx*DB,c.Vz+c.nAz*DA+c.nBz*DB],[c.Vx+c.nBx*DB,c.Vz+c.nBz*DB]]:[[c.cx-c.cs/2,c.cz-c.cs/2],[c.cx+c.cs/2,c.cz-c.cs/2],[c.cx+c.cs/2,c.cz+c.cs/2],[c.cx-c.cs/2,c.cz+c.cs/2]];
-          const mk2=(mat)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),mat); m.rotation.y=ry; m.renderOrder=2; m.userData={fc:c.key,by:0,fl:f}; m.scale.set(wX,cTile,wZ); m.position.set(ccx,base+cTile/2,ccz); frVol.add(m); return m; };
-          if(s5||s6){ if(bt!=='noframe'){ mk2(bt==='none'?matHit:baseMat(bt)); }
+          const mk2=(mat)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),mat); m.rotation.y=ry; m.renderOrder=2; m.userData={fc:c.key,by:0,fl:f,corner:true,rect:useRect,nax:c.nAx,naz:c.nAz,nbx:c.nBx,nbz:c.nBz,da:DA,db:DB,aframe:aFrame,bframe:bFrame,tax:tA[0],taz:tA[1],tbx:tB[0],tbz:tB[1]}; m.scale.set(wX,cTile,wZ); m.position.set(ccx,base+cTile/2,ccz); frVol.add(m); return m; };
+          if(s5||s6||s7){ if(bt!=='noframe'){ mk2(bt==='none'?matHit:baseMat(bt)); }
             if(bt!=='noframe' && effDoor(f,c.key,0)){ const dH=Math.min(2.3,cTile); const dm=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),matDoor); dm.renderOrder=1; dm.userData={fc:c.key,by:0,fl:f}; dm.rotation.y=c.ry; dm.scale.set(Math.max(wX,wZ)*1.05,dH,0.08); dm.position.set(c.Vx,base+dH/2,c.Vz); frVol.add(dm); }
           } else if(s4){ mk2(bt==='noframe'?matHit:ftMat(ti));
           } else if(bt!=='noframe'){ mk2(frSlabMat); }
@@ -2629,7 +2634,10 @@ function tick(){requestAnimationFrame(tick);
     }
   } else { if(frGrid.children.length){ frGrid.children.forEach(o=>o.geometry.dispose()); frGrid.clear(); } if(frVol.children.length){ frVol.children.forEach(o=>o.geometry.dispose()); frVol.clear(); } frSig=''; }
 
-  applyCamera(); renderer.render(scene,camera); renderGizmo();
+  if(s7 && window.RT && RT.applyStructure) RT.applyStructure();
+  if(s7 && window.RT && RT.applyRenderCamera){ RT.applyRenderCamera(); }
+  else { applyCamera(); }
+  renderer.render(scene,camera); renderGizmo();
   { const _n=performance.now();
     const _active=(mot>0.008)||!!drag||!!orbiting;
     if(_active && !_qWasActive){ _qApply(_qInteract); _qEma=16.7; _qBad=0; _qGood=0; }   // 움직임 시작: 학습된 해상도(보통 _qMax → 변화 없음)
@@ -6754,7 +6762,7 @@ window.FitCalcApp = App;
   // ───────── 텍스처/재질 ─────────
   var TEXBASE="source/";
   var _tex={}, _mat={}, _loaded=false, _loading=false, _dirty=true;
-  var rtOverlay=new T.Group(); rtOverlay.visible=false; scene.add(rtOverlay);   // 프레임 평면 오버레이
+  var rtOverlay=new T.Group(); rtOverlay.visible=false; (typeof bldGrp!=='undefined'&&bldGrp?bldGrp:scene).add(rtOverlay);   // 지형 오프셋(bldGrp) 따라가도록 bldGrp 자식으로   // 프레임 평면 오버레이
   var _plane=new T.PlaneGeometry(1,1);
   var _invis=new T.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide});   // 박스 옆면(미매핑)
   function loadRT(cb){
