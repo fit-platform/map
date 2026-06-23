@@ -273,7 +273,8 @@
 
 /* ===== [통합] 견적 계산기 오버레이 ===== */
 body.calc-mode #bg, body.calc-mode #scene, body.calc-mode .hud,
-body.calc-mode .steps, body.calc-mode .dimtag, body.calc-mode #goTextCalc, body.calc-mode #appbar { display:none !important; }
+body.calc-mode .steps, body.calc-mode .dimtag, body.calc-mode #goTextCalc, body.calc-mode #appbar,
+body.calc-mode .vwui, body.calc-mode #fitCtxPanel, body.calc-mode #fitCtxPanelB, body.calc-mode #seCtxToggle, body.calc-mode #seCtxStat { display:none !important; }
 #calc-root { display:none; position:fixed; inset:0; z-index:9999; overflow:auto;
   background:#efefed; -webkit-overflow-scrolling:touch; }
 #calc-loading { display:none; position:fixed; inset:0; z-index:10000;
@@ -310,7 +311,6 @@ body.calc-mode .steps, body.calc-mode .dimtag, body.calc-mode #goTextCalc, body.
     <span class="dot">◆</span> 바닥 <b>모서리</b> — 면적<br>
     <span class="dot">◆</span> <b>옥상</b> — 층수<br>
     <span class="dot">◆</span> <b>높이 모서리</b> — 기준층 높이<br>
-    <span class="dot">◆</span> <b>빈 곳</b> — 회전<br>
     <span class="dot">◆</span> <b>치수 칸</b> 클릭 — 입력
   </div>
   <div class="hint hide" id="hint2">
@@ -339,6 +339,14 @@ body.calc-mode .steps, body.calc-mode .dimtag, body.calc-mode #goTextCalc, body.
 
 <div class="hud panel" id="mainpanel">
   <div id="panel1">
+    <div class="area-block" id="siteReadout" style="display:none">
+      <div class="lbl" style="display:flex;justify-content:space-between;align-items:center">설계개요 / DESIGN<button id="srEdit" style="font-size:9px;letter-spacing:.08em;font-weight:600;color:var(--accent);background:transparent;border:1px solid rgba(230,141,57,.55);border-radius:3px;padding:2px 8px;cursor:pointer;pointer-events:auto">편집</button></div>
+      <div class="ab2" style="margin-top:5px"><div class="ab2c"><div class="ab2l">대지면적</div><div><span class="abv" id="srArea">—</span><span class="u">㎡</span></div></div></div>
+      <div class="ab2" style="margin-top:10px">
+        <div class="ab2c"><div class="ab2l">용적률</div><div><span class="abv" id="srFar">—</span><span class="u">%</span></div><div style="font-size:9px;letter-spacing:.06em;color:rgba(255,255,255,0.5);font-weight:600;margin-top:4px">법정 <input id="srFarIn" type="text" inputmode="decimal" placeholder="—" style="width:46px;text-align:right;background:rgba(255,255,255,.07);border:none;border-bottom:1px solid rgba(255,255,255,0.28);color:#fff;font-size:10px;font-weight:600;padding:1px 4px 1px 2px;border-radius:2px;outline:none">%</div></div>
+        <div class="ab2c"><div class="ab2l">건폐율</div><div><span class="abv" id="srBcr">—</span><span class="u">%</span></div><div style="font-size:9px;letter-spacing:.06em;color:rgba(255,255,255,0.5);font-weight:600;margin-top:4px">법정 <input id="srBcrIn" type="text" inputmode="decimal" placeholder="—" style="width:46px;text-align:right;background:rgba(255,255,255,.07);border:none;border-bottom:1px solid rgba(255,255,255,0.28);color:#fff;font-size:10px;font-weight:600;padding:1px 4px 1px 2px;border-radius:2px;outline:none">%</div></div>
+      </div>
+    </div>
     <div class="area-block"><div class="lbl">기준층 면적 / FLOOR</div>
       <div class="ab2"><div class="ab2c"><div class="ab2l">층별</div><div><span class="abv" id="plate">400</span><span class="u">㎡</span></div></div>
         <div class="ab2c"><div class="ab2l">전체 · 연면적</div><div><span class="abv" id="gfa">4,000</span><span class="u">㎡</span></div></div></div></div>
@@ -478,6 +486,9 @@ body.calc-mode .steps, body.calc-mode .dimtag, body.calc-mode #goTextCalc, body.
     <button class="segb" id="btnDrawCancel">취소</button>
   </div>
   <div class="drawhint" id="drawHint" style="display:none">바닥 클릭 = 점 · F8 직각 ON/OFF · 기존 점과 정렬되면 자석 멈춤 · 첫 점 다시 클릭(또는 완료)로 닫기 · ESC 취소 · Ctrl+Z 한 단계 취소</div>
+  <div class="glbl" style="margin-top:9px">규모검토</div>
+  <button class="segb" id="btnMaxMass" style="width:100%;margin-top:5px;font-weight:600;opacity:.4;pointer-events:none">기준 매스 자동생성 ▶</button>
+  <div class="drawhint" id="maxMassHint" style="margin-top:3px">대지 불러오면 활성 · 법정 용적률 최대·건폐율 최대 · 대지경계 1m 안쪽</div>
 </div>
 <div class="hud coresel hide" id="coresel">
   <div class="glbl">코어 / CORE</div>
@@ -938,14 +949,173 @@ function updateDrawUI(){ const main=document.getElementById('drawSegMain'),edit=
   if(info)info.style.display=drawMode?'':'none'; if(hint)hint.style.display=drawMode?'':'none';
   if(bRect)bRect.classList.toggle('on', !footprint && !drawMode);
   if(bDraw)bDraw.classList.toggle('on', !!footprint && !drawMode); }
-function startDraw(){ if(step!==1) setStep(1); if(!footprint) preDraw={tHalfW:tHalfW,tHalfD:tHalfD,bcx:bcx,bcz:bcz}; drawMode=true; drawPts=[]; drawHover=null; bcx=0;bcz=0;sbcx=0;sbcz=0; pendingDraw=false; polyMassSig=''; updateDrawUI(); renderDraw(); }
+function startDraw(){ window.__mmRectMode=false; if(step!==1) setStep(1); if(!footprint) preDraw={tHalfW:tHalfW,tHalfD:tHalfD,bcx:bcx,bcz:bcz}; drawMode=true; drawPts=[]; drawHover=null; bcx=0;bcz=0;sbcx=0;sbcz=0; pendingDraw=false; polyMassSig=''; updateDrawUI(); renderDraw(); }
 function cancelDraw(){ drawMode=false; drawPts=[]; drawHover=null; renderDraw(); updateDrawUI(); }
 function finishDraw(){ if(drawPts.length<3){ alert('점을 3개 이상 찍어 평면을 닫아주세요.'); return; }
   pushUndo();
   const b=polyBounds(drawPts), cx=(b.minx+b.maxx)/2, cz=(b.minz+b.maxz)/2; bcx=cx; bcz=cz; sbcx=cx; sbcz=cz;
   footprint=drawPts.map(q=>({x:snapHalf(q.x-cx), z:snapHalf(q.z-cz)})); polySel=new Array(nFaces()).fill(true);
   drawMode=false; drawPts=[]; drawHover=null; polyMassSig=''; syncBBox(); renderDraw(); renderFootprintDims(); updateDrawUI(); updateReadout(); }
-function clearFootprint(){ if(footprint) pushUndo(); footprint=null; bcx=0;bcz=0; drawMode=false; drawPts=[]; drawHover=null; polyMassSig=''; vtxCount=-1;
+function _mmHull(P){ var pts=P.slice().filter(function(p){return isFinite(p.x)&&isFinite(p.z);}); if(pts.length<3) return pts;
+  pts.sort(function(a,b){return (a.x-b.x)||(a.z-b.z);});
+  var u=[]; for(var i=0;i<pts.length;i++){ if(!u.length||Math.hypot(pts[i].x-u[u.length-1].x,pts[i].z-u[u.length-1].z)>1e-6) u.push(pts[i]); } pts=u; if(pts.length<3) return pts;
+  function cr(o,a,b){ return (a.x-o.x)*(b.z-o.z)-(a.z-o.z)*(b.x-o.x); }
+  var lo=[]; for(var i=0;i<pts.length;i++){ while(lo.length>=2&&cr(lo[lo.length-2],lo[lo.length-1],pts[i])<=0) lo.pop(); lo.push(pts[i]); }
+  var hi=[]; for(var i=pts.length-1;i>=0;i--){ while(hi.length>=2&&cr(hi[hi.length-2],hi[hi.length-1],pts[i])<=0) hi.pop(); hi.push(pts[i]); }
+  lo.pop(); hi.pop(); return lo.concat(hi); }
+function _mmLineInt(a,b){ var det=a.dx*(-b.dz)-(-b.dx)*a.dz; if(Math.abs(det)<1e-9) return null; var rx=b.px-a.px, rz=b.pz-a.pz; var t=(rx*(-b.dz)-(-b.dx)*rz)/det; return {x:a.px+a.dx*t, z:a.pz+a.dz*t}; }
+function _mmInset(pts,d){ var n=pts.length; if(n<3) return pts.slice();
+  var a2=0; for(var i=0;i<n;i++){ var p=pts[i],q=pts[(i+1)%n]; a2+=p.x*q.z-q.x*p.z; } var ccw=a2>0; var off=[];
+  for(var i=0;i<n;i++){ var p=pts[i],q=pts[(i+1)%n]; var ex=q.x-p.x,ez=q.z-p.z,L=Math.hypot(ex,ez)||1; ex/=L;ez/=L; var nx=ccw?-ez:ez, nz=ccw?ex:-ex; off.push({px:p.x+nx*d, pz:p.z+nz*d, dx:ex, dz:ez}); }
+  var res=[]; for(var i=0;i<n;i++){ var e1=off[(i-1+n)%n], e2=off[i]; var pt=_mmLineInt(e1,e2);
+    if(!pt) pt={x:(e1.px+e2.px)/2, z:(e1.pz+e2.pz)/2};
+    var md=Math.hypot(pt.x-pts[i].x, pt.z-pts[i].z); if(!isFinite(md)||md>6*d) pt={x:(e1.px+e2.px)/2, z:(e1.pz+e2.pz)/2};
+    res.push(pt); } return res; }
+function _mmCent(p){ var x=0,z=0; for(var i=0;i<p.length;i++){x+=p[i].x;z+=p[i].z;} return {x:x/p.length, z:z/p.length}; }
+function _mmScale(p,k,cx,cz){ return p.map(function(q){return {x:cx+(q.x-cx)*k, z:cz+(q.z-cz)*k};}); }
+function _mmWorldBox(){ if(footprint && footprint.length>=3){ var xs=footprint.map(function(p){return p.x;}), zs=footprint.map(function(p){return p.z;}); return {minx:Math.min.apply(null,xs)+bcx, maxx:Math.max.apply(null,xs)+bcx, minz:Math.min.apply(null,zs)+bcz, maxz:Math.max.apply(null,zs)+bcz}; } return {minx:bcx-tHalfW, maxx:bcx+tHalfW, minz:bcz-tHalfD, maxz:bcz+tHalfD}; }
+function _mmSimplify(P, angTol, minSeg){ var pts=P.slice(); if(pts.length<4) return pts;
+  var m=[]; for(var i=0;i<pts.length;i++){ var q=pts[i]; if(!m.length||Math.hypot(q.x-m[m.length-1].x,q.z-m[m.length-1].z)>=minSeg) m.push(q); }
+  if(m.length>=2 && Math.hypot(m[0].x-m[m.length-1].x,m[0].z-m[m.length-1].z)<minSeg) m.pop(); pts=m; if(pts.length<4) return pts;
+  var cosTol=Math.cos(angTol*Math.PI/180), changed=true, guard=0;
+  while(changed && pts.length>3 && guard++<60){ changed=false;
+    for(var i=0;i<pts.length;i++){ var a=pts[(i-1+pts.length)%pts.length], b=pts[i], cc=pts[(i+1)%pts.length];
+      var e1x=b.x-a.x,e1z=b.z-a.z,e2x=cc.x-b.x,e2z=cc.z-b.z, L1=Math.hypot(e1x,e1z),L2=Math.hypot(e2x,e2z);
+      if(L1<1e-9||L2<1e-9){ pts.splice(i,1); changed=true; break; }
+      var dot=(e1x*e2x+e1z*e2z)/(L1*L2); if(dot>=cosTol){ pts.splice(i,1); changed=true; break; } } }
+  return pts; }
+function _mmOBB(P){ var hull=_mmHull(P); if(hull.length<3) return null; var best=null;
+  for(var i=0;i<hull.length;i++){ var a=hull[i], b=hull[(i+1)%hull.length]; var ex=b.x-a.x,ez=b.z-a.z,L=Math.hypot(ex,ez); if(L<1e-9) continue; ex/=L;ez/=L;
+    var minU=1e18,maxU=-1e18,minV=1e18,maxV=-1e18;
+    for(var k=0;k<hull.length;k++){ var dx=hull[k].x-a.x,dz=hull[k].z-a.z, u=dx*ex+dz*ez, v=-dx*ez+dz*ex; if(u<minU)minU=u; if(u>maxU)maxU=u; if(v<minV)minV=v; if(v>maxV)maxV=v; }
+    var w=maxU-minU,h=maxV-minV,area=w*h; if(!best||area<best.area) best={area:area,a:a,ex:ex,ez:ez,minU:minU,maxU:maxU,minV:minV,maxV:maxV,w:w,h:h}; }
+  if(!best) return null;
+  function pt(u,v){ return {x:best.a.x+u*best.ex - v*best.ez, z:best.a.z+u*best.ez + v*best.ex}; }
+  return { corners:[pt(best.minU,best.minV),pt(best.maxU,best.minV),pt(best.maxU,best.maxV),pt(best.minU,best.maxV)], area:best.area, w:best.w, h:best.h, ux:best.ex, uz:best.ez }; }
+function _mmRectCorners(cx,cz,w,h,ux,uz){ var vx=-uz, vz=ux, hw=w/2, hh=h/2;
+  return [ {x:cx-hw*ux-hh*vx,z:cz-hw*uz-hh*vz}, {x:cx+hw*ux-hh*vx,z:cz+hw*uz-hh*vz}, {x:cx+hw*ux+hh*vx,z:cz+hw*uz+hh*vz}, {x:cx-hw*ux+hh*vx,z:cz-hw*uz+hh*vz} ]; }
+function _mmCompute(){
+  var VC=window.VWorldContext, rings=(VC&&VC.siteVertsWorld)?VC.siteVertsWorld():null;
+  if(!rings||!rings.length) return null;
+  var li=window.__landInfo||{};
+  var poly;
+  if(rings.length===1 && rings[0].length>=3){ poly=rings[0].slice(); }
+  else { var all=[]; rings.forEach(function(r){ r.forEach(function(p){ all.push(p); }); }); poly=_mmHull(all); }
+  if(poly.length>=2){ var pf=poly[0], pl=poly[poly.length-1]; if(Math.hypot(pf.x-pl.x,pf.z-pl.z)<1e-6) poly.pop(); }
+  poly=_mmSimplify(poly, 6, 0.3);
+  if(poly.length<3) return null;
+  var siteA=(li.areaM2&&li.areaM2>0)?li.areaM2:polyArea(poly);
+  var ov=window.__legalOv||{far:null,bcr:null};
+  var bcr=(ov.bcr!=null)?ov.bcr:((li.bcr!=null)?li.bcr:60), far=(ov.far!=null)?ov.far:((li.far!=null)?li.far:250), fb=(ov.bcr==null&&li.bcr==null);
+  if(!(far>0)) far=(li.far!=null?li.far:250); if(!(bcr>0)) bcr=(li.bcr!=null?li.bcr:60);
+  var rectMode=(!footprint && !drawMode), base, rect=null;   // 현재 평면 모드(사각형=footprint 없음, 그리기=다각형) 기준
+  if(rectMode){
+    var xs=poly.map(function(p){return p.x;}), zs=poly.map(function(p){return p.z;});
+    var mnx=Math.min.apply(null,xs), mxx=Math.max.apply(null,xs), mnz=Math.min.apply(null,zs), mxz=Math.max.apply(null,zs);
+    var rw=(mxx-mnx)-2.0, rh=(mxz-mnz)-2.0;
+    if(rw>1 && rh>1){ rect={cx:(mnx+mxx)/2, cz:(mnz+mxz)/2, rw:rw, rh:rh}; base=_mmRectCorners(rect.cx,rect.cz,rw,rh,1,0); }
+    else rectMode=false;
+  }
+  if(!rectMode){ base=_mmInset(poly,1.0); base=_mmSimplify(base, 6, 0.3); if(!base||base.length<3||!isFinite(polyArea(base))||polyArea(base)<1) base=poly; }
+  var baseA=polyArea(base);
+  var legalFoot=siteA*bcr/100;
+  var maxFoot=(legalFoot>0)?Math.min(baseA,legalFoot):baseA;
+  var gfa=siteA*far/100;
+  var floors=Math.max(1, Math.ceil(gfa/Math.max(1,maxFoot)));
+  var targetFoot=gfa/floors; if(targetFoot>baseA) targetFoot=baseA;
+  return { base:base, baseA:baseA, rect:rect, maxFoot:maxFoot, targetFoot:targetFoot, floors:floors, far:far, bcr:bcr, siteA:siteA, fb:fb, rectMode:rectMode, multi:(rings.length>1) };
+}
+function _mmSetFloors(n){ n=Math.max(1,Math.round(n)); if(perFloorMode){ var mid=Math.max(0, n - lowN - topN); midN=mid; tFloors=lowN+midN+topN; var pm=document.getElementById('pfMidN'); if(pm)pm.value=midN; } else { tFloors=n; } }
+function _mmApply(C, footArea, floors){
+  if(C.rectMode && C.rect){
+    var k=Math.sqrt(Math.max(0,footArea)/Math.max(1,C.baseA));
+    footprint=null; drawMode=false; drawPts=[]; drawHover=null; vtxCount=-1; polySel=[];
+    polyMass.children.forEach(function(o){o.geometry&&o.geometry.dispose();}); polyMass.clear(); polyMass.visible=false;
+    vtxHandles.children.forEach(function(o){o.geometry&&o.geometry.dispose();}); vtxHandles.clear(); vtxHandles.visible=false;
+    tHalfW=(C.rect.rw/2)*k; tHalfD=(C.rect.rh/2)*k; bcx=C.rect.cx; bcz=C.rect.cz; sbcx=bcx; sbcz=bcz;
+    _mmSetFloors(floors);
+    clampCore(); clampFit(); polyMassSig=''; floorSig=''; frSig=''; slabSig='';
+    renderDraw(); renderFootprintDims(); updateDrawUI(); updateReadout(); wake(32);
+  } else {
+    var base=C.base, baseA=C.baseA;
+    var c=_mmCent(base), kk=Math.sqrt(Math.max(0,footArea)/Math.max(1,baseA)), fp=_mmScale(base,kk,c.x,c.z);
+    var bb=polyBounds(fp), cx=(bb.minx+bb.maxx)/2, cz=(bb.minz+bb.maxz)/2;
+    bcx=cx; bcz=cz; sbcx=cx; sbcz=cz;
+    footprint=fp.map(function(q){return {x:q.x-cx, z:q.z-cz};});
+    _mmSetFloors(floors); polySel=new Array(nFaces()).fill(true);
+    syncBBox(); clampCore(); clampFit();
+    polyMassSig=''; floorSig=''; frSig=''; slabSig=''; drawMode=false; drawPts=[]; drawHover=null;
+    renderDraw(); renderFootprintDims(); updateDrawUI(); updateReadout(); wake(32);
+  }
+}
+function _mmStat(C, footA, floors){
+  var realGfa=footA*floors, realBcr=Math.round(footA/Math.max(1,C.siteA)*1000)/10, realFar=Math.round(realGfa/Math.max(1,C.siteA)*1000)/10;
+  var msg='데이터: 기준매스 · 대지 '+Math.round(C.siteA).toLocaleString()+'㎡ · 용적 '+realFar+'%(연 '+Math.round(realGfa).toLocaleString()+'㎡) · '+floors+'개층 · 기준층 '+Math.round(footA).toLocaleString()+'㎡ · 건폐 '+realBcr+'%(한도 '+C.bcr+'%)';
+  if(C.fb) msg+=' · ※용도지역 미확인(기본 60/250)';
+  if(C.rectMode) msg+=' · 사각형';
+  if(C.multi) msg+=' · 합필 컨벡스근사';
+  var _ss=document.getElementById('seCtxStat'); if(_ss) _ss.textContent=msg;
+}
+function makeMaxMassing(){
+  var C=_mmCompute(); if(!C){ alert('대지를 먼저 불러와 주세요. (주변 컨텍스트 패널 → 대지 추가)'); return; }
+  pushUndo(); _mmApply(C, C.targetFoot, C.floors); _mmStat(C, C.targetFoot, C.floors);
+}
+window.__makeMaxMassing=makeMaxMassing;
+function _mmBtn(active){ var b=document.getElementById('btnMaxMass'); if(!b) return; if(active){ b.classList.add('on'); b.textContent='기준 매스 자동생성 · 생성중'; } else { b.classList.remove('on'); b.textContent='기준 매스 자동생성 ▶'; } }
+function _mmStopAnim(){ if(window.__mmTimer){ clearInterval(window.__mmTimer); window.__mmTimer=null; } window.__mmAnimOn=false; _mmBtn(false); }
+function toggleMassAnim(keepGeom){
+  if(window.__mmAnimOn){ _mmStopAnim(); return; }
+  var C=_mmCompute(); if(!C){ if(!keepGeom) alert('대지를 먼저 불러와 주세요. (주변 컨텍스트 패널 → 대지 추가)'); return; }
+  var _gfa=C.siteA*C.far/100, _uF=Math.max(C.floors, Math.round(tFloors)||1), _uA=_gfa/_uF;   // 현재 층수가 기준보다 높으면 그 층수에 맞춰 용적률 최대
+  if(keepGeom){ _mmStat(C, getPlate(), Math.max(1,Math.round(tFloors)||1)); }
+  else { pushUndo(); _mmApply(C, _uA, _uF); _mmStat(C, _uA, _uF); }
+  window.__mmBox=_mmWorldBox();
+  window.__mmTarget={ gfa:_gfa, siteA:C.siteA, far:C.far, bcr:C.bcr };
+  window.__mmAnimOn=true; _mmBtn(true);
+  // 생성중: 평면을 줄이면 '법정연면적/층수' 크기로 자석 스냅(용적률 정확 최대). 잡은 반대쪽 모서리를 고정점으로.
+  window.__mmTimer=setInterval(function(){
+    if(!window.__mmAnimOn){ _mmStopAnim(); return; }
+    var T=window.__mmTarget; if(!T||!(T.gfa>0)) return;
+    var fa=getPlate(); if(!(fa>0)) return;
+    var N=Math.max(1, Math.round(T.gfa/fa));
+    var snapA=T.gfa/N;
+    var changed=false;
+    if(Math.abs(fa-snapA)/snapA > 0.005){
+      var k=Math.sqrt(snapA/Math.max(1,fa));
+      var WB=_mmWorldBox(), prev=window.__mmBox, ax, az;
+      if(prev){ ax=(Math.abs(WB.minx-prev.minx)<=Math.abs(WB.maxx-prev.maxx))?WB.minx:WB.maxx; az=(Math.abs(WB.minz-prev.minz)<=Math.abs(WB.maxz-prev.maxz))?WB.minz:WB.maxz; }
+      else { ax=(WB.minx+WB.maxx)/2; az=(WB.minz+WB.maxz)/2; }
+      if(footprint && footprint.length>=3){
+        var np=footprint.map(function(p){ var wx=p.x+bcx, wz=p.z+bcz; return {x:ax+(wx-ax)*k, z:az+(wz-az)*k}; });
+        var xs2=np.map(function(p){return p.x;}), zs2=np.map(function(p){return p.z;});
+        var ncx=(Math.min.apply(null,xs2)+Math.max.apply(null,xs2))/2, ncz=(Math.min.apply(null,zs2)+Math.max.apply(null,zs2))/2;
+        bcx=ncx; bcz=ncz; sbcx=ncx; sbcz=ncz;
+        footprint=np.map(function(p){return {x:p.x-ncx, z:p.z-ncz};});
+      } else {
+        var nhw=tHalfW*k, nhd=tHalfD*k, ncx2, ncz2;
+        if(prev){ ncx2=(ax===WB.maxx)?(ax-nhw):(ax+nhw); ncz2=(az===WB.maxz)?(az-nhd):(az+nhd); }
+        else { ncx2=bcx; ncz2=bcz; }
+        bcx=ncx2; bcz=ncz2; sbcx=ncx2; sbcz=ncz2; tHalfW=nhw; tHalfD=nhd;
+      }
+      changed=true;
+    }
+    var _pf0=tFloors; _mmSetFloors(N); if(tFloors!==_pf0) changed=true;
+    if(changed){
+      if(footprint && footprint.length>=3){ syncBBox(); renderFootprintDims(); }
+      clampCore(); clampFit(); polyMassSig=''; floorSig=''; frSig=''; slabSig=''; updateReadout(); wake(16);
+      var rf=Math.round(snapA*N/Math.max(1,T.siteA)*1000)/10, rb=Math.round(snapA/Math.max(1,T.siteA)*1000)/10;
+      var ss=document.getElementById('seCtxStat'); if(ss) ss.textContent='데이터: 자석조정 · '+N+'개층 · 기준층 '+Math.round(snapA).toLocaleString()+'㎡ · 용적 '+rf+'%(한도 '+T.far+'%) · 건폐 '+rb+'%';
+    }
+    window.__mmBox=_mmWorldBox();
+  }, 180);
+}
+window.__toggleMassAnim=toggleMassAnim;
+function updateSiteReadout(){ var el=document.getElementById('siteReadout'); if(!el) return; var li=window.__landInfo; if(!li||!(li.areaM2>0)){ el.style.display='none'; return; } el.style.display=''; var A=li.areaM2, plate=getPlate(), gfaB=plate*tFloors; var farB=Math.round(gfaB/A*1000)/10, bcrB=Math.round(plate/A*1000)/10; var a=document.getElementById('srArea'); if(a)a.textContent=fmt(Math.round(A)); window.__legalOv=window.__legalOv||{far:null,bcr:null}; var effFar=(window.__legalOv.far!=null)?window.__legalOv.far:(li.far!=null?li.far:null), effBcr=(window.__legalOv.bcr!=null)?window.__legalOv.bcr:(li.bcr!=null?li.bcr:null); var fE=document.getElementById('srFar'); if(fE){ fE.textContent=farB; fE.style.color=(effFar!=null&&farB>effFar)?'var(--accent)':'var(--dark-fg)'; } var bE=document.getElementById('srBcr'); if(bE){ bE.textContent=bcrB; bE.style.color=(effBcr!=null&&bcrB>effBcr)?'var(--accent)':'var(--dark-fg)'; } var fI=document.getElementById('srFarIn'); if(fI){ if(document.activeElement!==fI && window.__legalOv.far==null) fI.value=(li.far!=null)?li.far:''; fI.style.color=(window.__legalOv.far!=null)?'var(--accent)':'#fff'; } var bI=document.getElementById('srBcrIn'); if(bI){ if(document.activeElement!==bI && window.__legalOv.bcr==null) bI.value=(li.bcr!=null)?li.bcr:''; bI.style.color=(window.__legalOv.bcr!=null)?'var(--accent)':'#fff'; } }
+window.__updateSiteReadout=updateSiteReadout;
+window.__legalEdit=false;
+function applyLegalEditUI(){ var ed=window.__legalEdit; ['srFarIn','srBcrIn'].forEach(function(id){ var el=document.getElementById(id); if(!el) return; el.readOnly=!ed; el.style.pointerEvents=ed?'auto':'none'; el.style.background=ed?'rgba(255,255,255,.07)':'transparent'; el.style.borderBottom=ed?'1px solid var(--accent)':'1px solid transparent'; el.style.cursor=ed?'text':'default'; }); var btn=document.getElementById('srEdit'); if(btn){ btn.textContent=ed?'완료':'편집'; btn.style.color=ed?'#fff':'var(--accent)'; btn.style.background=ed?'var(--accent)':'transparent'; } }
+window.__applyLegalEditUI=applyLegalEditUI;
+function clearFootprint(){ window.__mmRectMode=true; if(footprint) pushUndo(); footprint=null; bcx=0;bcz=0; drawMode=false; drawPts=[]; drawHover=null; polyMassSig=''; vtxCount=-1;
   polyMass.children.forEach(o=>o.geometry&&o.geometry.dispose()); polyMass.clear(); polyMass.visible=false;
   vtxHandles.children.forEach(o=>o.geometry&&o.geometry.dispose()); vtxHandles.clear(); vtxHandles.visible=false;
   if(preDraw){ tHalfW=preDraw.tHalfW; tHalfD=preDraw.tHalfD; if(preDraw.bcx!=null){bcx=preDraw.bcx;bcz=preDraw.bcz;sbcx=bcx;sbcz=bcz;} clampCore(); } preDraw=null;
@@ -1022,7 +1192,7 @@ function effDoor(floor,face,bay){const fk=floor+'_'+face+'_'+bay; if(fk in floor
 function dispType(face,bay){return unitMode==='floor'?effType(editFloor,face,bay):((face+'_'+bay) in baseType?baseType[face+'_'+bay]:'skin');}
 function dispDoor(face,bay){return unitMode==='floor'?effDoor(editFloor,face,bay):!!baseDoor[face+'_'+bay];}
 
-let theta=0.85,phi=1.0,sRadius=80, tTheta=0.85,tPhi=1.0,tRadius=80, zoomK=3.3, zoomMul=1;
+let theta=0.85,phi=1.0,sRadius=80, tTheta=0.85,tPhi=1.0,tRadius=80, zoomK=3.3, zoomMul=1.13;
 const target=new THREE.Vector3(0,15,0), tTarget=new THREE.Vector3(0,15,0);
 function applyCamera(){camera.position.set(target.x+sRadius*Math.sin(phi)*Math.sin(theta),
   target.y+sRadius*Math.cos(phi), target.z+sRadius*Math.sin(phi)*Math.cos(theta)); camera.lookAt(target);}
@@ -1437,7 +1607,19 @@ function setStep(s){ wake(); step=s;
 $('toStep2').onclick=()=>setStep(2); $('toStep3').onclick=()=>setStep(3); $('toStep4').onclick=()=>setStep(4); $('toStep5').onclick=()=>setStep(5); $('toStep6').onclick=()=>setStep(6);
 $('back1').onclick=()=>setStep(1); $('back2').onclick=()=>setStep(2); $('back3').onclick=()=>setStep(3); $('back4').onclick=()=>setStep(4); $('back5').onclick=()=>setStep(5);
 $('pill1').onclick=()=>setStep(1); $('pill2').onclick=()=>setStep(2); $('pill3').onclick=()=>setStep(3); $('pill4').onclick=()=>setStep(4); $('pill5').onclick=()=>setStep(5); $('pill6').onclick=()=>setStep(6);
-$('btnDraw').onclick=startDraw; $('btnDrawDone').onclick=finishDraw; $('btnDrawCancel').onclick=cancelDraw; $('btnRect').onclick=clearFootprint; updateDrawUI();
+$('btnDraw').onclick=startDraw; $('btnDrawDone').onclick=finishDraw; $('btnDrawCancel').onclick=cancelDraw; $('btnRect').onclick=clearFootprint; var _bmm=$('btnMaxMass'); if(_bmm)_bmm.onclick=toggleMassAnim; _mmBtn(false); window.__legalOv=window.__legalOv||{far:null,bcr:null};
+  var _parseNum=function(x){ var t=String(x).replace(/[^0-9.]/g,''); var v=parseFloat(t); return (t!==''&&isFinite(v)&&v>0)?v:null; };
+  var _mmReMax=function(){ if(window.__mmAnimOn && typeof _mmCompute==='function'){ var C=_mmCompute(); if(C){ var g=C.siteA*C.far/100, uF=Math.max(C.floors, Math.round(tFloors)||1), uA=g/uF; window.__mmTarget={gfa:g, siteA:C.siteA, far:C.far, bcr:C.bcr}; _mmApply(C, uA, uF); _mmStat(C, uA, uF); window.__mmBox=_mmWorldBox(); } } };
+  var _legalCommit=function(){ var fi=$('srFarIn'), bi=$('srBcrIn'); if(fi) window.__legalOv.far=_parseNum(fi.value); if(bi) window.__legalOv.bcr=_parseNum(bi.value); updateSiteReadout(); _mmReMax(); };
+  var _legalDone=function(){ if(window.__legalEdit){ window.__legalEdit=false; applyLegalEditUI(); } };
+  var _legalKey=function(e){ if(e.key==='Enter'||e.keyCode===13){ e.preventDefault(); _legalCommit(); _legalDone(); if(e.target&&e.target.blur)e.target.blur(); } };
+  var _fi, _bi;
+  var _legalBlur=function(){ setTimeout(function(){ var a=document.activeElement; if(a!==_fi && a!==_bi){ _legalCommit(); _legalDone(); } }, 60); };
+  _fi=$('srFarIn'); if(_fi){ _fi.addEventListener('input',function(){ window.__legalOv.far=_parseNum(_fi.value); updateSiteReadout(); }); _fi.addEventListener('change',_legalCommit); _fi.addEventListener('keydown',_legalKey); _fi.addEventListener('blur',_legalBlur); }
+  _bi=$('srBcrIn'); if(_bi){ _bi.addEventListener('input',function(){ window.__legalOv.bcr=_parseNum(_bi.value); updateSiteReadout(); }); _bi.addEventListener('change',_legalCommit); _bi.addEventListener('keydown',_legalKey); _bi.addEventListener('blur',_legalBlur); }
+  var _se=$('srEdit'); if(_se)_se.onclick=function(){ if(window.__legalEdit){ _legalCommit(); _legalDone(); } else { window.__legalEdit=true; applyLegalEditUI(); var fi=$('srFarIn'); if(fi)fi.focus(); } };
+  applyLegalEditUI();
+  updateDrawUI();
 $('repBack').onclick=()=>setStep(5);
 let delivRate=120, constRate=150;
 function rateChanged(){ delivRate=parseFloat($('inDeliv').value)||0; constRate=parseFloat($('inConst').value)||0; if(step===6) buildReport(); }
@@ -1447,7 +1629,7 @@ const ESTIMATE_ITEMS=[['frame','FIT FRAME'],['skin','스킨카트리지'],['hvac
 const itemSel={}; ESTIMATE_ITEMS.forEach(it=>{itemSel[it[0]]=true; $('item_'+it[0]).onclick=()=>withUndo(()=>{itemSel[it[0]]=!itemSel[it[0]]; $('item_'+it[0]).classList.toggle('on',itemSel[it[0]]); if(step===6)buildReport();});});
 // === 설계 저장/불러오기 ===
 function getDesignState(){ return { v:1, app:'FIT-MASSING', savedAt:new Date().toISOString(),
-  building:{tHalfW:tHalfW,tHalfD:tHalfD,tFloors:tFloors,tFloorH:tFloorH},
+  building:{tHalfW:tHalfW,tHalfD:tHalfD,tFloors:tFloors,tFloorH:tFloorH,bcx:bcx,bcz:bcz,sbcx:sbcx,sbcz:sbcz},
   core:{tcHalfW:tcHalfW,tcHalfD:tcHalfD,tcx:tcx,tcz:tcz,coreTouched:coreTouched}, cores:cores.map(c=>({hw:c.hw,hd:c.hd,cx:c.cx,cz:c.cz})),
   fit:{fitFrom:fitFrom,fitTo:fitTo,faceSel:faceSel.slice(),roofOn:roofOn},
   frame:{frameW:frameW,frameD:frameD,frameH:frameH,frameWMode:frameWMode}, frameTypesEx:frameTypesEx.map(t=>({W:t.W,D:t.D,H:t.H,glass:t.glass,mount:t.mount,inset:t.inset})), frameTypeMap:Object.assign({},frameTypeMap),
@@ -1456,27 +1638,44 @@ function getDesignState(){ return { v:1, app:'FIT-MASSING', savedAt:new Date().t
   rates:{delivRate:delivRate,constRate:constRate},
   items:Object.assign({},itemSel),
   footprint:(footprint?footprint.map(q=>({x:q.x,z:q.z})):null), polySel:(polySel?polySel.slice():[]),
-  estimate:(window.__massingValues?Object.assign({},window.__massingValues,{items:(window.__massingItems||[]).slice()}):null) }; }
+  estimate:(window.__massingValues?Object.assign({},window.__massingValues,{items:(window.__massingItems||[]).slice()}):null), calcRowOv:((window.__calcRowOv && Object.keys(window.__calcRowOv).length)?JSON.parse(JSON.stringify(window.__calcRowOv)):null),
+  floors:{ perFloorMode:perFloorMode, lowN:lowN, midN:midN, topN:topN, fhLow:fhLow, fhTop:fhTop },
+  types:{ frameFloorOv:Object.assign({},frameFloorOv), autoGrpFrame:autoGrpFrame, grpTypeIdx:grpTypeIdx.slice(), aTypeFloor:aTypeFloor, activeFType:activeFType },
+  options:{ slabTh:slabTh, repPerFloor:repPerFloor },
+  legalOv:((window.__legalOv && (window.__legalOv.far!=null||window.__legalOv.bcr!=null)) ? {far:window.__legalOv.far, bcr:window.__legalOv.bcr} : null),
+  massing:(window.__mmAnimOn ? {on:true} : null),
+  site:(function(){ try{ var st=window.VWorldContext&&window.VWorldContext.state, ss=st&&st.site; if(!ss||!ss.parcels||!ss.parcels.length) return null; return { lon0:ss.lon0, lat0:ss.lat0, parcels:ss.parcels.map(function(pp){ return { ring:pp.ring, label:pp.label, road:!!pp.road, pnu:pp.pnu||'', zone:pp._zone, zoneErr:pp._zoneErr, areaM2:pp._areaM2 }; }), parcelCache:(st.parcelCache&&st.parcelCache.length?st.parcelCache.map(function(p){return {ring:p.ring,cen:p.cen,road:!!p.road,label:p.label,pnu:p.pnu||''};}):null), bldState:(st.bldState||0), gndState:(st.gndState||0), buildingsGeo:(window.VWorldContext&&window.VWorldContext.serializeBuildings?window.VWorldContext.serializeBuildings():null), xform:(st.xform?{x:st.xform.x,y:st.xform.y,rot:st.xform.rot}:null), autoAlign:(function(){ var _a=document.getElementById('seAlignToggle'); return _a? /ON/.test(_a.textContent): true; })() }; }catch(e){ return null; } })() }; }
 function applyDesignState(d){ if(!d||typeof d!=='object'||d.app!=='FIT-MASSING') return false;
   try{
-    var B=d.building||{}; if(B.tHalfW!=null)tHalfW=B.tHalfW; if(B.tHalfD!=null)tHalfD=B.tHalfD; if(B.tFloors!=null)tFloors=B.tFloors; if(B.tFloorH!=null)tFloorH=B.tFloorH;
+    var B=d.building||{}; if(B.tHalfW!=null)tHalfW=B.tHalfW; if(B.tHalfD!=null)tHalfD=B.tHalfD; if(B.tFloors!=null)tFloors=B.tFloors; if(B.tFloorH!=null)tFloorH=B.tFloorH; if(B.bcx!=null)bcx=B.bcx; if(B.bcz!=null)bcz=B.bcz; if(B.sbcx!=null)sbcx=B.sbcx; if(B.sbcz!=null)sbcz=B.sbcz; window.__calcRowOv=(d.calcRowOv&&typeof d.calcRowOv==='object')?d.calcRowOv:{};
     var C=d.core||{}; if(C.tcHalfW!=null)tcHalfW=C.tcHalfW; if(C.tcHalfD!=null)tcHalfD=C.tcHalfD; if(C.tcx!=null)tcx=C.tcx; if(C.tcz!=null)tcz=C.tcz; coreTouched=!!C.coreTouched;
     cores=Array.isArray(d.cores)?d.cores.map(c=>({hw:+c.hw,hd:+c.hd,cx:+c.cx,cz:+c.cz})):[]; rebuildExtraCores();
     var F=d.fit||{}; if(F.fitFrom!=null)fitFrom=F.fitFrom; if(F.fitTo!=null)fitTo=F.fitTo; if(F.roofOn!=null)roofOn=!!F.roofOn; if(Array.isArray(F.faceSel))faceSel=[!!F.faceSel[0],!!F.faceSel[1],!!F.faceSel[2],!!F.faceSel[3]]; fitTouched=true; { var _rt=document.getElementById('roofToggle'); if(_rt){_rt.textContent=roofOn?'✓ 지붕층 (해제)':'＋ 지붕층 추가'; _rt.classList.toggle('on',roofOn);} }
     var FR=d.frame||{}; if(FR.frameW!=null)frameW=FR.frameW; if(FR.frameD!=null)frameD=FR.frameD; if(FR.frameH!=null)frameH=FR.frameH; if(FR.frameWMode)frameWMode=FR.frameWMode;
-    frameTypesEx=Array.isArray(d.frameTypesEx)?d.frameTypesEx.map(t=>({W:+t.W,D:+t.D,H:+t.H,glass:t.glass||'low',mount:t.mount||'attach',inset:(+t.inset||0)})):[]; { for(const k in frameTypeMap)delete frameTypeMap[k]; if(d.frameTypeMap)Object.assign(frameTypeMap,d.frameTypeMap); } renderFTypeChips&&renderFTypeChips(); renderFTypeInputs&&renderFTypeInputs();
+    frameTypesEx=Array.isArray(d.frameTypesEx)?d.frameTypesEx.map(t=>({W:+t.W,D:+t.D,H:+t.H,glass:t.glass||'low',mount:t.mount||'attach',inset:(+t.inset||0)})):[]; { for(const k in frameTypeMap)delete frameTypeMap[k]; if(d.frameTypeMap)Object.assign(frameTypeMap,d.frameTypeMap); } var TY=d.types||{}; { for(var _k in frameFloorOv) delete frameFloorOv[_k]; if(TY.frameFloorOv) Object.assign(frameFloorOv,TY.frameFloorOv); } if(TY.autoGrpFrame!=null)autoGrpFrame=!!TY.autoGrpFrame; if(Array.isArray(TY.grpTypeIdx))grpTypeIdx=TY.grpTypeIdx.map(Number); if(TY.aTypeFloor!=null)aTypeFloor=TY.aTypeFloor; if(TY.activeFType!=null)activeFType=TY.activeFType; renderFTypeChips&&renderFTypeChips(); renderFTypeInputs&&renderFTypeInputs();
     if(d.glassType)glassType=d.glassType; if(d.frameMount)frameMount=d.frameMount; if(d.frameInset!=null)frameInset=d.frameInset; if(d.skinType)skinType=d.skinType; if(d.unitMode)unitMode=d.unitMode; if(d.editFloor!=null)editFloor=d.editFloor;
     var clr=function(o){for(var k in o)delete o[k];};
     var bz=d.bays||{}; clr(baseType);Object.assign(baseType,bz.baseType||{}); clr(floorOv);Object.assign(floorOv,bz.floorOv||{}); clr(baseDoor);Object.assign(baseDoor,bz.baseDoor||{}); clr(floorDoor);Object.assign(floorDoor,bz.floorDoor||{}); clr(prevType);Object.assign(prevType,bz.prevType||{});
     var R=d.rates||{}; if(R.delivRate!=null)delivRate=R.delivRate; if(R.constRate!=null)constRate=R.constRate;
     if(d.items){ ESTIMATE_ITEMS.forEach(function(it){ if(it[0] in d.items) itemSel[it[0]]=!!d.items[it[0]]; }); }
     sHalfW=tHalfW; sHalfD=tHalfD; sFloorH=tFloorH; sHeight=totalH(); sbcx=bcx; sbcz=bcz; scHalfW=tcHalfW; scHalfD=tcHalfD; scx=tcx; scz=tcz;
+    var FL=d.floors||{};
+    if(FL.perFloorMode){ perFloorMode=true; if(FL.lowN!=null)lowN=FL.lowN; if(FL.midN!=null)midN=FL.midN; if(FL.topN!=null)topN=FL.topN; if(FL.fhLow!=null)fhLow=FL.fhLow; if(FL.fhTop!=null)fhTop=FL.fhTop;
+      var _pr=$('pfRows'),_fr=$('flrRow'); if(_pr)_pr.style.display='block'; if(_fr)_fr.style.display='none';
+      if($('pfTopN'))$('pfTopN').value=topN; if($('pfMidN'))$('pfMidN').value=midN; if($('pfLowN'))$('pfLowN').value=lowN;
+      if($('pfTopH'))$('pfTopH').value=(+fhTop).toFixed(1); if($('pfMidH'))$('pfMidH').value=(+tFloorH).toFixed(1); if($('pfLowH'))$('pfLowH').value=(+fhLow).toFixed(1);
+      if(typeof pfApply==='function') pfApply();
+    } else { perFloorMode=false; var _pr2=$('pfRows'),_fr2=$('flrRow'); if(_pr2)_pr2.style.display='none'; if(_fr2)_fr2.style.display='flex'; }
+    var OP=d.options||{}; if(OP.slabTh!=null){ slabTh=OP.slabTh; var _sti=$('slabThIn'); if(_sti)_sti.value=Math.round(slabTh*1000); slabSig=''; } if(OP.repPerFloor!=null)repPerFloor=!!OP.repPerFloor;
     clampCore(); clampFit(); editFloor=clamp(editFloor,fitFrom,fTopEff());
     setGlass(glassType); setSkin(skinType);
     if($('inDeliv'))$('inDeliv').value=delivRate; if($('inConst'))$('inConst').value=constRate;
     ESTIMATE_ITEMS.forEach(function(it){ var e=$('item_'+it[0]); if(e)e.classList.toggle('on',!!itemSel[it[0]]); });
     footprint=Array.isArray(d.footprint)?d.footprint.map(q=>({x:+q.x,z:+q.z})):null; polySel=Array.isArray(d.polySel)?d.polySel.map(Boolean):[]; ensurePolySel(); polyMassSig=''; if(footprint&&footprint.length>=3)syncBBox(); if(typeof updateDrawUI==='function')updateDrawUI(); if(typeof renderFootprintDims==='function')renderFootprintDims();
-    setUnitMode(unitMode); unitVer++; hvacAuto=true; frSig=''; if(typeof undoStack!=='undefined'&&undoStack){undoStack.length=0;redoStack.length=0;} setStep(6);
+    setUnitMode(unitMode); unitVer++; hvacAuto=(function(){ try{ var h=false; [baseType,floorOv].forEach(function(o){ for(var k in o){ if(o[k]==='hvac') h=true; } }); return h; }catch(e){ return true; } })(); frSig=''; if(typeof undoStack!=='undefined'&&undoStack){undoStack.length=0;redoStack.length=0;} setStep(6);
+    try{ if(d.site && window.VWorldContext && window.VWorldContext.restoreSite){ window.VWorldContext.restoreSite(d.site); } }catch(e){}
+    try{ if(d.legalOv){ window.__legalOv={far:(d.legalOv.far!=null?+d.legalOv.far:null), bcr:(d.legalOv.bcr!=null?+d.legalOv.bcr:null)}; var _ff=$('srFarIn'),_bb=$('srBcrIn'); if(_ff && window.__legalOv.far!=null)_ff.value=window.__legalOv.far; if(_bb && window.__legalOv.bcr!=null)_bb.value=window.__legalOv.bcr; } if(typeof window.__updateSiteReadout==='function') window.__updateSiteReadout(); }catch(e){}
+    if(d.massing && d.massing.on){ setTimeout(function(){ try{ if(!window.__mmAnimOn && typeof window.__toggleMassAnim==='function') window.__toggleMassAnim(true); }catch(e){} }, 400); }
     return true;
   }catch(err){ console.error('불러오기 오류',err); return false; }
 }
@@ -1791,6 +1990,10 @@ $('reset').onclick=()=>{
   vtxHandles.children.forEach(o=>o.geometry&&o.geometry.dispose()); vtxHandles.clear();
   { const _dd=document.getElementById('drawDims'); if(_dd)_dd.innerHTML=''; }
   if(typeof renderDraw==='function')renderDraw(); if(typeof updateDrawUI==='function')updateDrawUI();
+  try{ var _vc=window.VWorldContext; if(_vc && _vc.clearSite) _vc.clearSite(); }catch(e){}
+  window.__legalOv={far:null,bcr:null}; window.__landInfo=null; window.__mmRectMode=true;
+  if(window.__mmAnimOn && typeof _mmStopAnim==='function') _mmStopAnim();
+  try{ var _ss=document.getElementById('seCtxStat'); if(_ss)_ss.textContent='데이터: 초기화'; }catch(e){}
   frSig=''; setStep(1);};
 $('repReset').onclick=$('reset').onclick;
 
@@ -1832,7 +2035,7 @@ const fmt=n=>Math.round(n).toLocaleString('en-US');
 function setIn(id,val){const e=$(id); if(document.activeElement!==e) e.value=val;}
 function updateReadout(){ wake(); clampFit();
   const plate=getPlate();
-  $('plate').textContent=fmt(plate); $('gfa').textContent=fmt(plate*tFloors);
+  $('plate').textContent=fmt(plate); $('gfa').textContent=fmt(plate*tFloors); updateSiteReadout();
   setIn('inFloors',tFloors); setIn('inFloorH',tFloorH.toFixed(1)); setIn('inH',tFloorH.toFixed(1)); setIn('inNt',tFloors); setIn('inG1',fhLow.toFixed(1)); setIn('inG2',tFloorH.toFixed(1)); setIn('inG3',fhTop.toFixed(1)); setIn('inGN1',lowN); setIn('inGN2',midN); setIn('inGN3',topN);
   { const gw=$('inGW'), gd=$('inGD');
     if(footprint&&footprint.length>=3){ const b=polyBounds(footprint); setIn('inGW',(b.maxx-b.minx).toFixed(1)); setIn('inGD',(b.maxz-b.minz).toFixed(1));
@@ -3416,8 +3619,9 @@ function App(props) {
   const [editParams, setEditParams] = useState(false);
   const [draft, setDraft] = useState({});
   const [pfMode, setPfMode] = useState({ area: true, frameCount: true, doorCount: true, skinCount: true, cartridge: true });
-  const [rowOv, setRowOv] = useState({});
+  const [rowOv, setRowOv] = useState(window.__calcRowOv || {});
   const [tblEdit, setTblEdit] = useState(false);
+  React.useEffect(() => { window.__calcRowOv = rowOv; }, [rowOv]);
   const estFileRef = useRef(null);
   const [selItems, setSelItems] = useState(injI || []);
   const [projName, setProjName] = useState("");
@@ -4652,7 +4856,7 @@ window.FitCalcApp = App;
     return pts;
   }
   async function fetchParcel(lon, lat) {
-    for (var i = 0; i < 5; i++) {   // 지적 경계는 간헐적 0건 반환 → 재시도
+    for (var i = 0; i < 8; i++) {   // 지적 경계는 간헐적 0건 반환 → 재시도
       try {
         var url = "https://api.vworld.kr/req/data?service=data&version=2.0&request=GetFeature&format=json" +
           "&data=LP_PA_CBND_BUBUN&key=" + CFG.VWORLD_KEY +
@@ -5174,6 +5378,8 @@ window.FitCalcApp = App;
     return ST._plain[key];
   }
   // 재질(실사) 켜기/끄기: on=원본 재질 복원, off=단색(flat-shaded) 공유재질로 교체.
+  function serializeBuildings(){ try{ if(!ST.buildingsGroup) return null; var T=H().THREE, bg=ST.buildingsGroup; bg.updateMatrixWorld(true); var inv=new T.Matrix4().copy(bg.matrixWorld).invert(); var pos=[], idx=[], base=0, tmp=new T.Vector3(), m=new T.Matrix4(); bg.traverse(function(o){ if(!o.isMesh||!o.geometry||!o.geometry.attributes||!o.geometry.attributes.position) return; var _vis=true,_p=o; while(_p&&_p!==bg){ if(_p.visible===false){_vis=false;break;} _p=_p.parent; } if(!_vis) return; var g=o.geometry, pa=g.attributes.position; o.updateMatrixWorld(true); m.multiplyMatrices(inv,o.matrixWorld); var k; for(k=0;k<pa.count;k++){ tmp.set(pa.getX(k),pa.getY(k),pa.getZ(k)).applyMatrix4(m); pos.push(tmp.x,tmp.y,tmp.z); } var ix=g.index; if(ix){ for(k=0;k<ix.count;k++) idx.push(base+ix.getX(k)); } else { for(k=0;k<pa.count;k++) idx.push(base+k); } base+=pa.count; }); if(!pos.length) return null; if(pos.length>9000000) return null; var pf=new Float32Array(pos), iu=new Uint32Array(idx); function b64(buf){ var u=new Uint8Array(buf.buffer), str='', CH=0x8000, i; for(i=0;i<u.length;i+=CH){ str+=String.fromCharCode.apply(null,u.subarray(i,i+CH)); } return btoa(str); } return { p:b64(pf), i:b64(iu), nv:pf.length, ni:iu.length }; }catch(e){ return null; } }
+  function rebuildBuildingsFromGeo(geo){ try{ if(!geo||!geo.p||!geo.i) return false; var T=H().THREE; function unb64(x){ var bin=atob(x), len=bin.length, u=new Uint8Array(len), i; for(i=0;i<len;i++) u[i]=bin.charCodeAt(i); return u.buffer; } var pf=new Float32Array(unb64(geo.p)), iu=new Uint32Array(unb64(geo.i)); if(ST.buildingsGroup){ getRoot().remove(ST.buildingsGroup); disposeGroup(ST.buildingsGroup); ST.buildingsGroup=null; } var g=new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(pf,3)); g.setIndex(new T.BufferAttribute(iu,1)); g.computeVertexNormals(); ensureLights(); var mat=plainMat('bld',0xbcbcbc); var mesh=new T.Mesh(g,mat); var bg=new T.Group(); bg.name='fitContextBuildings'; bg.userData._embedded=true; bg.add(mesh); getRoot().add(bg); ST.buildingsGroup=bg; ST.bldState=2; try{ highlightSeg(EL.bldSeg,2); segEnable(true); }catch(_){} return true; }catch(e){ return false; } }
   function setMeshTex(group, on, key, color) {
     if (!group) return;
     if (!on) ensureLights();
@@ -5202,6 +5408,7 @@ window.FitCalcApp = App;
   }
   async function setBldState(s) {
     if (s !== 0 && !ST.site) { status("먼저 대지를 불러오세요."); return; }
+    if (s === 1 && ST.buildingsGroup && ST.buildingsGroup.userData && ST.buildingsGroup.userData._embedded) { getRoot().remove(ST.buildingsGroup); disposeGroup(ST.buildingsGroup); ST.buildingsGroup = null; }   // 임베드 단색형상 → 재질: 실제 텍스처 타일 재로드
     ST.bldState = s; highlightSeg(EL.bldSeg, s);
     if (s === 0) { if (ST.buildingsGroup) setGroupActive(ST.buildingsGroup, false); return; }
     if (!(await ensureBuildings())) { ST.bldState = 0; highlightSeg(EL.bldSeg, 0); return; }
@@ -5266,8 +5473,8 @@ window.FitCalcApp = App;
       '.vwui .seg button:first-child{border-left:none;}' +
       '.vwui .seg button.on{background:var(--accent,#e68d39);color:#fff;font-weight:600;}' +
       '.vwui .delrow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;font-size:12px;color:var(--sub,#555);}' +
-      '.vwui .delrow label{flex:1;text-align:center;padding:8px 6px;font-size:11px;font-weight:600;letter-spacing:.02em;border:1px solid var(--accent,#e68d39);border-radius:3px;background:transparent;color:var(--accent,#e68d39);cursor:pointer;}' +
-      '.vwui .delrow label.on,.vwui .delrow label:has(input:checked){background:var(--accent,#e68d39);color:#fff;}' +
+      '.vwui .delrow label{flex:1;text-align:center;padding:8px 6px;font-size:11px;font-weight:600;letter-spacing:.02em;border:1px solid var(--line,#dcdcd6);border-radius:3px;background:#fff;color:var(--sub,#555);cursor:pointer;}' +
+      '.vwui .delrow label.on,.vwui .delrow label:has(input:checked){background:var(--accent,#e68d39);border-color:var(--accent,#e68d39);color:#fff;}' +
       '.vwui .delrow input{display:none;}' +
       '.vwui .delrow button{font:inherit;font-size:11px;font-weight:600;letter-spacing:.02em;padding:6px 12px;border:1px solid var(--line,#dcdcd6);background:#fff;color:var(--sub,#555);border-radius:2px;cursor:pointer;}' +
       '.vwui .delrow button:hover{border-color:var(--accent,#e68d39);color:var(--text,#111);}' +
@@ -5286,9 +5493,33 @@ window.FitCalcApp = App;
       '.vwui .vwrz-t{left:12px;right:12px;top:-3px;height:8px;cursor:ns-resize;}' +
       '.vwui .vwrz-bl{left:0;bottom:0;width:14px;height:14px;cursor:nesw-resize;border-left:2px solid var(--accent,#e68d39);border-bottom:2px solid var(--accent,#e68d39);border-bottom-left-radius:4px;opacity:.55;}' +
       '.vwui .vwrz-tl{left:0;top:0;width:14px;height:14px;cursor:nwse-resize;border-left:2px solid var(--accent,#e68d39);border-top:2px solid var(--accent,#e68d39);border-top-left-radius:4px;opacity:.55;}' +
-      '.vwui .xfbtns{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;}' +
-      '.vwui .xform .xfbtns button{margin-top:0;padding:11px 18px;font-size:12px;font-weight:600;}' +
-      '#fitCtxPanel{top:174px;right:28px;left:auto;width:328px;}#fitCtxPanelB{top:auto;left:auto;right:28px;bottom:26px;}' +
+      '.vwui .xfbtns{display:flex;align-items:stretch;gap:10px;margin-top:14px;}' +
+      '.vwui .xform .xfbtns button{flex:1 1 0;margin-top:0;padding:11px 6px;font-size:12px;font-weight:600;white-space:nowrap;}' +
+      '.vwui.vwbar{background:none;border:none;box-shadow:none;padding:0;width:max-content;display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;justify-content:flex-end;gap:6px;}' +
+      '.vwui.vwbar h4,.vwui.vwbar .sectit,.vwui.vwbar .vwzoom,.vwui.vwbar .vwrz{display:none !important;}' +
+      '.vwui.vwbar .visrow{margin:0;display:flex;align-items:center;gap:5px;}' +
+      '.vwui.vwbar .visrow>span{flex:none;font-size:10px;letter-spacing:.1em;color:var(--muted,#9a9a92);font-weight:600;}' +
+      '.vwui.vwbar .seg{border:none;display:flex;gap:0;flex:none;overflow:visible;width:max-content;}' +
+      '.vwui.vwbar .seg button{flex:none;font-size:11px;letter-spacing:.1em;font-weight:500;padding:6px 11px;border:1px solid var(--line,#dcdcd6);border-radius:2px;background:#fff;color:var(--sub,#555);white-space:nowrap;}' +
+      '.vwui.vwbar .seg button.on{border-color:var(--accent,#e68d39);background:var(--accent,#e68d39);color:#fff;}' +
+      '.vwui.vwbar .vwcyc{display:inline-flex;align-items:center;justify-content:center;gap:4px;}' +
+      '.vwui.vwbar .vwca{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:.75;}' +
+      '.vwui.vwbar .vwca i{display:block;width:0;height:0;border-left:3.5px solid transparent;border-right:3.5px solid transparent;}' +
+      '.vwui.vwbar .vwca i.up{border-bottom:4.5px solid currentColor;}' +
+      '.vwui.vwbar .vwca i.dn{border-top:4.5px solid currentColor;}' +
+      '.vwui.vwbar .vwdd{position:absolute;top:calc(100% + 5px);left:0;z-index:50;display:flex;flex-direction:column;gap:5px;background:#fff;border:1px solid var(--line,#dcdcd6);border-radius:3px;padding:6px;box-shadow:0 6px 18px rgba(0,0,0,.14);}' +
+      '.vwui.vwbar .vwddop{white-space:nowrap;text-align:center;}' +
+      '.vwui.vwbar .vwdis{opacity:.4;pointer-events:none;}' +
+      '.vwui .vwli{margin-top:4px;}' +
+      '.vwui .vwlirow{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line,#dcdcd6);font-size:12px;}' +
+      '.vwui .vwlirow:last-child{border-bottom:none;}' +
+      '.vwui .vwlirow span{color:var(--muted,#9a9a92);font-size:10px;letter-spacing:.1em;}' +
+      '.vwui .vwlirow b{color:var(--text,#111);font-weight:600;}' +
+      '.vwui .vwlinote{font-size:9px;color:var(--muted,#9a9a92);margin-top:5px;line-height:1.4;}' +
+      '.vwui.vwbar .delrow{margin:0;display:flex;align-items:center;justify-content:flex-start;gap:5px;flex:none;}' +
+      '.vwui.vwbar .delrow label{flex:none;padding:6px 11px;font-size:11px;letter-spacing:.1em;border-radius:2px;}' +
+      '.vwui.vwbar .delrow button{flex:none;padding:6px 11px;font-size:11px;letter-spacing:.1em;border-radius:2px;}' +
+      '#fitCtxPanel{top:174px;right:28px;left:auto;width:328px;}#fitCtxPanelB{top:114px;left:auto;right:28px;bottom:auto;z-index:10000;}' +
       '</style>' +
       '<h4><span class="d"></span>데이터 (VWORLD)</h4>' +
       // 1) 대지 불러오기
@@ -5317,13 +5548,13 @@ window.FitCalcApp = App;
         '<div class="seg dis" id="fitCtxGndSeg"><button data-s="0">끔</button><button data-s="2">단색</button><button data-s="1">재질</button></div></div>' +
       // 5) 건물 삭제
       '<div class="sectit">건물 삭제</div>' +
-      '<div class="delrow" id="fitCtxDelRow"><label><input type="checkbox" id="fitCtxDel"> 삭제 모드(클릭)</label>' +
+      '<div class="delrow" id="fitCtxDelRow"><label><input type="checkbox" id="fitCtxDel"> 삭제</label>' +
         '<button id="fitCtxRestore" type="button">복원</button></div>' +
       '<div class="st" id="fitCtxSt">주소를 입력하고 대지 윤곽선을 불러오세요.</div>' +
       '<button class="min" id="fitCtxMin" title="접기">—</button>';
     wrap.classList.add('vwui');
     try{
-      var _pB=document.createElement('div'); _pB.id='fitCtxPanelB'; _pB.className='vwui';
+      var _pB=document.createElement('div'); _pB.id='fitCtxPanelB'; _pB.className='vwui vwbar';
       var _h=document.createElement('h4'); _h.innerHTML='<span class="d"></span>\uAC00\uC2DC\uC131 \u00B7 \uAC74\uBB3C \uC0AD\uC81C'; _pB.appendChild(_h);
       var _vt=null, _sts=wrap.querySelectorAll('.sectit');
       for(var _i=0;_i<_sts.length;_i++){ if(_sts[_i].textContent.indexOf('\uAC00\uC2DC\uC131')>=0){ _vt=_sts[_i]; break; } }
@@ -5479,7 +5710,7 @@ window.FitCalcApp = App;
   }
   function onPickUp(e) {
     var d = _down; _down = null; var cap = _cap; _cap = null;
-    if (!cap) return;                               // 잡은 것 없음 → sangeun(궤도 등) 정상
+    if (!cap) { if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) <= 6) { if (ST.addMode) { var _amX = document.getElementById('fitCtxAddMode'); if (_amX && _amX.checked) { _amX.checked = false; _amX.dispatchEvent(new Event('change')); } } if (ST.delMode) { var _dmX = document.getElementById('fitCtxDel'); if (_dmX && _dmX.checked) { _dmX.checked = false; _dmX.dispatchEvent(new Event('change')); } } } return; }                               // 잡은 것 없음 → sangeun(궤도 등) 정상
     e.stopImmediatePropagation(); e.preventDefault();
     if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) return; // 드래그였으면 동작 취소
     if (cap.type === "add") addNeighbor(cap.idx);
@@ -5502,7 +5733,7 @@ window.FitCalcApp = App;
     var pt = await geocode(addr);
     if (!pt) return null;
     var ring = await fetchParcel(pt.lon, pt.lat);
-    return { ring: ring || squareRing(pt.lon, pt.lat, 15), refined: pt.refined || addr, exact: !!ring };
+    return { ring: ring, refined: pt.refined || addr, exact: !!ring };  // 경계 없으면 null (가짜 사각형 금지)
   }
 
   // 필지 목록을 확정: 중심=모든 필지 꼭짓점 평균, 전체 윤곽 그리기, 건물/지면은 중심이 바뀌므로 정리.
@@ -5512,7 +5743,7 @@ window.FitCalcApp = App;
     if (!n) return;
     var lon0 = slon / n, lat0 = slat / n;
     drawSite(parcels, lon0, lat0);
-    ST.site = { lon0: lon0, lat0: lat0, parcels: parcels };
+    ST.site = { lon0: lon0, lat0: lat0, parcels: parcels }; ST.siteSeq=(ST.siteSeq||0)+1;
     // 중심 이동 → 기존 건물/지면 무효화(다시 토글하면 새 중심으로 로드)
     if (ST.buildingsGroup) { getRoot().remove(ST.buildingsGroup); disposeGroup(ST.buildingsGroup); ST.buildingsGroup = null; }
     if (ST.groundGroup) { getRoot().remove(ST.groundGroup); disposeGroup(ST.groundGroup); ST.groundGroup = null; }
@@ -5579,7 +5810,7 @@ window.FitCalcApp = App;
         var fc = d.response && d.response.result && d.response.result.featureCollection;
         var arr = ((fc && fc.features) ? fc.features : []).map(function (f) {
           var ring = extractOuterRing(f.geometry), pr = f.properties || {};
-          return ring && ring.length >= 3 ? { ring: ring, label: pr.jibun || pr.addr || "필지", road: isRoadJibun(pr.jibun) } : null;
+          return ring && ring.length >= 3 ? { ring: ring, label: pr.jibun || pr.addr || "필지", road: isRoadJibun(pr.jibun), pnu: (pr.pnu || pr.PNU || "") } : null;
         }).filter(Boolean);
         if (arr.length) return arr;
       } catch (e) { /* 재시도 */ }
@@ -5710,12 +5941,14 @@ window.FitCalcApp = App;
     if (ST.busy) return;
     var addr = (EL.addr.value || "").trim();
     if (!addr) { status("주소를 입력하세요."); return; }
+    try{ window.__legalOv={far:null,bcr:null}; }catch(e){}
     ST.busy = true; EL.go.disabled = true; if (EL.add) EL.add.disabled = true; status("주소·대지 조회 중…");
     ST.parcelCache = null;   // 새 대지 → 주변 필지 캐시 무효화(새 위치로 다시 받음)
     ST.xform = { x: 0, y: 0, rot: 0 }; syncXformUI(); applyXform();  // 새 대지는 기준점 0에서 시작
     try {
       var r = await fetchParcelForAddr(addr);
       if (!r) { status("주소를 찾지 못했습니다."); return; }
+      if (!r.ring) { status("대지 경계를 받지 못했습니다 · 잠시 후 다시 시도하세요."); return; }
       commitSite([{ ring: r.ring, label: r.refined }]);
       status((r.exact ? "대지 윤곽선 표시됨" : "대지 경계 미확인 — 위치만 표시") + " · " + r.refined + " · ‘＋필지 추가’로 합필 가능");
     } catch (e) { status("오류: " + e.message); }
@@ -5732,6 +5965,7 @@ window.FitCalcApp = App;
     try {
       var r = await fetchParcelForAddr(addr);
       if (!r) { status("주소를 찾지 못했습니다."); return; }
+      if (!r.ring) { status("필지 경계를 받지 못했습니다 · 다시 시도하세요."); return; }
       var parcels = ST.site.parcels.slice(); parcels.push({ ring: r.ring, label: r.refined });
       commitSite(parcels);
       status("합필됨 · 필지 " + parcels.length + "개 (방금 추가: " + r.refined + ")");
@@ -5746,10 +5980,14 @@ window.FitCalcApp = App;
   // ====================== 공개 API ======================
   window.VWorldContext = {
     config: CFG,
+    clearSite: clearSite,
+    serializeBuildings: serializeBuildings,
+    siteVertsWorld: function(){ try{ if(!ST.site||!ST.site.parcels) return null; var info=worldToLocalMatrix(ST.site.lon0, ST.site.lat0); var T=H().THREE; if(ST.rootGroup) ST.rootGroup.updateMatrixWorld(true); var rings=[]; ST.site.parcels.forEach(function(pc){ if(pc.road||!pc.ring||pc.ring.length<3) return; var ring=pc.ring.map(function(p){ var P=geodeticToECEF(p.lon,p.lat,0).sub(info.A).applyMatrix4(info.Rw2l); var w=new T.Vector3(P.x,0,P.z); if(ST.rootGroup) w.applyMatrix4(ST.rootGroup.matrixWorld); return {x:w.x, z:w.z}; }); rings.push(ring); }); return rings.length?rings:null; }catch(e){ return null; } },
     loadSite: function (addr) { EL.addr.value = addr; return runSite(); },
     addParcel: function (addr) { EL.addr.value = addr; return addParcel(); },
     showBuildings: function (v) { setBldState(v === false ? 0 : (v === 2 ? 2 : 1)); },
     showGround: function (v) { setGndState(v === false ? 0 : (v === 2 ? 2 : 1)); },
+    restoreSite: function (sv) { try{ if(!sv||!sv.parcels||!sv.parcels.length) return false; window.__legalOv={far:null,bcr:null}; var ps=sv.parcels.map(function(pp){ var o={ ring:pp.ring, label:pp.label, road:!!pp.road, pnu:pp.pnu||'' }; if(pp.zone!==undefined) o._zone=pp.zone; if(pp.zoneErr!==undefined) o._zoneErr=pp.zoneErr; if(pp.areaM2!=null) o._areaM2=pp.areaM2; return o; }); try{ if(sv.parcelCache&&sv.parcelCache.length){ ST.parcelCache=sv.parcelCache.map(function(p){ var o={ring:p.ring,road:!!p.road,label:p.label,pnu:p.pnu||''}; o.cen=p.cen||(typeof ringCentroid==='function'?ringCentroid(p.ring):null); return o; }); } }catch(e){} commitSite(ps); if(sv.xform && ST.xform){ ST.xform.x=+sv.xform.x||0; ST.xform.y=+sv.xform.y||0; ST.xform.rot=+sv.xform.rot||0; if(typeof applyXform==='function') applyXform(); } try{ if(sv.autoAlign===false && window.setAutoAlignToSite){ window.setAutoAlignToSite(false); if(sv.xform){ ST.xform.x=+sv.xform.x||0; ST.xform.y=+sv.xform.y||0; ST.xform.rot=+sv.xform.rot||0; if(typeof applyXform==='function') applyXform(); } var _al=document.getElementById('seAlignToggle'); if(_al)_al.textContent='대지 자동정렬 : OFF'; } }catch(e){} window.__vwRestoreGuard=Date.now()+2500; try{ var _bs=+sv.bldState||0, _gs=+sv.gndState||0, _bgeo=sv.buildingsGeo||null; if(_bgeo||_bs>0||_gs>0){ setTimeout(function(){ try{ if(_bgeo){ rebuildBuildingsFromGeo(_bgeo); } else if(_bs>0){ setBldState(_bs); } if(_gs>0){ setGndState(_gs); } }catch(e){} }, 200); } }catch(e){} return true; }catch(e){ return false; } },
     state: ST
   };
 
@@ -5806,7 +6044,7 @@ window.FitCalcApp = App;
   function sig(){
     var v=V(); if(!v||!v.state||!v.state.site) return '';
     var st=v.state.site, ps=(st.parcels||[]);
-    try{ return ps.map(function(p){return (p.ring&&p.ring.length)||0;}).join(',')+'|'+(st.lon0||'')+','+(st.lat0||''); }catch(e){ return ''; }
+    try{ return ps.map(function(p){return (p.ring&&p.ring.length)||0;}).join(',')+'|'+(st.lon0||'')+','+(st.lat0||'')+'|'+(v.state.siteSeq||0); }catch(e){ return ''; }
   }
   setInterval(function(){
     syncCompass();
@@ -5816,7 +6054,7 @@ window.FitCalcApp = App;
       var _fresh=(_pc<=1)||(_pc<lastParcelCount);
       lastSig=x; lastParcelCount=_pc;
       if(AUTO) setTimeout(align, 80);
-      if(_fresh){ setTimeout(function(){ var v=V(); if(v){ if(v.showBuildings)v.showBuildings(false); if(v.showGround)v.showGround(false); } if(CTX_ON) drawNbrContext(); else hideNbrContext(); }, 250); setTimeout(function(){ var v=V(); if(v&&v.state&&v.state.bldState!==0&&v.showBuildings) v.showBuildings(false); }, 900); }
+      if(_fresh){ setTimeout(function(){ var v=V(); var _g=(window.__vwRestoreGuard&&Date.now()<window.__vwRestoreGuard); if(v && !_g){ if(v.showBuildings)v.showBuildings(false); if(v.showGround)v.showGround(false); } if(CTX_ON) drawNbrContext(); else hideNbrContext(); }, 250); setTimeout(function(){ var _g=(window.__vwRestoreGuard&&Date.now()<window.__vwRestoreGuard); var v=V(); if(!_g && v&&v.state&&v.state.bldState!==0&&v.showBuildings) v.showBuildings(false); }, 900); }
     }
   }, 350);
   window.alignBuildingToSite = align;
@@ -5848,7 +6086,54 @@ window.FitCalcApp = App;
       }
       try{ if(step!==1){ var _amx=document.getElementById('fitCtxAddMode'); if(_amx && _amx.checked){ _amx.checked=false; _amx.dispatchEvent(new Event('change')); } } }catch(_e){}
       var _sx=document.getElementById('fitCtxSt'); if(_sx) _sx.style.display='none';
-      var _am=document.getElementById('fitCtxAddMode'); if(_am){ var _aml=_am.closest('.addmode'); if(_aml) _aml.classList.toggle('on', _am.checked); }
+      var _pa2=document.getElementById('fitCtxPanel');
+      if(_pa2 && !document.getElementById('vwLandInfo')){
+        var _li=document.createElement('div'); _li.id='vwLandInfo'; _li.style.display='none';
+        _li.innerHTML='<div class="sectit">대지 정보</div><div class="vwli">'+'<div class="vwlirow"><span>대지면적</span><b id="vwliArea">—</b></div>'+'<div class="vwlirow"><span>용도지역</span><b id="vwliZone">—</b></div>'+'<div class="vwlirow"><span>건폐율</span><b id="vwliBcr">—</b></div>'+'<div class="vwlirow"><span>용적률</span><b id="vwliFar">—</b></div></div>'+'<div class="vwlinote">용도지역=VWorld 자동 · 용적/건폐=시행령 표준(조례와 다를 수 있음)</div>';
+        _pa2.appendChild(_li);
+      }
+      var _am=document.getElementById('fitCtxAddMode');
+      if(_am){ var _aml=_am.closest('.addmode');
+        if(_aml){ _aml.classList.toggle('on', _am.checked);
+          var _sp=_aml.querySelector('.vwaddtxt');
+          if(!_sp){ _sp=document.createElement('span'); _sp.className='vwaddtxt'; _aml.appendChild(_sp); for(var _k=_aml.childNodes.length-1;_k>=0;_k--){ if(_aml.childNodes[_k].nodeType===3) _aml.removeChild(_aml.childNodes[_k]); } }
+          var _pc=0; try{ var _st=window.VWorldContext&&window.VWorldContext.state; if(_st&&_st.site&&_st.site.parcels) _pc=_st.site.parcels.length; }catch(_e){}
+          _sp.textContent='인접 필지 추가 모드'+(_pc>=2?' · 현재 '+_pc+'개':'');
+        }
+      }
+      var _bldOff=true;
+      ['fitCtxBldSeg','fitCtxGndSeg'].forEach(function(_id){
+        var _seg=document.getElementById(_id); if(!_seg) return;
+        var _cyc=_seg.querySelector('.vwcyc');
+        if(!_cyc){
+          var _orig=_seg.querySelectorAll('button[data-s]');
+          for(var _j=0;_j<_orig.length;_j++){ _orig[_j].style.display='none'; }
+          _seg.style.position='relative';
+          _cyc=document.createElement('button'); _cyc.type='button'; _cyc.className='vwcyc pill'; _cyc.innerHTML='<span class="vwcl"></span><span class="vwca"><i class="up"></i><i class="dn"></i></span>'; _seg.appendChild(_cyc);
+          var _dd=document.createElement('div'); _dd.className='vwdd'; _dd.style.display='none'; _seg.appendChild(_dd);
+          for(var _o=0;_o<_orig.length;_o++){ (function(ob){
+            var op=document.createElement('button'); op.type='button'; op.className='pill vwddop'; op.textContent=ob.textContent;
+            op.addEventListener('click', function(ev){ ev.stopPropagation(); ob.click(); _dd.style.display='none'; });
+            _dd.appendChild(op);
+          })(_orig[_o]); }
+          _cyc.addEventListener('click', function(ev){ ev.stopPropagation(); _dd.style.display=(_dd.style.display==='none'?'flex':'none'); });
+          document.addEventListener('click', function(){ _dd.style.display='none'; });
+        }
+        var _b2=_seg.querySelectorAll('button[data-s]'); var _lab='끔';
+        for(var _m=0;_m<_b2.length;_m++){ if(_b2[_m].classList.contains('on')) _lab=_b2[_m].textContent; }
+        var _lblEl=_cyc.querySelector('.vwcl'); if(_lblEl){ _lblEl.textContent=_lab; } else { _cyc.textContent=_lab; } _cyc.classList.toggle('on', _lab!=='끔');
+        if(_id==='fitCtxBldSeg') _bldOff=(_lab==='끔');
+        var _ops=_seg.querySelectorAll('.vwddop');
+        for(var _q=0;_q<_ops.length;_q++){ _ops[_q].classList.toggle('on', _ops[_q].textContent===_lab); }
+      });
+      try{
+        var _bs=document.getElementById('fitCtxBldSeg'); var _bldRow=_bs&&_bs.closest('.visrow');
+        var _delRow=document.getElementById('fitCtxDelRow');
+        if(_bldRow && _delRow && _bldRow.nextSibling!==_delRow){ _bldRow.parentNode.insertBefore(_delRow, _bldRow.nextSibling); }
+        var _gndRow=document.getElementById('fitCtxGndSeg'); _gndRow=_gndRow&&_gndRow.closest('.visrow'); if(_gndRow) _gndRow.style.marginLeft='16px';
+        if(_delRow) _delRow.classList.toggle('vwdis', _bldOff===true);
+        if(_bldOff===true){ var _dc=document.getElementById('fitCtxDel'); if(_dc && _dc.checked){ _dc.checked=false; _dc.dispatchEvent(new Event('change')); } }
+      }catch(_e2){}
       var _dlc=document.getElementById('fitCtxDel'); if(_dlc){ var _dll=_dlc.closest('label'); if(_dll) _dll.classList.toggle('on', _dlc.checked); }
       var tg=document.getElementById('seCtxToggle');
       if(tg){ tg.style.left='50%'; tg.style.right='auto'; tg.style.transform='translateX(-50%)'; }
@@ -5873,18 +6158,50 @@ window.FitCalcApp = App;
   }
   function positionPanelB(){
     try{
-      var pA=document.getElementById('fitCtxPanel'), pB=document.getElementById('fitCtxPanelB'); if(!pB) return;
-      var sc=window._VWUI_S||1; var s1=false; try{ s1=(step===1); }catch(_){}
-      if(s1 && pA && getComputedStyle(pA).display!=='none'){
-        var ra=pA.getBoundingClientRect();
-        pB.style.top=(ra.bottom+8)+'px'; pB.style.bottom='auto'; pB.style.right='28px'; pB.style.left='auto'; pB.style.transformOrigin='right top';
-      } else {
-        var S=Math.max(46, Math.round(96*sc)); var vy=30+Math.round(38*sc); var clear=vy+S+8;
-        pB.style.top='auto'; pB.style.right='28px'; pB.style.left='auto'; pB.style.bottom=clear+'px'; pB.style.transformOrigin='right bottom';
-      }
+      var pB=document.getElementById('fitCtxPanelB'); if(!pB) return;
+      var steps=document.querySelector('.steps');
+      if(steps){ var r=steps.getBoundingClientRect(); pB.style.top=Math.round(r.top)+'px'; pB.style.bottom='auto'; pB.style.right='28px'; pB.style.left='auto'; pB.style.transformOrigin='right top'; }
     }catch(e){}
   }
-  function _vwTick(){ relocateVW(); positionPanelB(); alignStat(); }
+  function _vwRingArea(ring){ if(!ring||ring.length<3) return 0; var lc=0,i; for(i=0;i<ring.length;i++) lc+=ring[i].lat; lc/=ring.length; var mlon=111320*Math.cos(lc*Math.PI/180), mlat=110540, a=0; for(i=0;i<ring.length;i++){ var j=(i+1)%ring.length; var x1=ring[i].lon*mlon,y1=ring[i].lat*mlat,x2=ring[j].lon*mlon,y2=ring[j].lat*mlat; a+=x1*y2-x2*y1; } return Math.abs(a)/2; }
+  function _vwFmt(n){ return (Math.round(n*10)/10).toLocaleString('ko-KR'); }
+  function _vwZoneFB(z){ if(!z) return null; var s=String(z); function m(k){return s.indexOf(k)>=0;}
+    if(m('제1종전용주거')) return {bcr:50,far:100}; if(m('제2종전용주거')) return {bcr:50,far:150};
+    if(m('제1종일반주거')) return {bcr:60,far:200}; if(m('제2종일반주거')) return {bcr:60,far:250}; if(m('제3종일반주거')) return {bcr:50,far:300};
+    if(m('준주거')) return {bcr:70,far:500};
+    if(m('중심상업')) return {bcr:90,far:1500}; if(m('일반상업')) return {bcr:80,far:1300}; if(m('근린상업')) return {bcr:70,far:900}; if(m('유통상업')) return {bcr:80,far:1100};
+    if(m('전용공업')) return {bcr:70,far:300}; if(m('일반공업')) return {bcr:70,far:350}; if(m('준공업')) return {bcr:70,far:400};
+    if(m('보전녹지')) return {bcr:20,far:80}; if(m('생산녹지')) return {bcr:20,far:100}; if(m('자연녹지')) return {bcr:20,far:100};
+    if(m('계획관리')) return {bcr:40,far:100}; if(m('생산관리')) return {bcr:20,far:80}; if(m('보전관리')) return {bcr:20,far:80}; if(m('농림')) return {bcr:20,far:80}; if(m('자연환경보전')) return {bcr:20,far:80};
+    return null; }
+  function _vwCentroid(ring){ if(!ring||!ring.length) return {lon:0,lat:0}; var a=0,b=0,i; for(i=0;i<ring.length;i++){a+=ring[i].lon;b+=ring[i].lat;} return {lon:a/ring.length, lat:b/ring.length}; }
+  function _vwKey(){ return (window.VWorldContext&&window.VWorldContext.config&&window.VWorldContext.config.VWORLD_KEY)||''; }
+  function _vwJsonp(params,onOk,onErr){ var cb='__vwLandCb'+Date.now()+'_'+Math.floor(Math.random()*1e5),done=false,sc=document.createElement('script'); function cl(){ try{delete window[cb];}catch(e){} if(sc.parentNode) sc.parentNode.removeChild(sc); } window[cb]=function(d){ done=true; cl(); try{ onOk(d); }catch(e){ onErr&&onErr(e); } }; var base={service:'data',request:'GetFeature',format:'json',crs:'EPSG:4326',size:10}; for(var kk in params) base[kk]=params[kk]; base.callback=cb; var qs=Object.keys(base).map(function(kk){ return kk+'='+encodeURIComponent(base[kk]); }).join('&'); sc.src='https://api.vworld.kr/req/data?'+qs; sc.onerror=function(){ if(!done){ done=true; cl(); onErr&&onErr('네트워크'); } }; setTimeout(function(){ if(!done){ done=true; cl(); onErr&&onErr('시간 초과'); } },7000); document.body.appendChild(sc); }
+  function _vwFetchZone(lon,lat){ return new Promise(function(resolve){ var key=_vwKey(); if(!key){ resolve({zone:null,err:'키 없음'}); return; }
+    _vwJsonp({data:'LT_C_UQ111',key:key,geomFilter:'POINT('+lon+' '+lat+')',domain:(location.origin||'')}, function(d){ var r=d&&d.response; if(!r){ resolve({zone:null,err:'응답 없음'}); return; } if(r.status==='NOT_FOUND'){ resolve({zone:null,err:'용도지역 없음'}); return; } if(r.status!=='OK'){ var t=(r.error&&r.error.text)||r.status; resolve({zone:null,err:'VWorld:'+t}); return; } var fc=r.result&&r.result.featureCollection, fe=(fc&&fc.features)||[]; for(var i=0;i<fe.length;i++){ var pr=fe[i].properties||{}; if(pr.uname && _vwZoneFB(pr.uname)) return resolve({zone:pr.uname,err:null}); } var f0=fe[0]&&fe[0].properties&&fe[0].properties.uname; resolve({zone:null,err: f0?('미해석:'+f0):'용도지역 없음'}); }, function(){ resolve({zone:null,err:'호출 실패'}); }); }); }
+  var _vwZQ=[], _vwZBusy=false, _vwLastSig='', _vwSigT=0, _vwGen=0;
+  function _vwFetchZoneRetry(lon,lat,tries){ return _vwFetchZone(lon,lat).then(function(res){ if(res.zone || tries<=0) return res; var fin=res.err && /키 없음|INCORRECT_KEY|미해석/.test(res.err); if(fin) return res; var w=500+(4-tries)*400; return new Promise(function(r){ setTimeout(r,w); }).then(function(){ return _vwFetchZoneRetry(lon,lat,tries-1); }); }); }
+  function _vwPumpZone(){ if(_vwZBusy) return; var p=_vwZQ.shift(); if(!p) return; if(p._zone!==undefined){ p._zq=false; _vwPumpZone(); return; } var myGen=_vwGen; try{ _vwZBusy=true; p._zf=true; var c=_vwCentroid(p.ring); _vwFetchZoneRetry(c.lon,c.lat,4).then(function(res){ if(myGen===_vwGen){ p._zone=res.zone; p._zoneErr=res.err; } p._zf=false; p._zq=false; if(myGen===_vwGen){ _vwZBusy=false; setTimeout(_vwPumpZone,300); } }); }catch(e){ p._zf=false; p._zq=false; _vwZBusy=false; setTimeout(_vwPumpZone,300); } }
+  function updateLandInfo(){
+    try{
+      var VC=window.VWorldContext, ST=VC&&VC.state; var box=document.getElementById('vwLandInfo'); if(!box) return;
+      if(!ST||!ST.site||!ST.site.parcels||!ST.site.parcels.length){ box.style.display='none'; return; }
+      var ps=ST.site.parcels.filter(function(p){return !p.road;}); if(!ps.length){ box.style.display='none'; window.__landInfo=null; return; }
+      box.style.display='';
+      var totalA=0; ps.forEach(function(p){ if(p._areaM2==null) p._areaM2=_vwRingArea(p.ring); totalA+=p._areaM2; }); window.__landInfo={areaM2:totalA, bcr:null, far:null, ready:false};
+      var aEl=document.getElementById('vwliArea'); if(aEl) aEl.textContent=_vwFmt(totalA)+' ㎡ ('+_vwFmt(totalA*0.3025)+' 평)';
+      var _sig=ps.map(function(p){return p.pnu||p.label||'';}).join('|'), _now=Date.now();
+      if(_sig!==_vwLastSig){ _vwLastSig=_sig; _vwSigT=_now; _vwGen++; _vwZQ=[]; _vwZBusy=false; }
+      if(_now-_vwSigT>500){ ps.forEach(function(p){ if(p._zone===undefined && !p._zf && !p._zq){ p._zq=true; _vwZQ.push(p); } }); _vwPumpZone(); }
+      var aw=0,fs=0,bs=0,zn=[],pending=false;
+      ps.forEach(function(p){ if(p._zone===undefined){ pending=true; return; } var fb=_vwZoneFB(p._zone); if(fb){ aw+=p._areaM2; fs+=p._areaM2*fb.far; bs+=p._areaM2*fb.bcr; if(zn.indexOf(p._zone)<0) zn.push(p._zone); } });
+      var zEl=document.getElementById('vwliZone'),bEl=document.getElementById('vwliBcr'),fEl=document.getElementById('vwliFar');
+      if(pending){ if(zEl)zEl.textContent='조회 중…'; if(bEl)bEl.textContent='—'; if(fEl)fEl.textContent='—'; return; }
+      if(aw>0){ var one=zn.length<=1; if(zEl)zEl.textContent= one?(zn[0]||'—'):(zn.length+'개 혼합'); if(bEl)bEl.textContent=(one?Math.round(bs/aw):(bs/aw).toFixed(1))+' %'; if(fEl)fEl.textContent=(one?Math.round(fs/aw):(fs/aw).toFixed(1))+' %'; window.__landInfo={areaM2:totalA, bcr:(one?Math.round(bs/aw):+(bs/aw).toFixed(1)), far:(one?Math.round(fs/aw):+(fs/aw).toFixed(1)), ready:true}; }
+      else { var anyz=ps.map(function(p){return p._zone;}).filter(Boolean); var er=''; for(var qi=0;qi<ps.length;qi++){ if(ps[qi]._zoneErr){ er=ps[qi]._zoneErr; break; } } if(zEl)zEl.textContent= anyz.length?anyz[0]:('확인 불가'+(er?' · '+er:'')); if(bEl)bEl.textContent='—'; if(fEl)fEl.textContent='—'; }
+    }catch(e){}
+  }
+  function _vwTick(){ relocateVW(); positionPanelB(); alignStat(); updateLandInfo(); try{ var _bmm=document.getElementById('btnMaxMass'); if(_bmm){ var _VC=window.VWorldContext, _ST=_VC&&_VC.state; var _en=!!(_ST&&_ST.site&&_ST.site.parcels&&_ST.site.parcels.filter(function(p){return !p.road;}).length); _bmm.style.opacity=_en?'1':'.4'; _bmm.style.pointerEvents=_en?'auto':'none'; } }catch(e){} try{ if(window.__updateSiteReadout) window.__updateSiteReadout(); }catch(e){} }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ addToggle(); _vwTick(); }); else { addToggle(); _vwTick(); }
   setInterval(_vwTick, 350);
 })();
