@@ -674,7 +674,7 @@ function typeMinPlaceFH(ti){ if(!perFloorMode)return null; var lo=fitFrom,hi=fTo
 function syncTypeHeights(){ if(!perFloorMode)return; if(drag&&(drag.type==='frameh'||drag.type==='framew'||drag.type==='framed'))return; if(typeMinPlaceFH(0)!=null){ frameH=Math.max(2000,Math.min(frameH,fhCapFor(frameMount,0))); } for(var i=0;i<frameTypesEx.length;i++){ var t=frameTypesEx[i]; if(typeMinPlaceFH(i+1)==null)continue; t.H=Math.max(2000,Math.min(t.H,fhCapFor(t.mount||'attach', i+1))); } }
 function ftCol(i){ return FTYPE_COL[i%FTYPE_COL.length]; }
 function bayGeo(L){ const cols=faceCols(L), fWm=frameW/1000; if(frameWMode==='dim' && fWm>0){ return {cols:cols, w:fWm, off:(L-cols*fWm)/2}; } const w=L/cols; return {cols:cols, w:w, off:0}; }
-function runFrames(runLen, Tw){ if(frameWMode==='dim'){ const fw=Math.min(Tw,runLen); const n=Math.max(1,Math.floor(runLen/fw+1e-6)); return {n:n, fw:fw, off:(runLen-n*fw)/2}; } const n=Math.max(1,Math.round(runLen/Tw)); return {n:n, fw:runLen/n, off:0}; }
+function runFrames(runLen, Tw, bayN, cellW){ if(frameWMode==='dim'){ const fw=Math.min(Tw,runLen); const n=Math.max(1,Math.floor(runLen/fw+1e-6)); return {n:n, fw:fw, off:(runLen-n*fw)/2}; } let n=Math.max(1,Math.round(runLen/Tw)); if(bayN>0 && Tw>0 && ((cellW>0 && Math.abs(cellW-Tw)<=Tw*0.25) || Math.abs((runLen/bayN)-Tw)<=Tw*0.25)) n=bayN; return {n:n, fw:runLen/n, off:0}; }
 const cornerFaces=[[0,1],[0,3],[2,3],[2,1]];
 const cornerOn=i=>faceSel[cornerFaces[i][0]]&&faceSel[cornerFaces[i][1]];
 let polySel=[];
@@ -949,12 +949,13 @@ function updateDrawUI(){ const main=document.getElementById('drawSegMain'),edit=
   if(info)info.style.display=drawMode?'':'none'; if(hint)hint.style.display=drawMode?'':'none';
   if(bRect)bRect.classList.toggle('on', !footprint && !drawMode);
   if(bDraw)bDraw.classList.toggle('on', !!footprint && !drawMode); }
-function startDraw(){ window.__mmRectMode=false; if(step!==1) setStep(1); if(!footprint) preDraw={tHalfW:tHalfW,tHalfD:tHalfD,bcx:bcx,bcz:bcz}; drawMode=true; drawPts=[]; drawHover=null; bcx=0;bcz=0;sbcx=0;sbcz=0; pendingDraw=false; polyMassSig=''; updateDrawUI(); renderDraw(); }
+function startDraw(){ window.__mmUserDrawn=false; window.__mmUserResized=false; if(window.__mmAnimOn){ _mmStopAnim(); window.__mmRectMode=false; if(step!==1) setStep(1); footprint=null; drawMode=true; drawPts=[]; drawHover=null; bcx=0;bcz=0;sbcx=0;sbcz=0; window.__mmFloorLock=null; polyMassSig=''; toggleMassAnim(); return; }
+  window.__mmRectMode=false; if(step!==1) setStep(1); if(!footprint) preDraw={tHalfW:tHalfW,tHalfD:tHalfD,bcx:bcx,bcz:bcz}; drawMode=true; drawPts=[]; drawHover=null; bcx=0;bcz=0;sbcx=0;sbcz=0; pendingDraw=false; window.__mmFloorLock=null; polyMassSig=''; updateDrawUI(); renderDraw(); }
 function cancelDraw(){ drawMode=false; drawPts=[]; drawHover=null; renderDraw(); updateDrawUI(); }
 function finishDraw(){ if(drawPts.length<3){ alert('점을 3개 이상 찍어 평면을 닫아주세요.'); return; }
   pushUndo();
   const b=polyBounds(drawPts), cx=(b.minx+b.maxx)/2, cz=(b.minz+b.maxz)/2; bcx=cx; bcz=cz; sbcx=cx; sbcz=cz;
-  footprint=drawPts.map(q=>({x:snapHalf(q.x-cx), z:snapHalf(q.z-cz)})); polySel=new Array(nFaces()).fill(true);
+  footprint=drawPts.map(q=>({x:snapHalf(q.x-cx), z:snapHalf(q.z-cz)})); polySel=new Array(nFaces()).fill(true); window.__mmUserDrawn=true;
   drawMode=false; drawPts=[]; drawHover=null; polyMassSig=''; syncBBox(); renderDraw(); renderFootprintDims(); updateDrawUI(); updateReadout(); }
 function _mmHull(P){ var pts=P.slice().filter(function(p){return isFinite(p.x)&&isFinite(p.z);}); if(pts.length<3) return pts;
   pts.sort(function(a,b){return (a.x-b.x)||(a.z-b.z);});
@@ -994,6 +995,27 @@ function _mmOBB(P){ var hull=_mmHull(P); if(hull.length<3) return null; var best
   return { corners:[pt(best.minU,best.minV),pt(best.maxU,best.minV),pt(best.maxU,best.maxV),pt(best.minU,best.maxV)], area:best.area, w:best.w, h:best.h, ux:best.ex, uz:best.ez }; }
 function _mmRectCorners(cx,cz,w,h,ux,uz){ var vx=-uz, vz=ux, hw=w/2, hh=h/2;
   return [ {x:cx-hw*ux-hh*vx,z:cz-hw*uz-hh*vz}, {x:cx+hw*ux-hh*vx,z:cz+hw*uz-hh*vz}, {x:cx+hw*ux+hh*vx,z:cz+hw*uz+hh*vz}, {x:cx-hw*ux+hh*vx,z:cz-hw*uz+hh*vz} ]; }
+function _mmInnerRect(poly, inset){ if(!poly||poly.length<3) return null;
+  function pip(px,pz){ var inside=false; for(var i=0,j=poly.length-1;i<poly.length;j=i++){ var xi=poly[i].x,zi=poly[i].z,xj=poly[j].x,zj=poly[j].z; if(((zi>pz)!==(zj>pz)) && (px < (xj-xi)*(pz-zi)/((zj-zi)||1e-9)+xi)) inside=!inside; } return inside; }
+  var b=polyBounds(poly), W=b.maxx-b.minx, H=b.maxz-b.minz; if(W<=0||H<=0) return null;
+  var N=72, cw=W/N, ch=H/N, grid=[]; for(var j=0;j<N;j++){ var row=new Array(N); for(var i=0;i<N;i++){ row[i]=pip(b.minx+(i+0.5)*cw, b.minz+(j+0.5)*ch)?1:0; } grid[j]=row; }
+  var height=new Array(N).fill(0), best=null;
+  for(var j=0;j<N;j++){ for(var i=0;i<N;i++) height[i]=grid[j][i]?height[i]+1:0; var stack=[]; for(var i=0;i<=N;i++){ var h=(i<N)?height[i]:0; while(stack.length && height[stack[stack.length-1]]>=h){ var top=stack.pop(), hh=height[top], left=stack.length?stack[stack.length-1]+1:0, right=i-1, rw=(right-left+1)*cw, rh=hh*ch, area=rw*rh; if(!best||area>best.area){ best={area:area, x0:b.minx+left*cw, x1:b.minx+(right+1)*cw, z0:b.minz+(j-hh+1)*ch, z1:b.minz+(j+1)*ch}; } } stack.push(i); } }
+  if(!best||best.area<=0) return null;
+  var cx=(best.x0+best.x1)/2, cz=(best.z0+best.z1)/2, rw=(best.x1-best.x0)-2*inset, rh=(best.z1-best.z0)-2*inset;
+  if(rw<=0.5||rh<=0.5) return null;
+  return { cx:cx, cz:cz, rw:rw, rh:rh }; }
+function _mmNudgeInside(){ try{ var VC=window.VWorldContext, rg=(VC&&VC.siteVertsWorld)?VC.siteVertsWorld():null; if(!rg||!rg.length) return; var P=(rg.length===1)?rg[0]:_mmHull([].concat.apply([],rg)); if(!P||P.length<3) return;
+  function IN(px,pz){ var ins=false; for(var i=0,j=P.length-1;i<P.length;j=i++){ var xi=P[i].x,zi=P[i].z,xj=P[j].x,zj=P[j].z; if(((zi>pz)!==(zj>pz)) && (px<(xj-xi)*(pz-zi)/((zj-zi)||1e-9)+xi)) ins=!ins; } return ins; }
+  function cors(){ if(footprint&&footprint.length>=3) return footprint.map(function(p){return [p.x+bcx,p.z+bcz];}); return [[bcx-tHalfW,bcz-tHalfD],[bcx+tHalfW,bcz-tHalfD],[bcx+tHalfW,bcz+tHalfD],[bcx-tHalfW,bcz+tHalfD]]; }
+  function allIn(){ var c=cors(); for(var q=0;q<c.length;q++){ if(!IN(c[q][0],c[q][1])) return false; } return true; }
+  var ir=_mmInnerRect(P, 1.0);
+  if(ir && window.__mmTarget){ window.__mmTarget.cx=ir.cx; window.__mmTarget.cz=ir.cz; }
+  if(allIn()) return;
+  if(ir){ bcx=ir.cx; bcz=ir.cz; sbcx=bcx; sbcz=bcz; if(allIn()){ if(footprint&&footprint.length>=3) syncBBox(); clampCore(); clampFit(); return; } }
+  var cx=0,cz=0; P.forEach(function(p){cx+=p.x;cz+=p.z;}); cx/=P.length; cz/=P.length;
+  for(var it=0; it<80 && !allIn(); it++){ var dx=cx-bcx, dz=cz-bcz, L=Math.hypot(dx,dz)||1; bcx+=dx/L*0.25; bcz+=dz/L*0.25; sbcx=bcx; sbcz=bcz; }
+  if(footprint&&footprint.length>=3) syncBBox(); clampCore(); clampFit(); }catch(e){} }
 function _mmCompute(){
   var VC=window.VWorldContext, rings=(VC&&VC.siteVertsWorld)?VC.siteVertsWorld():null;
   if(!rings||!rings.length) return null;
@@ -1010,10 +1032,8 @@ function _mmCompute(){
   if(!(far>0)) far=(li.far!=null?li.far:250); if(!(bcr>0)) bcr=(li.bcr!=null?li.bcr:60);
   var rectMode=(!footprint && !drawMode), base, rect=null;   // 현재 평면 모드(사각형=footprint 없음, 그리기=다각형) 기준
   if(rectMode){
-    var xs=poly.map(function(p){return p.x;}), zs=poly.map(function(p){return p.z;});
-    var mnx=Math.min.apply(null,xs), mxx=Math.max.apply(null,xs), mnz=Math.min.apply(null,zs), mxz=Math.max.apply(null,zs);
-    var rw=(mxx-mnx)-2.0, rh=(mxz-mnz)-2.0;
-    if(rw>1 && rh>1){ rect={cx:(mnx+mxx)/2, cz:(mnz+mxz)/2, rw:rw, rh:rh}; base=_mmRectCorners(rect.cx,rect.cz,rw,rh,1,0); }
+    var ir=_mmInnerRect(poly, 1.0);
+    if(ir && ir.rw>1 && ir.rh>1){ rect={cx:ir.cx, cz:ir.cz, rw:ir.rw, rh:ir.rh}; base=_mmRectCorners(rect.cx,rect.cz,rect.rw,rect.rh,1,0); }
     else rectMode=false;
   }
   if(!rectMode){ base=_mmInset(poly,1.0); base=_mmSimplify(base, 6, 0.3); if(!base||base.length<3||!isFinite(polyArea(base))||polyArea(base)<1) base=poly; }
@@ -1026,7 +1046,7 @@ function _mmCompute(){
   return { base:base, baseA:baseA, rect:rect, maxFoot:maxFoot, targetFoot:targetFoot, floors:floors, far:far, bcr:bcr, siteA:siteA, fb:fb, rectMode:rectMode, multi:(rings.length>1) };
 }
 function _mmSetFloors(n){ n=Math.max(1,Math.round(n)); if(perFloorMode){ var mid=Math.max(0, n - lowN - topN); midN=mid; tFloors=lowN+midN+topN; var pm=document.getElementById('pfMidN'); if(pm)pm.value=midN; } else { tFloors=n; } }
-function _mmApply(C, footArea, floors){
+function _mmApply(C, footArea, floors){ window.__mmUserDrawn=false;
   if(C.rectMode && C.rect){
     var k=Math.sqrt(Math.max(0,footArea)/Math.max(1,C.baseA));
     footprint=null; drawMode=false; drawPts=[]; drawHover=null; vtxCount=-1; polySel=[];
@@ -1038,10 +1058,11 @@ function _mmApply(C, footArea, floors){
     renderDraw(); renderFootprintDims(); updateDrawUI(); updateReadout(); wake(32);
   } else {
     var base=C.base, baseA=C.baseA;
-    var c=_mmCent(base), kk=Math.sqrt(Math.max(0,footArea)/Math.max(1,baseA)), fp=_mmScale(base,kk,c.x,c.z);
-    var bb=polyBounds(fp), cx=(bb.minx+bb.maxx)/2, cz=(bb.minz+bb.maxz)/2;
-    bcx=cx; bcz=cz; sbcx=cx; sbcz=cz;
-    footprint=fp.map(function(q){return {x:q.x-cx, z:q.z-cz};});
+    var _ir=(typeof _mmInnerRect==='function')?_mmInnerRect(base,0):null;   // 내접 중심(사각형 모드와 동일 기준)
+    var ctr=(_ir&&_ir.rw>0)?{x:_ir.cx,z:_ir.cz}:_mmCent(base);
+    var kk=Math.sqrt(Math.max(0,footArea)/Math.max(1,baseA)), fp=_mmScale(base,kk,ctr.x,ctr.z);
+    bcx=ctr.x; bcz=ctr.z; sbcx=ctr.x; sbcz=ctr.z;
+    footprint=fp.map(function(q){return {x:q.x-ctr.x, z:q.z-ctr.z};});
     _mmSetFloors(floors); polySel=new Array(nFaces()).fill(true);
     syncBBox(); clampCore(); clampFit();
     polyMassSig=''; floorSig=''; frSig=''; slabSig=''; drawMode=false; drawPts=[]; drawHover=null;
@@ -1066,19 +1087,52 @@ function _mmStopAnim(){ if(window.__mmTimer){ clearInterval(window.__mmTimer); w
 function toggleMassAnim(keepGeom){
   if(window.__mmAnimOn){ _mmStopAnim(); return; }
   var C=_mmCompute(); if(!C){ if(!keepGeom) alert('대지를 먼저 불러와 주세요. (주변 컨텍스트 패널 → 대지 추가)'); return; }
-  var _gfa=C.siteA*C.far/100, _uF=Math.max(C.floors, Math.round(tFloors)||1), _uA=_gfa/_uF;   // 현재 층수가 기준보다 높으면 그 층수에 맞춰 용적률 최대
-  if(keepGeom){ _mmStat(C, getPlate(), Math.max(1,Math.round(tFloors)||1)); }
-  else { pushUndo(); _mmApply(C, _uA, _uF); _mmStat(C, _uA, _uF); }
+  var _gfa=C.siteA*C.far/100;
+  var _locked0=(window.__mmFloorLock>0);
+  var _hasDrawn=(window.__mmUserDrawn && footprint && footprint.length>=3 && !drawMode);   // 사용자가 '직접' 그린 도형만
+  if(!keepGeom) window.__mmUserResized=false;   // 자동생성=초기 세팅(targetFoot)
+  var _uF, _uA, _mode2;
+  if(keepGeom){ _mmNudgeInside(); _mmStat(C, getPlate(), Math.max(1,Math.round(tFloors)||1)); }
+  else if(_hasDrawn && !_locked0){
+    _mode2='plate'; pushUndo(); var _fa0=getPlate(); _uA=_fa0;
+    _uF=Math.max(1, Math.floor(_gfa/Math.max(1,_fa0) + 1e-6));   // 그린 도형 유지 + 용적률 안 넘게 층 최대
+    _mmSetFloors(_uF); clampCore(); clampFit(); _mmNudgeInside(); _mmStat(C, _uA, _uF);
+    renderDraw(); renderFootprintDims(); updateDrawUI(); updateReadout(); wake(32);
+  } else {
+    pushUndo();
+    if(_locked0){ _mode2='floor'; _uF=Math.max(C.floors, Math.round(window.__mmFloorLock)); _uA=_gfa/_uF; }
+    else { _mode2='far'; _uF=Math.max(1,C.floors); _uA=_gfa/Math.max(1,_uF); }   // 용적률 최대(FAR), 건폐율은 그 안에서 최대
+    _mmApply(C, _uA, _uF); _mmNudgeInside(); _mmStat(C, _uA, _uF);
+  }
+  if(_mode2) window.__mmMode=_mode2;
   window.__mmBox=_mmWorldBox();
-  window.__mmTarget={ gfa:_gfa, siteA:C.siteA, far:C.far, bcr:C.bcr };
+  window.__mmTarget={ gfa:_gfa, siteA:C.siteA, far:C.far, bcr:C.bcr, cx:(C.rect?C.rect.cx:bcx), cz:(C.rect?C.rect.cz:bcz), maxFoot:C.maxFoot, rw:(C.rect?C.rect.rw:0), rh:(C.rect?C.rect.rh:0) };
+  [150,500,1000].forEach(function(ms){ setTimeout(function(){ if(window.__mmAnimOn){ try{ _mmNudgeInside(); }catch(e){} } }, ms); });
   window.__mmAnimOn=true; _mmBtn(true);
   // 생성중: 평면을 줄이면 '법정연면적/층수' 크기로 자석 스냅(용적률 정확 최대). 잡은 반대쪽 모서리를 고정점으로.
   window.__mmTimer=setInterval(function(){
     if(!window.__mmAnimOn){ _mmStopAnim(); return; }
     var T=window.__mmTarget; if(!T||!(T.gfa>0)) return;
     var fa=getPlate(); if(!(fa>0)) return;
-    var N=Math.max(1, Math.round(T.gfa/fa));
-    var snapA=T.gfa/N;
+    var _maxF=(T.maxFoot>0)?T.maxFoot:(T.siteA*(T.bcr||0)/100);
+    var _locked=(window.__mmFloorLock>0);
+    var _mode=window.__mmMode||'bcr';
+    var N, snapA;
+    if(_locked){                                   // 층 우선: 바닥면=min(maxFoot, gfa/층)
+      N=Math.max(1,Math.round(window.__mmFloorLock));
+      if(_maxF>0){ var _nm=Math.ceil(T.gfa/_maxF - 1e-6); if(N<_nm) N=_nm; }
+      snapA=(_maxF>0)?Math.min(_maxF, T.gfa/N):(T.gfa/N);
+    } else if(_mode==='plate'){                    // 그린 도형: 도형 그대로 유지, 층은 용적률 안 넘게 최대
+      snapA=fa;
+      N=Math.max(1, Math.floor(T.gfa/Math.max(1,fa) + 1e-6));
+    } else if(window.__mmUserResized){             // far·수동 조정: 바닥면 기준(드래그 크기 유지)
+      N=Math.max(1, Math.round(T.gfa/fa));
+      if(_maxF>0){ var _nm=Math.ceil(T.gfa/_maxF - 1e-6); if(N<_nm) N=_nm; }
+      snapA=T.gfa/N;
+    } else {                                       // far·초기/자동: targetFoot(용적률 최대에서의 건폐율 최대)
+      N=(_maxF>0)?Math.max(1, Math.ceil(T.gfa/_maxF - 1e-6)):Math.max(1, Math.round(T.gfa/Math.max(1,fa)));
+      snapA=T.gfa/N;
+    }
     var changed=false;
     if(Math.abs(fa-snapA)/snapA > 0.005){
       var k=Math.sqrt(snapA/Math.max(1,fa));
@@ -1086,15 +1140,20 @@ function toggleMassAnim(keepGeom){
       if(prev){ ax=(Math.abs(WB.minx-prev.minx)<=Math.abs(WB.maxx-prev.maxx))?WB.minx:WB.maxx; az=(Math.abs(WB.minz-prev.minz)<=Math.abs(WB.maxz-prev.maxz))?WB.minz:WB.maxz; }
       else { ax=(WB.minx+WB.maxx)/2; az=(WB.minz+WB.maxz)/2; }
       if(footprint && footprint.length>=3){
-        var np=footprint.map(function(p){ var wx=p.x+bcx, wz=p.z+bcz; return {x:ax+(wx-ax)*k, z:az+(wz-az)*k}; });
-        var xs2=np.map(function(p){return p.x;}), zs2=np.map(function(p){return p.z;});
-        var ncx=(Math.min.apply(null,xs2)+Math.max.apply(null,xs2))/2, ncz=(Math.min.apply(null,zs2)+Math.max.apply(null,zs2))/2;
-        bcx=ncx; bcz=ncz; sbcx=ncx; sbcz=ncz;
-        footprint=np.map(function(p){return {x:p.x-ncx, z:p.z-ncz};});
+        footprint=footprint.map(function(p){ return {x:p.x*k, z:p.z*k}; });   // 중심(대지) 유지하며 면적만 스냅
+        sbcx=bcx; sbcz=bcz;
       } else {
-        var nhw=tHalfW*k, nhd=tHalfD*k, ncx2, ncz2;
-        if(prev){ ncx2=(ax===WB.maxx)?(ax-nhw):(ax+nhw); ncz2=(az===WB.maxz)?(az-nhd):(az+nhd); }
-        else { ncx2=bcx; ncz2=bcz; }
+        var nhw, nhd;
+        if(window.__mmUserResized){               // 수동: 현재 종횡비 + 1m 내접 클램프
+          nhw=tHalfW*k; nhd=tHalfD*k;
+          if(T.rw>0) nhw=Math.min(nhw, T.rw/2);
+          if(T.rh>0) nhd=Math.min(nhd, T.rh/2);
+        } else {                                  // 자동: 내접 종횡비로 targetFoot(항상 1m 내접)
+          var _bA=(T.rw>0&&T.rh>0)?(T.rw*T.rh):Math.max(1,tHalfW*2*tHalfD*2);
+          var _kk2=Math.sqrt(snapA/_bA);
+          nhw=(T.rw>0?(T.rw/2):tHalfW)*_kk2; nhd=(T.rh>0?(T.rh/2):tHalfD)*_kk2;
+        }
+        var ncx2=(T.cx!=null?T.cx:bcx), ncz2=(T.cz!=null?T.cz:bcz);
         bcx=ncx2; bcz=ncz2; sbcx=ncx2; sbcz=ncz2; tHalfW=nhw; tHalfD=nhd;
       }
       changed=true;
@@ -1115,7 +1174,7 @@ window.__updateSiteReadout=updateSiteReadout;
 window.__legalEdit=false;
 function applyLegalEditUI(){ var ed=window.__legalEdit; ['srFarIn','srBcrIn'].forEach(function(id){ var el=document.getElementById(id); if(!el) return; el.readOnly=!ed; el.style.pointerEvents=ed?'auto':'none'; el.style.background=ed?'rgba(255,255,255,.07)':'transparent'; el.style.borderBottom=ed?'1px solid var(--accent)':'1px solid transparent'; el.style.cursor=ed?'text':'default'; }); var btn=document.getElementById('srEdit'); if(btn){ btn.textContent=ed?'완료':'편집'; btn.style.color=ed?'#fff':'var(--accent)'; btn.style.background=ed?'var(--accent)':'transparent'; } }
 window.__applyLegalEditUI=applyLegalEditUI;
-function clearFootprint(){ window.__mmRectMode=true; if(footprint) pushUndo(); footprint=null; bcx=0;bcz=0; drawMode=false; drawPts=[]; drawHover=null; polyMassSig=''; vtxCount=-1;
+function clearFootprint(){ window.__mmFloorLock=null; window.__mmUserDrawn=false; window.__mmUserResized=false; window.__mmRectMode=true; if(footprint) pushUndo(); footprint=null; bcx=0;bcz=0; drawMode=false; drawPts=[]; drawHover=null; polyMassSig=''; vtxCount=-1;
   polyMass.children.forEach(o=>o.geometry&&o.geometry.dispose()); polyMass.clear(); polyMass.visible=false;
   vtxHandles.children.forEach(o=>o.geometry&&o.geometry.dispose()); vtxHandles.clear(); vtxHandles.visible=false;
   if(preDraw){ tHalfW=preDraw.tHalfW; tHalfD=preDraw.tHalfD; if(preDraw.bcx!=null){bcx=preDraw.bcx;bcz=preDraw.bcz;sbcx=bcx;sbcz=bcz;} clampCore(); } preDraw=null;
@@ -1350,15 +1409,15 @@ function onMove(e){ wake(); if(pinching)return; setNDC(e);
     renderDraw(); renderer.domElement.style.cursor='crosshair'; return;
   }
   if(drag){
-    if(drag.type==='corner'){const p=groundHit(); if(p){
+    if(drag.type==='corner'){const p=groundHit(); if(p){ window.__mmUserResized=true;
       var _i=drag.i, _sx=(_i===0||_i===3)?1:-1, _sz=(_i===0||_i===1)?1:-1;
       var _fx=bcx-_sx*tHalfW, _fz=bcz-_sz*tHalfD;
       tHalfW=snapGrid(clamp(Math.abs(p.x-_fx)/2,MIN_HALF,MAX_HALF),0.5,0.18);
       tHalfD=snapGrid(clamp(Math.abs(p.z-_fz)/2,MIN_HALF,MAX_HALF),0.5,0.18);
       bcx=_fx+_sx*tHalfW; bcz=_fz+_sz*tHalfD; clampCore();}}
-    else if(drag.type==='vtx'){ const p=groundHit(); if(p && footprint && footprint[drag.i]){ p.x-=bcx;p.z-=bcz;
+    else if(drag.type==='vtx'){ const p=groundHit(); if(p && footprint && footprint[drag.i]){ window.__mmUserResized=true; p.x-=bcx;p.z-=bcz;
       moveVertexOrtho(drag.i, p.x, p.z); polyMassSig=''; updateFootprintDimValues(); }}
-    else if(drag.type==='top'){const y=vDragY(0,0); if(y!=null){ if(perFloorMode){ var _fx=lowN*fhLow+topN*fhTop; var _mn=Math.round((y-_fx)/Math.max(0.001,tFloorH)); midN=Math.max(0,Math.min(MAX_FLOORS,_mn)); if(lowN+midN+topN<1)midN=1; tFloors=lowN+midN+topN; if($('pfMidN'))$('pfMidN').value=midN; if($('inFloors'))$('inFloors').value=tFloors; frSig='';slabSig='';polyMassSig='';floorSig=''; if(typeof updateReadout==='function')updateReadout(); } else { tFloors=clamp(Math.round(y/tFloorH),MIN_FLOORS,MAX_FLOORS); } }}
+    else if(drag.type==='top'){const y=vDragY(0,0); if(y!=null){ if(perFloorMode){ var _fx=lowN*fhLow+topN*fhTop; var _mn=Math.round((y-_fx)/Math.max(0.001,tFloorH)); midN=Math.max(0,Math.min(MAX_FLOORS,_mn)); if(lowN+midN+topN<1)midN=1; tFloors=lowN+midN+topN; window.__mmFloorLock=tFloors; if($('pfMidN'))$('pfMidN').value=midN; if($('inFloors'))$('inFloors').value=tFloors; frSig='';slabSig='';polyMassSig='';floorSig=''; if(typeof updateReadout==='function')updateReadout(); } else { tFloors=clamp(Math.round(y/tFloorH),MIN_FLOORS,MAX_FLOORS); window.__mmFloorLock=tFloors; } }}
     else if(drag.type==='floorh'){const _fr=fhRefXZ(); const y=vDragY(_fr.x,_fr.z); if(y!=null) tFloorH=clamp(snapGrid(y,0.1,0.05),MIN_FH,MAX_FH);}
     else if(drag.type==='floorhLow'){const _fr=fhRefXZ(); const y=vDragY(_fr.x,_fr.z); if(y!=null&&lowN>0){ fhLow=clamp(snapGrid(y/lowN,0.1,0.05),MIN_FH,MAX_FH); if($('pfLowH'))$('pfLowH').value=fhLow.toFixed(1); frSig='';slabSig='';polyMassSig='';floorSig=''; }}
     else if(drag.type==='floorhMid'){const _fr=fhRefXZ(); const y=vDragY(_fr.x,_fr.z); if(y!=null&&midN>0){ const base=levelY(lowN); tFloorH=clamp(snapGrid((y-base)/midN,0.1,0.05),MIN_FH,MAX_FH); if($('pfMidH'))$('pfMidH').value=tFloorH.toFixed(1); frSig='';slabSig='';polyMassSig='';floorSig=''; }}
@@ -1499,7 +1558,7 @@ function svgBayMove(e){ if(!svgPending)return; if(e&&e.buttons===0){ svgBayUp();
     if(el&&el.classList&&el.classList.contains('bay')&&el.getAttribute('data-bf')!=null){
       const fr=el.getAttribute('data-bf'), face=isNaN(+fr)?fr:+fr, bay=+el.getAttribute('data-bb'), k=face+'_'+bay;
       if(!svgPainted.has(k)){ svgPainted.add(k); dragPaint(face,bay); } } } }
-function svgBayUp(){ wake(); if(svgPending && !svgPainting){ if(step===4) dragApply(svgPending.face,svgPending.bay); else paintBay(svgPending.face,svgPending.bay); } svgPending=null; svgPainting=false; svgPainted.clear(); if(svgUndoSnap!=null){ if(captureState()!==svgUndoSnap) pushUndoSnap(svgUndoSnap); svgUndoSnap=null; } }
+function svgBayUp(){ wake(); if(svgPending && !svgPainting){ if(step===4) _dragApplyCore(svgPending.face,svgPending.bay); else paintBay(svgPending.face,svgPending.bay); } svgPending=null; svgPainting=false; svgPainted.clear(); if(svgUndoSnap!=null){ if(captureState()!==svgUndoSnap) pushUndoSnap(svgUndoSnap); svgUndoSnap=null; } }
 window.addEventListener('pointermove',svgBayMove);
 window.addEventListener('pointerup',svgBayUp);
 
@@ -1756,8 +1815,8 @@ function buildPlan(){ wake(); const svg=$('plansvg'); if(!svg)return; while(svg.
   FA.forEach(fa=>{ if(!fa||!fSel(fa.i))return; const bg=bayGeo(fa.L), cols=bg.cols, cellW=bg.w;
     if(step===4||step===5){ let bay=0;
       while(bay<cols){ const ti=effFType(editFloor,fa.i,bay); let end=bay; while(end+1<cols && effFType(editFloor,fa.i,end+1)===ti)end++;
-        const _r0=bg.off+bay*cellW, _rl0=(end-bay+1)*cellW, _ra=insetRunAdj(ti,fa,bay,end,cols,_r0,_rl0), runStart=_ra[0], runLen=_ra[1], Tw=Math.max(fTypeDims(ti).W/1000,0.2), rf=runFrames(runLen,Tw), n=rf.n, fw=rf.fw, rS=runStart+rf.off, dW=fTypeDims(ti).D/1000;
-        for(let k=0;k<n;k++){ const s0=rS+k*fw, cb=Math.min(end,Math.max(bay,Math.floor((s0+fw/2-bg.off)/cellW))); if(step===5 && dispType(fa.i,cb)==='noframe')continue; drawBay(s0,s0+fw,dW,fa,cb); }
+        const _r0=bg.off+bay*cellW, _rl0=(end-bay+1)*cellW, _ra=insetRunAdj(ti,fa,bay,end,cols,_r0,_rl0), runStart=_ra[0], runLen=_ra[1], Tw=Math.max(fTypeDims(ti).W/1000,0.2), rf=runFrames(runLen,Tw,end-bay+1,cellW), n=rf.n, fw=rf.fw, rS=runStart+rf.off, dW=fTypeDims(ti).D/1000;
+        for(let k=0;k<n;k++){ const s0=rS+k*fw, cb=(n===(end-bay+1))?(bay+k):Math.min(end,Math.max(bay,Math.floor((s0+fw/2-bg.off)/cellW))); if(step===5 && dispType(fa.i,cb)==='noframe')continue; drawBay(s0,s0+fw,dW,fa,cb); }
         bay=end+1; } }
     else { for(let bay=0;bay<cols;bay++){ const s0=bg.off+bay*cellW; drawBay(s0,s0+cellW,frameD/1000,fa,bay); } } });
   CO.forEach(c=>{ if(!c.on)return; var _cins=(mountOf(effFType(editFloor,c.key,0))==='insert');
@@ -1801,7 +1860,7 @@ function paintBaySet(face,bay,floor){ if(floor!=null && unitMode==='floor'){ edi
 var _propCut=false;
 function isCutBay(fi,bi){ var FA=facesGeo(tHalfW*2,tHalfD*2), fa=null; for(var q=0;q<FA.length;q++){ if(FA[q]&&FA[q].i===fi){fa=FA[q];break;} } if(!fa||!fSel(fi))return false; var bg=bayGeo(fa.L), cols=bg.cols, cw=bg.w, off=bg.off; if(bi<0||bi>=cols)return false; var ti=fTypeOf(fi,bi); if(mountOf(ti)!=='insert')return false; var rs=bi; while(rs-1>=0 && fTypeOf(fi,rs-1)===ti)rs--; var re=bi; while(re+1<cols && fTypeOf(fi,re+1)===ti)re++; var _r0=off+rs*cw, _rl0=(re-rs+1)*cw, ra=insetRunAdj(ti,fa,rs,re,cols,_r0,_rl0), sCut=ra[0]-_r0, eCut=(_r0+_rl0)-(ra[0]+ra[1]), c=off+(bi+0.5)*cw; if(sCut>0.001 && (c-_r0)<sCut-1e-6)return true; if(eCut>0.001 && ((_r0+_rl0)-c)<eCut-1e-6)return true; return false; }
 function gatherCutCluster(f0,b0){ var FA=facesGeo(tHalfW*2,tHalfD*2), CO=cornersGeo(tHalfW*2,tHalfD*2); function faceOf(i){ for(var q=0;q<FA.length;q++)if(FA[q]&&FA[q].i===i)return FA[q]; return null; } var res=[], seen={}, queue=[]; function add(fi,bi){ var k=fi+'_'+bi; if(seen[k])return false; if(!isCutBay(fi,bi))return false; seen[k]=1; res.push([fi,bi]); queue.push([fi,bi]); return true; } function crossAt(fa,vx,vz){ for(var k=0;k<CO.length;k++){ var c=CO[k]; if(!c.on)continue; if(Math.abs(c.Vx-vx)<0.05&&Math.abs(c.Vz-vz)<0.05){ var oth=(c.fA===fa.i)?c.fB:((c.fB===fa.i)?c.fA:null); if(oth==null)return; var ofa=faceOf(oth); if(!ofa||!fSel(oth))return; add(oth,cornerNearBay(ofa,vx,vz)); return; } } } var fa0=faceOf(f0); if(!fa0)return res; var cols0=bayGeo(fa0.L).cols, n; for(n=b0-1;n>=0 && add(f0,n);n--){} for(n=b0+1; add(f0,n); n++){} if(b0===0)crossAt(fa0,fa0.p0x,fa0.p0z); if(b0===cols0-1)crossAt(fa0,fa0.p0x+fa0.ux*fa0.L,fa0.p0z+fa0.uz*fa0.L); var guard=0; while(queue.length && guard++<300){ var it=queue.shift(), fi=it[0], bi=it[1], fa=faceOf(fi); if(!fa)continue; var cols=bayGeo(fa.L).cols; for(n=bi-1;n>=0 && add(fi,n);n--){} for(n=bi+1; add(fi,n); n++){} if(bi===0)crossAt(fa,fa.p0x,fa.p0z); if(bi===cols-1)crossAt(fa,fa.p0x+fa.ux*fa.L,fa.p0z+fa.uz*fa.L); } return res; }
-function dragApply(face,bay,floor){ if(_propCut || step!==4){ _dragApplyCore(face,bay,floor); return; } var _cl=gatherCutCluster(face,bay); if(!_cl.length){ _dragApplyCore(face,bay,floor); return; } _propCut=true; var _bp=buildPlan,_ur=updateReadout; buildPlan=function(){}; updateReadout=function(){}; try{ _dragApplyCore(face,bay,floor); _cl.forEach(function(nb){ _dragApplyCore(nb[0],nb[1],floor); }); } finally{ buildPlan=_bp; updateReadout=_ur; _propCut=false; } buildPlan(); updateReadout(); }
+function dragApply(face,bay,floor){ if(_propCut || step!==4){ _dragApplyCore(face,bay,floor); return; } var _cl=[]; if(!_cl.length){ _dragApplyCore(face,bay,floor); return; } _propCut=true; var _bp=buildPlan,_ur=updateReadout; buildPlan=function(){}; updateReadout=function(){}; try{ _dragApplyCore(face,bay,floor); _cl.forEach(function(nb){ _dragApplyCore(nb[0],nb[1],floor); }); } finally{ buildPlan=_bp; updateReadout=_ur; _propCut=false; } buildPlan(); updateReadout(); }
 function _dragApplyCore(face,bay,floor){ if(floor!=null && unitMode==='floor'){ editFloor=clamp(floor,fitFrom,fTopEff()); floorUI(); modeLine(); }
   const bk=face+'_'+bay, fk=editFloor+'_'+face+'_'+bay;
   const cur=(unitMode==='all')?((bk in baseType)?baseType[bk]:'skin'):effType(editFloor,face,bay);
@@ -1831,8 +1890,8 @@ let curFTypeEdit=0;
 function frameRunsFloor(f, addTo){ let tot=0; const _FA=facesGeo(tHalfW*2,tHalfD*2), _CO=cornersGeo(tHalfW*2,tHalfD*2);
   _FA.forEach(fa=>{ if(!fa||!fSel(fa.i))return; const bg=bayGeo(fa.L), cols=bg.cols, cellW=bg.w; let bay=0;
     while(bay<cols){ const ti=effFType(f,fa.i,bay); let end=bay; while(end+1<cols && effFType(f,fa.i,end+1)===ti)end++;
-      const _r0=bg.off+bay*cellW, _rl0=(end-bay+1)*cellW, _ra=insetRunAdj(ti,fa,bay,end,cols,_r0,_rl0), runStart=_ra[0], runLen=_ra[1], Tw=Math.max(fTypeDims(ti).W/1000,0.2), rf=runFrames(runLen,Tw), n=rf.n, fw=rf.fw, rS=runStart+rf.off, bHm=fTypeDims(ti).H/1000, bRows=Math.max(1,bHm>0?Math.floor(tFloorH/bHm):1);
-      for(let k=0;k<n;k++){ const cT=rS+(k+0.5)*fw, cb=Math.min(end,Math.max(bay,Math.floor((cT-bg.off)/cellW))); if(effType(f,fa.i,cb)!=='noframe'){ tot+=bRows; if(addTo)addTo[ti]=(addTo[ti]||0)+bRows; } }
+      const _r0=bg.off+bay*cellW, _rl0=(end-bay+1)*cellW, _ra=insetRunAdj(ti,fa,bay,end,cols,_r0,_rl0), runStart=_ra[0], runLen=_ra[1], Tw=Math.max(fTypeDims(ti).W/1000,0.2), rf=runFrames(runLen,Tw,end-bay+1,cellW), n=rf.n, fw=rf.fw, rS=runStart+rf.off, bHm=fTypeDims(ti).H/1000, bRows=Math.max(1,bHm>0?Math.floor(tFloorH/bHm):1);
+      for(let k=0;k<n;k++){ const cT=rS+(k+0.5)*fw, cb=(n===(end-bay+1))?(bay+k):Math.min(end,Math.max(bay,Math.floor((cT-bg.off)/cellW))); if(effType(f,fa.i,cb)!=='noframe'){ tot+=bRows; if(addTo)addTo[ti]=(addTo[ti]||0)+bRows; } }
       bay=end+1; } });
   _CO.forEach(c=>{ if(!c.on)return; if(mountOf(effFType(f,c.key,0))==='insert')return; if(effType(f,c.key,0)==='noframe')return; const ti=effFType(f,c.key,0), bHm=fTypeDims(ti).H/1000, bRows=Math.max(1,bHm>0?Math.floor(tFloorH/bHm):1); tot+=bRows; if(addTo)addTo[ti]=(addTo[ti]||0)+bRows; });
   return tot; }
@@ -1840,8 +1899,8 @@ function fTypeCountsCompute(){ const cnt=new Array(fTypeCount()).fill(0); for(le
 function cartCountsFloor(f){ let S=0,H=0,N=0,D=0; const _FA=facesGeo(tHalfW*2,tHalfD*2), _CO=cornersGeo(tHalfW*2,tHalfD*2);
   _FA.forEach(fa=>{ if(!fa||!fSel(fa.i))return; const bg=bayGeo(fa.L), cols=bg.cols, cellW=bg.w; let bay=0;
     while(bay<cols){ const ti=effFType(f,fa.i,bay); let end=bay; while(end+1<cols && effFType(f,fa.i,end+1)===ti)end++;
-      const _r0=bg.off+bay*cellW, _rl0=(end-bay+1)*cellW, _ra=insetRunAdj(ti,fa,bay,end,cols,_r0,_rl0), runStart=_ra[0], runLen=_ra[1], Tw=Math.max(fTypeDims(ti).W/1000,0.2), rf=runFrames(runLen,Tw), n=rf.n, fw=rf.fw, rS=runStart+rf.off, bHm=fTypeDims(ti).H/1000, bRows=Math.max(1,bHm>0?Math.floor(tFloorH/bHm):1);
-      for(let k=0;k<n;k++){ const cT=rS+(k+0.5)*fw, cb=Math.min(end,Math.max(bay,Math.floor((cT-bg.off)/cellW))); const t=effType(f,fa.i,cb); if(t==='noframe')continue; if(t==='hvac')H+=bRows; else if(t==='none')N+=bRows; else S+=bRows; if(effDoor(f,fa.i,cb))D+=bRows; }
+      const _r0=bg.off+bay*cellW, _rl0=(end-bay+1)*cellW, _ra=insetRunAdj(ti,fa,bay,end,cols,_r0,_rl0), runStart=_ra[0], runLen=_ra[1], Tw=Math.max(fTypeDims(ti).W/1000,0.2), rf=runFrames(runLen,Tw,end-bay+1,cellW), n=rf.n, fw=rf.fw, rS=runStart+rf.off, bHm=fTypeDims(ti).H/1000, bRows=Math.max(1,bHm>0?Math.floor(tFloorH/bHm):1);
+      for(let k=0;k<n;k++){ const cT=rS+(k+0.5)*fw, cb=(n===(end-bay+1))?(bay+k):Math.min(end,Math.max(bay,Math.floor((cT-bg.off)/cellW))); const t=effType(f,fa.i,cb); if(t==='noframe')continue; if(t==='hvac')H+=bRows; else if(t==='none')N+=bRows; else S+=bRows; if(effDoor(f,fa.i,cb))D+=bRows; }
       bay=end+1; } });
   _CO.forEach(c=>{ if(!c.on)return; if(mountOf(effFType(f,c.key,0))==='insert')return; const t=effType(f,c.key,0); if(t==='noframe')return; const bHm=fTypeDims(effFType(f,c.key,0)).H/1000, bRows=Math.max(1,bHm>0?Math.floor(tFloorH/bHm):1); if(t==='hvac')H+=bRows; else if(t==='none')N+=bRows; else S+=bRows; if(effDoor(f,c.key,0))D+=bRows; });
   return {S:S,H:H,N:N,D:D}; }
@@ -1851,8 +1910,8 @@ function fTypeCornerCounts(){ const cnt=new Array(fTypeCount()).fill(0); const _
 function fTypeFaceCounts(){ const cnt=new Array(fTypeCount()).fill(0); const _FA=facesGeo(tHalfW*2,tHalfD*2);
   for(let f=fitFrom;f<=fTopEff();f++){ _FA.forEach(fa=>{ if(!fa||!fSel(fa.i))return; const bg=bayGeo(fa.L), cols=bg.cols, cellW=bg.w; let bay=0;
     while(bay<cols){ const ti=effFType(f,fa.i,bay); let end=bay; while(end+1<cols && effFType(f,fa.i,end+1)===ti)end++;
-      const _r0=bg.off+bay*cellW, _rl0=(end-bay+1)*cellW, _ra=insetRunAdj(ti,fa,bay,end,cols,_r0,_rl0), runStart=_ra[0], runLen=_ra[1], Tw=Math.max(fTypeDims(ti).W/1000,0.2), rf=runFrames(runLen,Tw), n=rf.n, fw=rf.fw, rS=runStart+rf.off, bHm=fTypeDims(ti).H/1000, bRows=Math.max(1,bHm>0?Math.floor(tFloorH/bHm):1);
-      for(let k=0;k<n;k++){ const cT=rS+(k+0.5)*fw, cb=Math.min(end,Math.max(bay,Math.floor((cT-bg.off)/cellW))); if(effType(f,fa.i,cb)!=='noframe')cnt[ti]+=bRows; } bay=end+1; } }); }
+      const _r0=bg.off+bay*cellW, _rl0=(end-bay+1)*cellW, _ra=insetRunAdj(ti,fa,bay,end,cols,_r0,_rl0), runStart=_ra[0], runLen=_ra[1], Tw=Math.max(fTypeDims(ti).W/1000,0.2), rf=runFrames(runLen,Tw,end-bay+1,cellW), n=rf.n, fw=rf.fw, rS=runStart+rf.off, bHm=fTypeDims(ti).H/1000, bRows=Math.max(1,bHm>0?Math.floor(tFloorH/bHm):1);
+      for(let k=0;k<n;k++){ const cT=rS+(k+0.5)*fw, cb=(n===(end-bay+1))?(bay+k):Math.min(end,Math.max(bay,Math.floor((cT-bg.off)/cellW))); if(effType(f,fa.i,cb)!=='noframe')cnt[ti]+=bRows; } bay=end+1; } }); }
   return cnt; }
 function updateFTypeInputVals(){ for(let ci=1;ci<=frameTypesEx.length;ci++){ const t=frameTypesEx[ci-1]; [['ftW'+ci,t.W],['ftD'+ci,t.D],['ftH'+ci,t.H]].forEach(a=>{ const e=$(a[0]); if(e && document.activeElement!==e) e.value=a[1].toLocaleString('en-US'); }); } }
 function updateFTypeCounts(){ const cnt=fTypeCountsCompute(); const e0=$('ft1cnt'); if(e0)e0.textContent='· '+fmt(cnt[0]||0)+'개'; for(let ci=1;ci<=frameTypesEx.length;ci++){ const e=$('ftcnt'+ci); if(e)e.textContent='· '+fmt(cnt[ci]||0)+'개'; } }
@@ -1978,7 +2037,7 @@ $('rzB').addEventListener('pointerdown',e=>startRsz('B',e));
 $('rzBL').addEventListener('pointerdown',e=>startRsz('BL',e));
 $('reset').onclick=()=>{
   pushUndo();
-  tHalfW=12;tHalfD=12;tFloors=5;tFloorH=4; bcx=0;bcz=0;
+  tHalfW=12;tHalfD=12;tFloors=5;tFloorH=4; bcx=0;bcz=0; window.__mmFloorLock=null; window.__mmUserResized=false;
   fitFrom=2;fitTo=tFloors;faceSel=[true,true,true,true]; fitTouched=false;
   frameW=1200;frameD=1200;frameH=4000; frameWMode='face'; frameTypesEx=[]; autoGrpFrame=false; grpTypeIdx=[0,0,0]; lastAutoSig=''; glassType='low'; frameMount='attach'; frameInset=0; slabTh=0.2; perFloorMode=false; lowN=1; midN=1; topN=1; fhLow=4; fhTop=4; if($('pfRows'))$('pfRows').style.display='none'; if($('flrRow'))$('flrRow').style.display='flex'; if($('pfLowN'))$('pfLowN').value=1; if($('pfMidN'))$('pfMidN').value=1; if($('pfTopN'))$('pfTopN').value=1; if($('slabThIn'))$('slabThIn').value=200; slabSig=''; for(const k in frameTypeMap)delete frameTypeMap[k]; activeFType=0;
   coreTouched=false; cores=[]; rebuildExtraCores(); coreDefault(); clampCore();
@@ -2006,10 +2065,10 @@ bindNum('inW',v=>{const n=parseFloat(v); if(!isNaN(n)){if(step===1)tHalfW=clamp(
 bindNum('inD',v=>{const n=parseFloat(v); if(!isNaN(n)){if(step===1)tHalfD=clamp(n/2,MIN_HALF,MAX_HALF);else{tcHalfD=clamp(n/2,CORE_MIN,tHalfD);coreTouched=true;}clampCore();} updateReadout();});
 bindNum('inCW',v=>{const n=parseFloat(v); if(!isNaN(n)){tcHalfW=clamp(n/2,CORE_MIN,tHalfW);coreTouched=true;clampCore();} updateReadout();});
 bindNum('inCD',v=>{const n=parseFloat(v); if(!isNaN(n)){tcHalfD=clamp(n/2,CORE_MIN,tHalfD);coreTouched=true;clampCore();} updateReadout();});
-bindNum('inNt',v=>{const n=parseInt(v,10); if(!isNaN(n))tFloors=clamp(n,MIN_FLOORS,MAX_FLOORS); updateReadout();});
+bindNum('inNt',v=>{const n=parseInt(v,10); if(!isNaN(n)){tFloors=clamp(n,MIN_FLOORS,MAX_FLOORS); window.__mmFloorLock=tFloors;} updateReadout();});
 bindNum('inGW',v=>{ if(footprint&&footprint.length>=3){updateReadout();return;} const n=parseFloat(v); if(!isNaN(n)){tHalfW=clamp(n/2,MIN_HALF,MAX_HALF);clampCore();} updateReadout();});
 bindNum('inGD',v=>{ if(footprint&&footprint.length>=3){updateReadout();return;} const n=parseFloat(v); if(!isNaN(n)){tHalfD=clamp(n/2,MIN_HALF,MAX_HALF);clampCore();} updateReadout();});
-bindNum('inFloors',v=>{const n=parseInt(v,10); if(!isNaN(n)){tFloors=clamp(n,MIN_FLOORS,MAX_FLOORS);clampFit();} updateReadout();});
+bindNum('inFloors',v=>{const n=parseInt(v,10); if(!isNaN(n)){tFloors=clamp(n,MIN_FLOORS,MAX_FLOORS);clampFit(); window.__mmFloorLock=tFloors;} updateReadout();});
 bindNum('inFloorH',v=>{const n=parseFloat(v); if(!isNaN(n))tFloorH=clamp(n,MIN_FH,MAX_FH); updateReadout();});
 bindNum('inH',v=>{const n=parseFloat(v); if(!isNaN(n))tFloorH=clamp(n,MIN_FH,MAX_FH); updateReadout();});
 bindNum('inG1',v=>{const n=parseFloat(v); if(!isNaN(n)){fhLow=clamp(n,MIN_FH,MAX_FH); if($('pfLowH'))$('pfLowH').value=fhLow.toFixed(1);} frSig='';slabSig='';polyMassSig='';floorSig=''; updateReadout();});
@@ -2215,9 +2274,9 @@ function tick(){requestAnimationFrame(tick);
           if(s5||s6){ let bay=0;
             while(bay<cols){ const ti=effFType(f,i,bay); let end=bay; while(end+1<cols && effFType(f,i,end+1)===ti)end++;
               const _r0=bg.off+bay*cellW, _rl0=(end-bay+1)*cellW, _ra=insetRunAdj(ti,fa,bay,end,cols,_r0,_rl0), runStart=_ra[0], runLen=_ra[1]; const td=fTypeDims(ti), Tw=Math.max(td.W/1000,0.2), bD=td.D/1000, bHm=td.H/1000, bRows=Math.max(1,bHm>0?Math.floor(fh/bHm):1), bTile=bRows*bHm;
-              const rf=runFrames(runLen,Tw), n=rf.n, fw=rf.fw, roff=rf.off, eps2=nOff(ti,bD)+bD/2+0.012, rS=runStart+roff;
+              const rf=runFrames(runLen,Tw,end-bay+1,cellW), n=rf.n, fw=rf.fw, roff=rf.off, eps2=nOff(ti,bD)+bD/2+0.012, rS=runStart+roff;
               const tw2=(t,y)=>{ const ee=EP(t); return new THREE.Vector3(ee.x+fa.nx*eps2,y,ee.z+fa.nz*eps2); }; const bTop=base+bRows*bHm;
-              for(let k=0;k<n;k++){ const tE0=rS+k*fw, cT=tE0+fw/2, e=EP(cT); const cb=Math.min(end,Math.max(bay,Math.floor((cT-bg.off)/cellW))); const bt=effType(f,i,cb); if(bt==='noframe')continue;
+              for(let k=0;k<n;k++){ const tE0=rS+k*fw, cT=tE0+fw/2, e=EP(cT); const cb=(n===(end-bay+1))?(bay+k):Math.min(end,Math.max(bay,Math.floor((cT-bg.off)/cellW))); const bt=effType(f,i,cb); if(bt==='noframe')continue;
                 const m=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),bt==='none'?matHit:baseMat(bt)); m.rotation.y=fa.ry; m.renderOrder=2; m.userData={fc:i,by:cb,fl:f}; m.scale.set(fw,bTile,bD); m.position.set(e.x+fa.nx*nOff(ti,bD), base+bTile/2, e.z+fa.nz*nOff(ti,bD)); frVol.add(m);
                 if(effDoor(f,i,cb)){ const dH=Math.min(2.3,bTile); const dm=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),matDoor); dm.rotation.y=fa.ry; dm.renderOrder=1; dm.userData={fc:i,by:cb,fl:f}; dm.scale.set(fw*0.92,dH,0.08); dm.position.set(e.x+fa.nx*(nOff(ti,bD)-bD/2), base+dH/2, e.z+fa.nz*(nOff(ti,bD)-bD/2)); frVol.add(dm); }
                 const tE1=tE0+fw; addLine(tw2(tE0,base),tw2(tE0,bTop)); addLine(tw2(tE1,base),tw2(tE1,bTop)); for(let r=0;r<=bRows;r++){ const y=base+r*bHm; addLine(tw2(tE0,y),tw2(tE1,y)); } }
@@ -2225,7 +2284,7 @@ function tick(){requestAnimationFrame(tick);
           else if(s4){ let bay=0;
             while(bay<cols){ const ti=effFType(f,i,bay); let end=bay; while(end+1<cols && effFType(f,i,end+1)===ti)end++;
               const _r0=bg.off+bay*cellW, _rl0=(end-bay+1)*cellW, _ra=insetRunAdj(ti,fa,bay,end,cols,_r0,_rl0), runStart=_ra[0], runLen=_ra[1]; const td=fTypeDims(ti), Tw=Math.max(td.W/1000,0.2), bD=td.D/1000, bHm=td.H/1000, bRows=Math.max(1,bHm>0?Math.floor(fh/bHm):1), bTile=bRows*bHm;
-              const rf=runFrames(runLen,Tw), n=rf.n, fw=rf.fw, roff=rf.off, eps2=nOff(ti,bD)+bD/2+0.012, rS=runStart+roff;
+              const rf=runFrames(runLen,Tw,end-bay+1,cellW), n=rf.n, fw=rf.fw, roff=rf.off, eps2=nOff(ti,bD)+bD/2+0.012, rS=runStart+roff;
               const tw2=(t,y)=>{ const ee=EP(t); return new THREE.Vector3(ee.x+fa.nx*eps2,y,ee.z+fa.nz*eps2); }; const bTop=base+bRows*bHm;
               for(let k=0;k<n;k++){ const tE0=rS+k*fw, cT=tE0+fw/2, e=EP(cT); const cellBay=Math.min(end,Math.max(bay,Math.floor((cT-bg.off)/cellW))); const nf=effType(f,i,cellBay)==='noframe';
                 const m=new THREE.Mesh(new THREE.BoxGeometry(1,1,1), nf?matHit:ftMat(ti)); m.rotation.y=fa.ry; m.renderOrder=2; m.userData={fc:i,by:cellBay,fl:f}; m.scale.set(fw,bTile,bD); m.position.set(e.x+fa.nx*nOff(ti,bD), base+bTile/2, e.z+fa.nz*nOff(ti,bD)); frVol.add(m);
