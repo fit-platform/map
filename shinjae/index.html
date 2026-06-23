@@ -74,6 +74,16 @@ const SKIN_CARTS=[
 ];
 /* 스킨카트리지 단가 — ADMIN(FD.skin_prices) 오버라이드 우선, 없으면 기본 p */
 const skinP=(c,FD)=>((FD&&FD.skin_prices&&FD.skin_prices[c.id]!=null)?FD.skin_prices[c.id]:c.p);
+/* 프레임별 루버(스킨) 스펙 — 프레임 자체 지정(fr.skinType) 우선, 없으면 프로젝트 기본(crt.skinType). 'none'/미지정·미존재=미적용(null) */
+function frameSkinSpec(fr,crt){
+  const id=(fr&&fr.skinType)||(crt&&crt.skinType)||'venetian';
+  if(id==='none')return null;
+  return SKIN_CARTS.find(c=>c.id===id)||null;
+}
+/* 유리 카탈로그 그룹 조회 (jh=외부접합·bc=내부복층) — FRAME 탭 유리 선택지를 ADMIN glass_catalog에서 직접 가져옴 */
+function glassCatGroup(FD,id){ return (((FD&&FD.glass_catalog)||(typeof FIT_DATA_DEFAULT!=='undefined'&&FIT_DATA_DEFAULT.glass_catalog)||[]).find(g=>g.id===id))||{items:[]}; }
+/* 고사양 일사차폐 유리 여부 — 신규 frame.solarControl 우선, 구버전 outerGlassType==='high_spec' 폴백(에너지 절감계수에만 영향) */
+function isSolarControl(fr){ return (fr&&fr.solarControl!==undefined)?!!fr.solarControl:(fr&&fr.outerGlassType==='high_spec'); }
 /* 입면 명칭 — 방위 대신 정면/우측면/배면/좌측면 (전체 툴 공통). 정면=큰 도로에 면하는 면, 시계방향 R→B→L */
 const FACES=[{id:'F',ko:'정면'},{id:'R',ko:'우측면'},{id:'B',ko:'배면'},{id:'L',ko:'좌측면'}];
 const FACE_KO={F:'정면',R:'우측면',B:'배면',L:'좌측면'};
@@ -82,6 +92,15 @@ const OS_MODES=[{id:'comfort',label:'쾌적 모드',sub:'Comfort Priority'},{id:
 
 /* ═══ FIT QUOTE ENGINE (실제 견적 엑셀 로직 이식) ═══ */
 function round(x,n){const f=Math.pow(10,n);return Math.round(x*f)/f;}
+/* 할증 매트릭스 조회 — 건물 층수(floors)×유닛 폭(W)을 밴드로 매핑해 구조할증 배율 반환. 매트릭스 없으면 1.0 */
+function surchargeRate(mtx,floors,W){
+  if(!mtx||!mtx.rates)return 1.0;
+  const fb=mtx.floor_bands||[],wb=mtx.width_bands||[];
+  let fi=fb.findIndex(b=>b.max==null||floors<=b.max); if(fi<0)fi=Math.max(0,fb.length-1);
+  let wi=wb.findIndex(b=>b.max==null||W<=b.max); if(wi<0)wi=Math.max(0,wb.length-1);
+  const r=(mtx.rates[fi]||[])[wi];
+  return (typeof r==='number'&&r>0)?r:1.0;
+}
 class FitEngine{
   constructor(data){this.db=data;}
   _discountRate(qty){for(const t of this.db.discount_tiers){if(t.max_qty===null||qty<t.max_qty)return t.rate;}return 1.0;}
@@ -97,48 +116,77 @@ class FitEngine{
     const {W,H,D,H1,H2,H3,H4}=p;
     const off={...this.db.default_offset,...(p.offset||{})};
     const outFrame=(p.frameType==="키넥티")?"MPS-016":"MPS-013";
-    const gratingCut=D-off.grating_depth_offset, stiffLower=D-off.stiffener_lower_offset, stiffUpper=D-off.stiffener_upper_offset;
-    const gratingQty=Math.ceil((W-65)/190);
+    const gratingCut=D-90;        /* GRATING 깊이방향 — #상세견적 710=D-90 */
+    const gratingQty=Math.ceil((W-65)/190);  /* #상세견적 W1200→6개 */
+    /* type: 수직(세로멤버)·가로(트랜섬)·연결(THERMAL MOLD/STIFFENER/CAVITY 외측-내측 연결재)·유리(G.BEAD/유리계)·기타(가이드·코너·부속·패널).
+       할증 매트릭스는 apply_types(기본 수직+연결)에만 적용 — 유리·가로는 구조할증 없음.
+       ★ 2026-06-19: #상세견적 PROFILE LIST에 1:1 대응하도록 전면 재구성. 대표유닛(W1200·H4500·H1250·H2600·H4250·D800) 기준 추론공식으로 27개 코드 중량 엑셀 일치 검증.
+       고정 cut·qty(W·H·D 무관) 부재: 코너피스(S014/205/206)·G.S블록(204)·G.BEAD소형(111-013)·앵글부속(217-2/3)·정착재(213/215). */
     const raw=[
-      {code:"MPS-012",sub:"001",cut:H-H1-10,qty:2,note:"INNER 좌/우 세로"},
-      {code:"MPS-012",sub:"002",cut:H-H1-10,qty:2,note:"INNER 좌/우 세로(복수)"},
-      {code:"MPS-012",sub:"003",cut:W-10,qty:2,note:"INNER 상/하 가로"},
-      {code:outFrame,sub:"001",cut:H-109,qty:2,note:"OUT 좌/우 세로"},
-      {code:outFrame,sub:"002",cut:W-39,qty:2,note:"OUT 상/하 가로"},
-      {code:"MPS-014",sub:"001",cut:W-10+70,qty:1,note:"GUIDE FRAME"},
-      {code:"MPS-015",sub:"001",cut:W-39,qty:1,note:"INNER TRANSOM"},
-      {code:"MPS-017",sub:"001",cut:W-208,qty:2,note:"THERMAL MOLD 상/하"},
-      {code:"MPS-017",sub:"002",cut:H3-100,qty:2,note:"THERMAL MOLD 좌/우"},
-      {code:"MPS-111",sub:"011",cut:H2-86.5,qty:2,note:"INNER G.BEAD SPANDREL"},
-      {code:"MPS-111",sub:"012",cut:H3-83,qty:2,note:"INNER G.BEAD VISION"},
-      {code:"MPS-109",sub:"001",cut:H-100,qty:2,note:"OUT G.BEAD 좌/우"},
-      {code:"MPS-109",sub:"002",cut:W-100,qty:2,note:"OUT G.BEAD 상/하"},
-      {code:"MPS-113",sub:"001",cut:stiffLower,qty:2,note:"하부 STIFFENER"},
-      {code:"MPS-114",sub:"001",cut:stiffUpper,qty:2,note:"상부 STIFFENER-1"},
-      {code:"MPS-115",sub:"001",cut:stiffUpper,qty:2,note:"상부 STIFFENER-2"},
-      {code:"MPS-116",sub:"001",cut:W-39,qty:1,note:"SILL CAVITY"},
-      {code:"MPS-117",sub:"001",cut:W-39,qty:1,note:"HEAD CAVITY-1"},
-      {code:"MPS-118",sub:"001",cut:W-39,qty:1,note:"HEAD CAVITY-2"},
-      {code:"MPS-119",sub:"001",cut:W-39,qty:1,note:"HEAD CAVITY-3"},
-      {code:"MPS-207",sub:"001",cut:gratingCut,qty:gratingQty,note:"GRATING"},
-      {code:"MPS-217",sub:"001",cut:W-200,qty:4,note:"20x20 ANGLE"},
-      {code:"MPS-204",sub:"001",cut:200,qty:4,note:"G.S. BLOCK 고정"},
-      {code:"MPS-S014",sub:"001",cut:66.5,qty:2,note:"CORNER PIECE 상"},
-      {code:"MPS-S014",sub:"002",cut:33.5,qty:2,note:"CORNER PIECE 하"},
-      {code:"MPS-205",sub:"001",cut:50,qty:2,note:"CORNER PIECE-2 (50)"},
-      {code:"MPS-205",sub:"002",cut:33.5,qty:2,note:"CORNER PIECE-2 (33.5)"},
-      {code:"MPS-206",sub:"001",cut:26.5,qty:4,note:"CORNER PIECE-3"},
-      {code:"MPS-102",sub:"001",cut:H1-50,qty:2,note:"가이드 DECO"},
-      {code:"MPS-103",sub:"001",cut:H1-50,qty:1,note:"가이드 STIFFENER"},
-      {code:"MPS-112",sub:"001",cut:W-50,qty:1,note:"가이드 STIFFENER-2"},
-      {code:"MPS-212",sub:"001",cut:W-50,qty:1,note:"가이드 DECO COVER"}
+      /* ── INNER FRAME ── */
+      {code:"MPS-012",sub:"001",cut:H-H1-10,qty:1,note:"INNER 세로 L",type:"수직"},
+      {code:"MPS-012",sub:"002",cut:H-H1-10,qty:1,note:"INNER 세로 R",type:"수직"},
+      {code:"MPS-012",sub:"003",cut:W-10,qty:2,note:"INNER 가로 상/하",type:"가로"},
+      /* ── OUT FRAME (세로 2 — 상/하 가로는 #상세견적 미포함: 가이드/스택조인트로 대체) ── */
+      {code:outFrame,sub:"001",cut:H-109,qty:1,note:"OUT 세로 L",type:"수직"},
+      {code:outFrame,sub:"002",cut:H-109,qty:1,note:"OUT 세로 R",type:"수직"},
+      /* ── GUIDE FRAME ── */
+      {code:"MPS-014",sub:"001",cut:W-10+70,qty:2,note:"GUIDE FRAME 상/하",type:"기타"},
+      {code:"MPS-014",sub:"003",cut:H1+60,qty:2,note:"GUIDE FRAME 좌/우(단)",type:"기타"},
+      /* ── TRANSOM ── */
+      {code:"MPS-015",sub:"001",cut:W-39,qty:2,note:"INNER TRANSOM",type:"가로"},
+      /* ── THERMAL MOLD (외측-내측 단열연결) ── */
+      {code:"MPS-017",sub:"01",cut:H2-36,qty:2,note:"THERMAL MOLD 01 (L/R)",type:"연결"},
+      {code:"MPS-017",sub:"02",cut:H1-36,qty:2,note:"THERMAL MOLD 02 (L/R)",type:"연결"},
+      /* ── 진공단열 PANEL MILD ── */
+      {code:"MPS-018",sub:"001",cut:W-208,qty:4,note:"진공단열 PANEL MILD A",type:"기타"},
+      {code:"MPS-018",sub:"002",cut:H2-56.5,qty:2,note:"진공단열 PANEL MILD B",type:"기타"},
+      {code:"MPS-018",sub:"003",cut:H1-56.5,qty:2,note:"진공단열 PANEL MILD C",type:"기타"},
+      /* ── 가이드 DECO/STIFFENER (가로방향) ── */
+      {code:"MPS-102",sub:"001",cut:W-210,qty:1,note:"가이드 DECO",type:"기타"},
+      {code:"MPS-103",sub:"001",cut:W-99,qty:1,note:"가이드 STIFFENER",type:"연결"},
+      {code:"MPS-112",sub:"001",cut:W-99,qty:1,note:"가이드 STIFFENER-2",type:"연결"},
+      {code:"MPS-212",sub:"001",cut:W-10,qty:1,note:"가이드 DECO COVER",type:"기타"},
+      /* ── G.BEAD (유리 압착) ── */
+      {code:"MPS-109",sub:"001",cut:H-109,qty:2,note:"OUT G.BEAD 세로",type:"유리"},
+      {code:"MPS-111",sub:"001",cut:W-10,qty:2,note:"INNER G.BEAD 가로A",type:"유리"},
+      {code:"MPS-111",sub:"002",cut:W-10,qty:4,note:"INNER G.BEAD 가로B",type:"유리"},
+      {code:"MPS-111",sub:"011",cut:H2-86.5,qty:4,note:"INNER G.BEAD SPANDREL 세로",type:"유리"},
+      {code:"MPS-111",sub:"012",cut:H3-83,qty:2,note:"INNER G.BEAD VISION 세로",type:"유리"},
+      {code:"MPS-111",sub:"013",cut:163.5,qty:4,note:"INNER G.BEAD 소형(고정)",type:"유리"},
+      /* ── STIFFENER (구조 보강 — 가로방향) ── */
+      {code:"MPS-113",sub:"001",cut:W-65,qty:1,note:"하부 STIFFENER A",type:"연결"},
+      {code:"MPS-113",sub:"002",cut:W-10,qty:1,note:"하부 STIFFENER B",type:"연결"},
+      {code:"MPS-114",sub:"001",cut:W-10,qty:1,note:"상부 STIFFENER-1",type:"연결"},
+      {code:"MPS-115",sub:"001",cut:W-65,qty:1,note:"상부 STIFFENER-2",type:"연결"},
+      /* ── CAVITY 프레임 = 깊이방향(전후) — #상세견적 710≈D-90, 692≈D-108, 각 2개 ── */
+      {code:"MPS-116",sub:"001",cut:D-90,qty:2,note:"SILL CAVITY (깊이방향)",type:"연결"},
+      {code:"MPS-117",sub:"001",cut:D-90,qty:2,note:"HEAD CAVITY-1 (깊이방향)",type:"연결"},
+      {code:"MPS-118",sub:"001",cut:D-108,qty:2,note:"HEAD CAVITY-2 (깊이방향)",type:"연결"},
+      {code:"MPS-119",sub:"001",cut:D-108,qty:2,note:"HEAD CAVITY-3 (깊이방향)",type:"연결"},
+      /* ── GRATING (깊이방향) ── */
+      {code:"MPS-207",sub:"001",cut:gratingCut,qty:gratingQty,note:"GRATING",type:"기타"},
+      /* ── 20x20 ANGLE ── */
+      {code:"MPS-217",sub:"001",cut:W-200,qty:4,note:"20x20 ANGLE A",type:"기타"},
+      {code:"MPS-217",sub:"002",cut:520,qty:2,note:"20x20 ANGLE B(고정)",type:"기타"},
+      {code:"MPS-217",sub:"003",cut:180,qty:2,note:"20x20 ANGLE C(고정)",type:"기타"},
+      /* ── G.S. BLOCK · 코너피스 (고정 수량) ── */
+      {code:"MPS-204",sub:"001",cut:200,qty:4,note:"G.S. BLOCK 고정",type:"기타"},
+      {code:"MPS-S014",sub:"001",cut:66.5,qty:4,note:"CORNER PIECE",type:"기타"},
+      {code:"MPS-205",sub:"001",cut:50,qty:4,note:"CORNER PIECE-2 (50)",type:"기타"},
+      {code:"MPS-205",sub:"002",cut:33.5,qty:4,note:"CORNER PIECE-2 (33.5)",type:"기타"},
+      {code:"MPS-206",sub:"001",cut:26.5,qty:4,note:"CORNER PIECE-3",type:"기타"},
+      /* ── 고정 수량 구조 정착재(W·D·H 무관) — FIN BRACKET·ANCHOR=연결(할증 적용) ── */
+      {code:"MPS-213",sub:"01L",cut:900,qty:1,note:"FIN BRACKET 좌(정착)",type:"연결"},
+      {code:"MPS-213",sub:"01R",cut:900,qty:1,note:"FIN BRACKET 우(정착)",type:"연결"},
+      {code:"MPS-215",sub:"001",cut:120,qty:2,note:"ANCHOR BLOCK",type:"연결"}
     ];
     const warnings=[];
     const rows=raw.map(r=>{
       const m=this.db.raw_material[r.code]||{}; const uw=m.unit_weight||0; const valid=r.cut>0;
       if(!valid)warnings.push(`⚠️ ${r.code} ${r.sub} 절단길이 비정상: ${r.cut.toFixed(1)}mm`);
       const wEach=round((r.cut/1000)*uw,3);
-      return{code:r.code,sub:r.sub,name:m.name||"",cut_mm:round(r.cut,1),qty:r.qty,unit_weight:uw,weight_each:wEach,weight_total:round(wEach*r.qty,3),note:r.note,valid};
+      return{code:r.code,sub:r.sub,name:m.name||"",cut_mm:round(r.cut,1),qty:r.qty,unit_weight:uw,weight_each:wEach,weight_total:round(wEach*r.qty,3),note:r.note,type:r.type||'기타',valid};
     });
     return{rows,warnings};
   }
@@ -163,24 +211,43 @@ class FitEngine{
   estimate(input){
     const p={W:input.W,H:input.H,D:input.D,H1:input.H1??250,H2:input.H2??600,H4:input.H4??250,floors:input.floors??10,qty:input.qty??1,frameType:input.frameType??"유리",offset:input.offset||{}};
     p.H3=p.H-p.H1-p.H2-p.H4;
-    const up=this.db.unit_price, thick=this._glassThickness(p.floors), discount=this._discountRate(p.qty);
+    const up=this.db.unit_price, thick=input.glassThickOverride||this._glassThickness(p.floors), discount=this._discountRate(p.qty);
     const {rows:profiles,warnings}=this.profiles(p);
     const sub=this.subMaterials(p), glass=this.glass(p);
-    const totalWeight=profiles.filter(r=>r.valid).reduce((s,r)=>s+r.weight_total,0);
-    const surchargeWeight=Math.ceil(totalWeight*up["할증률"]*10)/10;
+    const valids=profiles.filter(r=>r.valid);
+    const totalWeight=valids.reduce((s,r)=>s+r.weight_total,0);
+    /* 할증 매트릭스(층수밴드×폭밴드) — 수직+연결 부재에만 구조할증 적용, 유리·가로·기타는 ×1.0. 매트릭스 부재 시 구버전 일괄 할증률로 폴백 */
+    const mtx=this.db.surcharge_matrix;
+    let surchargeWeight, sRate, surchargedBaseW, plainW;
+    if(mtx&&mtx.rates){
+      const applyTypes=mtx.apply_types||["수직","연결"];
+      sRate=surchargeRate(mtx,p.floors,p.W);
+      surchargedBaseW=valids.filter(r=>applyTypes.includes(r.type)).reduce((s,r)=>s+r.weight_total,0);
+      plainW=totalWeight-surchargedBaseW;
+      surchargeWeight=Math.ceil((plainW+surchargedBaseW*sRate)*10)/10;
+    }else{
+      sRate=up["할증률"]; surchargedBaseW=totalWeight; plainW=0;
+      surchargeWeight=Math.ceil(totalWeight*up["할증률"]*10)/10;
+    }
     const rawCost=surchargeWeight*up["원자재_per_kg"];
     const azonM=Object.values(sub.azon).reduce((s,v)=>s+v.len_m,0);
     const gasketM=Object.values(sub.gasket).reduce((s,v)=>s+v.len_m,0);
-    const azonCost=azonM*up["azon_loss배수"]*up["azon_per_m"];
-    const gasketCost=gasketM*up["gasket_loss배수"]*up["gasket_per_m"];
+    const azonCost=azonM*(up["azon_kg_per_m"]||0.7)*(up["azon_per_kg"]||3000);   /* kg기준: 길이(로스포함)×kg/m×원/kg */
+    const gasketCost=gasketM*(up["gasket_kg_per_m"]||0.55)*(up["gasket_per_kg"]||15000);
     let glassCost=0; const glassDetail={};
     for(const [k,g] of Object.entries(glass)){
       const unitP=this._glassUnitPrice(g.type,thick,{glassPreset:input.glassPreset,glassPriceManual:input.glassPriceManual});
       const cost=Math.round(g.area_m2*unitP);
       glassDetail[k]={area_m2:g.area_m2,type:g.type,unit_price:unitP,cost,note:g.note}; glassCost+=cost;
     }
-    const processCost=surchargeWeight*up["가공비_per_kg"];
-    const subtotal=rawCost+azonCost+gasketCost+glassCost+processCost;
+    const processCost=surchargeWeight*up["가공비_per_kg"];   /* 원자재 가공·조립비 (중량×단가/kg) */
+    /* 부속자재비 — Fastener·Structure Plate·1T EGI·ROLLER·UNIT 일반부자재 등. 세트당 합산(ADMIN 편집). #상세견적 '부속 자재비' */
+    const accessoryCost=((this.db.accessory_items)||[]).reduce((s,a)=>s+(Number(a.price)||0),0);
+    /* 설치·부대비 — 유리끼우기(접합+복층 면적기준)·화스너취부·구조/웨더코킹·포장운반. #상세견적 '가공·조립 및 유리설치' 중 설치·부대 항목 */
+    const ip=this.db.install_price||{};
+    const glazingArea=(glassDetail['외부접합_G1']?glassDetail['외부접합_G1'].area_m2:0)+(glassDetail['내부복층_G2']?glassDetail['내부복층_G2'].area_m2:0);
+    const installCost=glazingArea*(ip.glazing_per_m2||0)+(ip.fastener_set||0)+(ip.caulking_set||0)+(ip.packing_set||0);
+    const subtotal=rawCost+azonCost+gasketCost+glassCost+processCost+accessoryCost+installCost;
     const mgmtProfit=Math.ceil(subtotal*up["관리이윤율"]/1000)*1000;
     const unitSet=subtotal+mgmtProfit;
     const discounted=Math.round(unitSet*discount/10000)*10000;
@@ -188,8 +255,8 @@ class FitEngine{
     const sm=this.db.samoo_multiplier||this.db.samwoo_multiplier||{"납품":1.10,"공사":1.25}; /* 구키(samwoo) 호환 */
     return{
       summary:{W:p.W,H:p.H,D:p.D,H1:p.H1,H2:p.H2,H3:p.H3,H4:p.H4,floors:p.floors,glass_thickness:thick,qty:p.qty,discount_rate:discount,glass_preset:input.glassPreset||"시장단가_중간"},
-      warnings, weight:{total_kg:round(totalWeight,2),surcharge_kg:surchargeWeight},
-      cost_breakdown:{"원자재비":Math.round(rawCost),"AZON비":Math.round(azonCost),"GASKET비":Math.round(gasketCost),"유리비":Math.round(glassCost),"가공비":Math.round(processCost),"소계":Math.round(subtotal),"관리이윤":Math.round(mgmtProfit),"세트단가_1개":Math.round(unitSet),"할인적용단가":Math.round(discounted),"프로젝트_합계":Math.round(projectTotal)},
+      warnings, weight:{total_kg:round(totalWeight,2),surcharge_kg:surchargeWeight,surcharge_rate:sRate,surcharged_base_kg:round(surchargedBaseW,2),plain_kg:round(plainW,2)},
+      cost_breakdown:{"원자재비":Math.round(rawCost),"AZON비":Math.round(azonCost),"GASKET비":Math.round(gasketCost),"유리비":Math.round(glassCost),"부속자재비":Math.round(accessoryCost),"가공비":Math.round(processCost),"설치부대비":Math.round(installCost),"소계":Math.round(subtotal),"관리이윤":Math.round(mgmtProfit),"세트단가_1개":Math.round(unitSet),"할인적용단가":Math.round(discounted),"프로젝트_합계":Math.round(projectTotal)},
       glass_detail:glassDetail,
       samoo:{"납품가":Math.round(projectTotal*sm["납품"]),"공사가":Math.round(projectTotal*sm["공사"])},
       profiles
@@ -200,43 +267,113 @@ class FitEngine{
 /* fit_data.json 기본값 — ⚠ 예시 추정치(교정 필요). COST 탭에서 실제 데이터로 교체하세요. */
 const FIT_DATA_DEFAULT={
   _placeholder:true,
+  _calib_ver:5, /* 견적 재보정 버전 — 올리면 구버전 저장 FD의 단가/원자재/유리/실행률/부자재/할증매트릭스/부속·설치비를 새 기준선으로 강제 채택(ADMIN 키·계수는 보존) */
   discount_tiers:[{max_qty:50,rate:1.0},{max_qty:200,rate:0.97},{max_qty:null,rate:0.93}],
-  glass_price_preset:{"시장단가_중간":{"외부접합_13.52T":95000,"외부접합_17.52T":130000,"내부복층":85000,"단열시트":60000,"단판유리":50000,"진공단열패널":250000}},
+  /* 유리 단가(원/㎡) — 2026-06 #상세견적 참조표 기준. 일반=시장단가_중간, 저철분=시장단가_저철분. 28T 로이복층=내부복층 */
+  glass_price_preset:{
+    "시장단가_중간":{"외부접합_13.52T":135000,"외부접합_17.52T":195000,"내부복층":90000,"단열시트":60000,"단판유리":50000,"진공단열패널":140000},
+    "시장단가_저철분":{"외부접합_13.52T":160000,"외부접합_17.52T":220000,"내부복층":115000,"단열시트":60000,"단판유리":50000,"진공단열패널":140000}
+  },
+  /* 유리 단가 카탈로그(종류별) — ADMIN에서 종류별 펼침 편집·항목 추가. key 매핑 항목은 glass_price_preset로 파생되어 엔진 반영. preset: 중간(일반)/저철분/공통 */
+  glass_catalog:[
+    {id:"jh",label:"접합유리 (외부)",items:[
+      {name:"13.52T 일반유리접합",price:135000,preset:"중간",key:"외부접합_13.52T"},
+      {name:"13.52T 저철분유리접합",price:160000,preset:"저철분",key:"외부접합_13.52T"},
+      {name:"17.52T 일반유리접합",price:195000,preset:"중간",key:"외부접합_17.52T"},
+      {name:"17.52T 저철분유리접합",price:220000,preset:"저철분",key:"외부접합_17.52T"}
+    ]},
+    {id:"bc",label:"복층유리 (내부)",items:[
+      {name:"28T 일반로이복층",price:90000,preset:"중간",key:"내부복층"},
+      {name:"28T 저철분로이복층",price:115000,preset:"저철분",key:"내부복층"}
+    ]},
+    {id:"dp",label:"단열·패널",items:[
+      {name:"단열시트",price:60000,preset:"공통",key:"단열시트"},
+      {name:"진공단열패널 (3T AL/진공20T)",price:140000,preset:"공통",key:"진공단열패널"}
+    ]},
+    {id:"sg",label:"단판유리",items:[
+      {name:"단판유리 (가이드)",price:50000,preset:"공통",key:"단판유리"},
+      {name:"1T EGI 차수",price:50000,preset:"공통",key:""}
+    ]}
+  ],
+  /* 유닛 구조할증 매트릭스 — 건물 층수밴드 × 유닛 폭밴드 2D 테이블. 구조성능(풍하중·자중) 증가분을 수직+연결 부재 중량에만 가산.
+     유리·가로(트랜섬)·기타는 할증 없음(×1.0). rates[층밴드][폭밴드], 값=중량 배율. apply_types=할증 적용 부재 type. ADMIN '단가'에서 편집. */
+  surcharge_matrix:{
+    floor_bands:[{max:10,label:"저층 ~10F"},{max:20,label:"중층 ~20F"},{max:30,label:"고층 ~30F"},{max:null,label:"초고층 30F+"}],
+    width_bands:[{max:1200,label:"기본 ~1200"},{max:1500,label:"광폭 ~1500"},{max:null,label:"초광폭 1500+"}],
+    rates:[
+      [1.00,1.05,1.10],
+      [1.05,1.10,1.15],
+      [1.10,1.15,1.20],
+      [1.15,1.20,1.25]
+    ],
+    apply_types:["수직","연결"]
+  },
   default_offset:{grating_depth_offset:40,stiffener_lower_offset:100,stiffener_upper_offset:100},
-  unit_price:{"할증률":1.05,"원자재_per_kg":8000,"azon_loss배수":1.3,"azon_per_m":3000,"gasket_loss배수":1.1,"gasket_per_m":2000,"가공비_per_kg":3000,"관리이윤율":0.15},
+  unit_price:{"할증률":1.2,"원자재_per_kg":10000,"가공비_per_kg":5150,"관리이윤율":0.15,
+    /* 부자재 kg기준(#상세견적): 길이(m)×kg/m×원/kg. AZON 길이엔 이미 ×1.3 로스 포함(이중적용 해소). */
+    "azon_kg_per_m":0.7,"azon_per_kg":3000,"gasket_kg_per_m":0.55,"gasket_per_kg":15000,
+    "azon_loss배수":1.3,"azon_per_m":3000,"gasket_loss배수":1.1,"gasket_per_m":2000},
+  /* 부속자재비(세트당, 원) — #상세견적 '부속 자재비'. ADMIN 편집. 3T AL 진공단열패널은 '유리비'(진공단열패널)에 별도 반영되어 여기 제외 */
+  accessory_items:[
+    {name:"Fastener",price:200000},
+    {name:"Structure Plate (4EA)",price:780000},
+    {name:"1T EGI 차수",price:75000},
+    {name:"ROLLER (2EA)",price:200000},
+    {name:"UNIT 일반부자재 (스크류·볼트 등)",price:150000}
+  ],
+  /* 설치·부대비(세트당) — #상세견적 '가공·조립 및 유리설치' 중 설치·부대 항목. 유리끼우기는 접합+복층 면적(㎡)×단가, 나머지는 세트당 고정(ADMIN 편집) */
+  install_price:{glazing_per_m2:24000,fastener_set:50000,caulking_set:40100,packing_set:320000},
   samoo_multiplier:{"납품":1.10,"공사":1.25},
+  /* 실행률(삼우 간접비) — 재료=납품 실행률(1.3), 노무·경비=공사 실행률(1.5). #견적 기준 */
+  exec_rate:{"재료":1.3,"노무":1.5,"경비":1.5},
+  /* 조닝수 기반 노무 할인률 (#견적: 50존미만 100%, 75존 95%, 100존 90%, 125존 85%, 150존+ 80%) — OS·제어 노무에 적용 */
+  zone_labor_discount:[{max:50,rate:1.0},{max:75,rate:0.95},{max:100,rate:0.90},{max:125,rate:0.85},{max:null,rate:0.80}],
+  /* M&E 참고가(원/㎡) — 엑세스플로어·복사패널 (#견적 M&E 참고가). os.me 토글 시 견적 포함 */
+  me_prices:{"엑세스플로어":210000,"복사패널":290000},
   /* 에너지 절감 계수 — 태평로빌딩 EnergyPlus 시뮬레이션 기준값. ADMIN 탭에서 조정 가능 */
   energy_factors:{env_std:0.096,env_high:0.105,hvac:0.085,grid_daylight:0.01,grid_dimming:0.01,os_suntrack:0.015,os_energy:0.01},
   /* 기초공사 단가 — 평당 단가(원). 0이면 견적에 미포함 */
   base_construction:{per_pyeong:0,desc:"기초·구조·토공사 평균"},
-  /* 행안부 도로명주소 검색API 승인키 — 개발승인키(90일 만료, E0014 발생 시 재발급 후 ADMIN 탭에서 교체) */
-  juso_confm_key:"devU01TX0FVVEgyMDI2MDYxMDE2MTI0OTExOTAzNzM=",
+  /* 행안부 도로명주소 검색API 승인키 — 개발승인키(2026-06-22 재발급, ~2026-09-20 만료, E0014 발생 시 재발급 후 ADMIN 탭에서 교체) */
+  juso_confm_key:"devU01TX0FVVEgyMDI2MDYyMjA5MDc0OTExOTQ3NDY=",
   ai_provider:"gemini", /* AI 렌더 제공자 — 'gemini'(기본·무료티어) | 'openai' */
   ai_gemini_key:"", /* Google AI Studio 키 (aistudio.google.com) */
   ai_image_key:"", /* OpenAI API 키 */
   /* V-World 인증키 — PLAN 탭 필지 경계(연속지적도)·용도지역 자동 조회. 활용 API에 「데이터 API」 포함 필수 (미포함 시 INCORRECT_KEY) */
   vworld_key:"F96119E2-12CD-329B-978B-A4616BF394CD",
   /* 스킨카트리지 종류별 단가(원/대) — ADMIN 탭에서 편집 */
-  skin_prices:{roller:900000,venetian:1200000,al_louver:2100000,str_louver:1600000,fab_louver:1900000},
+  /* 스킨 단가(원/대) — #상세견적 참조: 롤블라인드1.38M·메탈4.26M·스트링4.8M·패브릭4.6M (베네시안은 실데이터 없어 유지) */
+  skin_prices:{roller:1380000,venetian:1200000,al_louver:4260000,str_louver:4800000,fab_louver:4600000},
+  /* 단위중량(kg/m): 2026-06 실제 제작리스트(#상세견적) 기준 전수 보정. MPS-016(키넥티)은 실데이터 없어 비례추정. */
   raw_material:{
-    "MPS-012":{name:"INNER PROFILE",unit_weight:2.10},"MPS-013":{name:"OUT FRAME",unit_weight:2.80},
-    "MPS-016":{name:"OUT FRAME(키넥티)",unit_weight:3.10},"MPS-014":{name:"GUIDE FRAME",unit_weight:2.40},
-    "MPS-015":{name:"INNER TRANSOM",unit_weight:1.90},"MPS-017":{name:"THERMAL MOLD",unit_weight:0.80},
-    "MPS-111":{name:"INNER G.BEAD",unit_weight:0.60},"MPS-109":{name:"OUT G.BEAD",unit_weight:0.70},
-    "MPS-113":{name:"STIFFENER 하부",unit_weight:1.50},"MPS-114":{name:"STIFFENER 상1",unit_weight:1.50},
-    "MPS-115":{name:"STIFFENER 상2",unit_weight:1.50},"MPS-116":{name:"SILL CAVITY",unit_weight:1.20},
-    "MPS-117":{name:"HEAD CAVITY-1",unit_weight:1.20},"MPS-118":{name:"HEAD CAVITY-2",unit_weight:1.20},
-    "MPS-119":{name:"HEAD CAVITY-3",unit_weight:1.20},"MPS-207":{name:"GRATING",unit_weight:1.00},
-    "MPS-217":{name:"20x20 ANGLE",unit_weight:0.30},"MPS-204":{name:"G.S BLOCK",unit_weight:0.40},
-    "MPS-S014":{name:"CORNER PIECE",unit_weight:0.50},"MPS-205":{name:"CORNER PIECE-2",unit_weight:0.45},
-    "MPS-206":{name:"CORNER PIECE-3",unit_weight:0.40},"MPS-102":{name:"가이드 DECO",unit_weight:0.90},
-    "MPS-103":{name:"가이드 STIFFENER",unit_weight:1.10},"MPS-112":{name:"가이드 STIFFENER-2",unit_weight:1.10},
-    "MPS-212":{name:"가이드 DECO COVER",unit_weight:0.70}
+    "MPS-012":{name:"INNER PROFILE",unit_weight:4.406},"MPS-013":{name:"OUT FRAME",unit_weight:4.201},
+    "MPS-016":{name:"OUT FRAME(키넥티)",unit_weight:4.650},"MPS-014":{name:"GUIDE FRAME",unit_weight:4.851},
+    "MPS-015":{name:"INNER TRANSOM",unit_weight:5.597},"MPS-017":{name:"THERMAL MOLD",unit_weight:1.58},
+    "MPS-018":{name:"진공단열 PANEL MILD",unit_weight:0.308},
+    "MPS-111":{name:"INNER G.BEAD",unit_weight:0.356},"MPS-109":{name:"OUT G.BEAD",unit_weight:0.364},
+    "MPS-113":{name:"STIFFENER 하부",unit_weight:3.045},"MPS-114":{name:"STIFFENER 상1",unit_weight:1.613},
+    "MPS-115":{name:"STIFFENER 상2",unit_weight:2.489},"MPS-116":{name:"SILL CAVITY",unit_weight:5.04},
+    "MPS-117":{name:"HEAD CAVITY-1",unit_weight:3.101},"MPS-118":{name:"HEAD CAVITY-2",unit_weight:0.764},
+    "MPS-119":{name:"HEAD CAVITY-3",unit_weight:1.318},"MPS-207":{name:"GRATING",unit_weight:3.663},
+    "MPS-217":{name:"20x20 ANGLE",unit_weight:0.205},"MPS-204":{name:"G.S BLOCK",unit_weight:0.356},
+    "MPS-S014":{name:"CORNER PIECE",unit_weight:2.693},"MPS-205":{name:"CORNER PIECE-2",unit_weight:3.146},
+    "MPS-206":{name:"CORNER PIECE-3",unit_weight:4.748},"MPS-102":{name:"가이드 DECO",unit_weight:3.894},
+    "MPS-103":{name:"가이드 STIFFENER",unit_weight:2.998},"MPS-112":{name:"가이드 STIFFENER-2",unit_weight:2.629},
+    "MPS-212":{name:"가이드 DECO COVER",unit_weight:2.579},
+    "MPS-213":{name:"FIN BRACKET",unit_weight:10.549},"MPS-215":{name:"ANCHOR BLOCK",unit_weight:12.881}
   }
 };
 
 function frameEstimate(f,qty,FD){
-  try{ return new FitEngine(FD||FIT_DATA_DEFAULT).estimate({W:f.frameWidth,H:f.frameHeight,D:f.depth,H1:f.H1,H2:f.H2,H4:f.H4,floors:f.floors,qty:Math.max(1,Math.round(qty||1)),frameType:f.engineFrameType||'유리',glassPreset:f.glassPreset}); }
+  try{
+    /* FRAME 탭에서 ADMIN 카탈로그 항목 직접 선택 시 → 단가/두께 오버라이드로 견적 직결.
+       단가는 선택 시점 스냅샷이 아니라 견적 시점에 ADMIN glass_price_preset(=카탈로그 파생)에서 실시간 조회 → ADMIN 단가 변경이 즉시 반영(단일 출처). 미선택이면 glassPreset(기본 중간·층수 자동두께)로 폴백 */
+    const gpm={}; let thickOv=null;
+    const pp=((FD||FIT_DATA_DEFAULT).glass_price_preset)||{};
+    const presetOf=g=>g==='저철분'?'시장단가_저철분':'시장단가_중간';
+    if(f.outerGlassSel&&f.outerGlassSel.key){ thickOv=f.outerGlassSel.key.replace('외부접합_',''); const pr=(pp[presetOf(f.outerGlassSel.grade)]||{})[f.outerGlassSel.key]; gpm[f.outerGlassSel.key]=(pr!=null?pr:f.outerGlassSel.price); }
+    if(f.innerGlassSel&&f.innerGlassSel.key){ const pr=(pp[presetOf(f.innerGlassSel.grade)]||{})[f.innerGlassSel.key]; gpm[f.innerGlassSel.key]=(pr!=null?pr:f.innerGlassSel.price); }
+    return new FitEngine(FD||FIT_DATA_DEFAULT).estimate({W:f.frameWidth,H:f.frameHeight,D:f.depth,H1:f.H1,H2:f.H2,H4:f.H4,floors:f.floors,qty:Math.max(1,Math.round(qty||1)),frameType:f.engineFrameType||'유리',glassPreset:f.glassPreset,glassPriceManual:gpm,glassThickOverride:thickOv}); }
   catch(e){ return null; }
 }
 
@@ -249,6 +386,21 @@ function frameSection(f){
 
 /* 공조시스템 해석: A 공조카트리지(cart, 바닥형/천장형 = 공사범위) / B 중앙(central) / C EHP(ehp) / D 기타(etc) = 비교견적(총공사비 제외).
    legacy(이전 버전 floor/ceiling 최상위)도 cart로 흡수. cartKind=floor/ceiling, floor는 floorType(iso 등압→FTU / pres 가압→circ·front). */
+/* 유리 카탈로그 → 엔진용 glass_price_preset 파생 (key 매핑 항목만). 공통=양 프리셋 모두 */
+function presetFromCatalog(cat){
+  const out={"시장단가_중간":{},"시장단가_저철분":{}};
+  (cat||[]).forEach(g=>(g.items||[]).forEach(it=>{ if(!it.key)return;
+    if(it.preset==='저철분')out["시장단가_저철분"][it.key]=it.price;
+    else if(it.preset==='공통'){out["시장단가_중간"][it.key]=it.price;out["시장단가_저철분"][it.key]=it.price;}
+    else out["시장단가_중간"][it.key]=it.price; }));
+  return out;
+}
+/* 조닝수 기반 노무 할인률 (FD.zone_labor_discount) — OS·제어 노무에 적용 */
+function zoneLaborDiscount(FD,n){
+  const tiers=(FD&&FD.zone_labor_discount)||[{max:null,rate:1.0}];
+  for(const t of tiers){if(t.max==null||n<t.max)return t.rate;}
+  return 1.0;
+}
 function hvacKind(crt){
   if(!crt||!crt.hasHvac)return{sys:null,isCart:false,ceil:false,kind:null};
   let s=crt.hvacSys||'cart';
@@ -260,23 +412,22 @@ function hvacKind(crt){
 function zoneAgg(zones,floorZones,frames,crt,grd,os,E,P,FD,zonePer){
   const zPer=zonePer||165; /* 존당 기준 바닥면적(㎡) — 공조·제어조닝 존수량 */
   const ef=(FD&&FD.energy_factors)||{};
-  const skinSpec=SKIN_CARTS.find(c=>c.id===crt.skinType)||SKIN_CARTS[1];
   const osBoost=os.hasOs?(os.sunTrack?(ef.os_suntrack??0.015):0)+(os.energy?(ef.os_energy??0.01):0):0;
   const gridFac=grd.hasGrid?((grd.daylight?(ef.grid_daylight??0.01):0)+(grd.dimming?(ef.grid_dimming??0.01):0)):0;
   const rHvacFull=ef.hvac??0.085;
-  const osFlat=os.hasOs?(P.pOsBase+(os.sunTrack?P.pOsSun:0)+(os.energy?P.pOsEnergy:0)+(os.bms?P.pOsBms:0)):0;
+  const osZ=Array.isArray(floorZones)?floorZones.reduce((a,g)=>a+Math.max(1,Math.ceil(Math.max(0,g.areaM2||0)/zPer))*Math.max(1,(g.to||1)-(g.from||1)+1),0):0; /* OS 조닝수=존수 */
+  const osFlat=os.hasOs?((P.osZoneFixed||0)+osZ*(P.osZoneMat||0)+(os.sunTrack?P.pOsSun:0)+(os.energy?P.pOsEnergy:0)+(os.bms?P.pOsBms:0)):0; /* 조닝 기반 재료/장비 + 옵션 */
   /* 입면 모듈 → FRAME+GLASS (프레임 타입별) */
   const byTypeQty={};
   zones.forEach(z=>{const fr=zoneFrame(z,frames);byTypeQty[fr.id]=(byTypeQty[fr.id]||0)+(z.moduleCount||0);});
-  let frameGlass=0;
-  Object.keys(byTypeQty).forEach(fid=>{const fr=frames.find(x=>x.id===fid)||frames[0];const est=frameEstimate(fr,byTypeQty[fid],FD);frameGlass+=est?est.cost_breakdown["프로젝트_합계"]:0;});
+  let frameGlass=0,cSkin=0,skinN=0,shadeWSum=0; /* 스킨=프레임 타입별 합산 */
+  Object.keys(byTypeQty).forEach(fid=>{const fr=frames.find(x=>x.id===fid)||frames[0];const q=byTypeQty[fid];const est=frameEstimate(fr,q,FD);frameGlass+=est?est.cost_breakdown["프로젝트_합계"]:0;
+    const sp=frameSkinSpec(fr,crt); if(crt.hasSkin&&sp&&fr.depth>=sp.minD){cSkin+=q*skinP(sp,FD);skinN+=q;shadeWSum+=q*sp.shade;}});
   const modTotal=zones.reduce((s,z)=>s+(z.moduleCount||0),0);
   /* 대표 프레임(에너지·스킨·깊이 조건) */
   const repFr=(zones[0]&&zoneFrame(zones[0],frames))||frames[0]||{};
-  const outerSpec=OUTER_GLASS.find(g=>g.id===repFr.outerGlassType)||OUTER_GLASS[1];
-  const envFac=outerSpec.id==='high_spec'?(ef.env_high??0.105):(ef.env_std??0.096);
-  const skinOk=crt.hasSkin&&repFr.depth>=skinSpec.minD;
-  const shadeFac=skinOk?skinSpec.shade/100:0;
+  const envFac=isSolarControl(repFr)?(ef.env_high??0.105):(ef.env_std??0.096);
+  const shadeFac=modTotal>0?(shadeWSum/modTotal)/100:0; /* 차양효과 = 프레임별 모듈수 가중평균 */
   const hk=hvacKind(crt);                                         /* A 카트리지(공사범위) / B 중앙·C EHP·D 기타(비교견적·제외) */
   const hvacOk=hk.isCart&&repFr.depth>=1000;                       /* 카트리지(바닥/천장)는 이중외피 깊이 1,000mm↑에서만 */
   const rHvac=hvacOk?rHvacFull:0;                                 /* 에너지 절감계수는 카트리지에만 적용(중앙·EHP·기타 제외) */
@@ -284,8 +435,6 @@ function zoneAgg(zones,floorZones,frames,crt,grd,os,E,P,FD,zonePer){
   const fz=Array.isArray(floorZones)?floorZones:[];
   let totalM2=0,zoneCount=0;
   fz.forEach(g=>{const nf=Math.max(1,(g.to||1)-(g.from||1)+1);const a=Math.max(0,g.areaM2||0);totalM2+=a*nf;zoneCount+=Math.max(1,Math.ceil(a/zPer))*nf;});
-  const skinN=skinOk?modTotal:0;
-  const cSkin=skinN*skinP(skinSpec,FD);
   const hvacN=hvacOk?zoneCount:0;
   const hvBaseP=hk.ceil?(P.pHvacCeil||P.pHvac):P.pHvac;
   let cHvac=hvacN*hvBaseP;                                        /* 분산공조기 base (존수량×단가) */
@@ -296,7 +445,7 @@ function zoneAgg(zones,floorZones,frames,crt,grd,os,E,P,FD,zonePer){
     if(o.uv)cHvac+=hvacN*(P.pUv||0);
     if(hk.kind==='floor'){                                        /* 바닥공조 취출 방식 — 바닥면적(㎡) 기준 별도 가산 */
       const ft=crt.floorType||'iso';
-      if(ft==='iso')cHvac+=totalM2*(P.pFtu||0);                   /* 등압식 → FTU */
+      if(ft==='iso')cHvac+=zoneCount*(P.pFtuPerZone||12)*(P.pFtu||0); /* 등압식 → FTU (존수×FTU/존×원/개) */
       else cHvac+=totalM2*((crt.presDiff||'circ')==='front'?(P.pDiffFront||0):(P.pDiffCirc||0)); /* 가압식: 전면취출/원형디퓨져 */
     }
   }
@@ -307,10 +456,18 @@ function zoneAgg(zones,floorZones,frames,crt,grd,os,E,P,FD,zonePer){
   const sf=1-(1-envFac)*(1-shadeFac-osBoost)*(1-rHvac)*(1-gridFac);
   const baseline=E.eui*totalM2;
   const saved=baseline*sf, annualSave=saved*E.elec, co2=saved*0.46;
-  const total=frameGlass+cSkin+cHvac+cGrid+osFlat;
+  /* M&E(os.me) + 재료/노무/경비 3분할 + 실행률 — costLines와 동일 산식으로 PLATFORM/ApplyBar 정합 */
+  const meSub=(os.me&&FD&&FD.me_prices)?totalM2*(((FD.me_prices.엑세스플로어)||0)+((FD.me_prices.복사패널)||0)):0;
+  const total=frameGlass+cSkin+cHvac+cGrid+osFlat+meSub;
+  const matSub=total;
+  const laborSub=modTotal*(P.pFrameLabor||0)+skinN*(P.pSkinLabor||0)+hvacN*(P.pHvacLabor||0)+(grd.hasGrid?modTotal*(P.pGridLabor||0):0)+(os.hasOs?zoneCount*(P.osZoneLabor||0)*zoneLaborDiscount(FD,zoneCount):0); /* OS 노무=조닝당×존수×조닝할인 */
+  const expSub=modTotal*(P.pFrameExp||0)+skinN*(P.pSkinExp||0)+hvacN*(P.pHvacExp||0)+(grd.hasGrid?modTotal*(P.pGridExp||0):0)+(os.hasOs?(P.pOsExp||0):0);
+  const er=(FD&&FD.exec_rate)||{재료:1.3,노무:1.5,경비:1.5};
+  const directSub=matSub+laborSub+expSub;
+  const execTotal=Math.round(matSub*(er.재료||1)+laborSub*(er.노무||1)+expSub*(er.경비||1));
   const savedFrac=baseline?saved/baseline:0;
-  const payback=annualSave>0?(total-conventional)/annualSave:null;
-  return{total,frameGlass,cSkin,cHvac,hvacCompare,hvSys:hk.sys,cGrid,osFlat,baseline,saved,annualSave,co2,conventional,savedFrac,payback,optimized:baseline-saved,zoneCount,modTotal,totalM2,zonePer:zPer};
+  const payback=annualSave>0?(execTotal-conventional)/annualSave:null;
+  return{total,matSub,laborSub,expSub,meSub,directSub,execTotal,er,frameGlass,cSkin,cHvac,hvacCompare,hvSys:hk.sys,cGrid,osFlat,baseline,saved,annualSave,co2,conventional,savedFrac,payback,optimized:baseline-saved,zoneCount,modTotal,totalM2,zonePer:zPer};
 }
 
 
@@ -421,7 +578,7 @@ function SectionSVG({f,crt}){
   const innerX=marginL, outerX=marginL+glassW+cavW;
   const top=20, svgH=frameH+60;
   const y2=top, y3=top+h2, y4=top+h2+h3, y1=top+h2+h3+h4;
-  const skinCart=SKIN_CARTS.find(c=>c.id===crt.skinType);
+  const skinCart=frameSkinSpec(f,crt); /* 프레임별 루버 */
   const skinOk=crt.hasSkin&&skinCart&&f.depth>=skinCart.minD&&f.depth<=skinCart.maxD;
   const hvacOk=hvacKind(crt).isCart&&f.depth>=1000; /* 단면 캐비티 AIR HANDLING 표시는 카트리지(바닥/천장)만 */
 
@@ -463,13 +620,34 @@ function SectionSVG({f,crt}){
       <text x={outerX+glassW+5} y={top+frameH/2+11} fontSize="7" fontFamily="'DM Mono',monospace" fill={C.light}>{sec.thickness} · H {fmt(f.frameHeight)}mm</text>
 
       {/* CAVITY — skin cartridge over vision */}
-      {skinOk&&(
-        <g>
-          <rect x={innerX+glassW+4} y={y3} width={cavW-8} height={h3} fill="none" stroke={C.amber} strokeWidth={1} strokeDasharray="4 2"/>
-          {Array.from({length:6}).map((_,k)=><line key={k} x1={innerX+glassW+10} x2={innerX+glassW+cavW-10} y1={y3+h3*(0.12+k*0.14)} y2={y3+h3*(0.12+k*0.14)} stroke={C.amber} strokeWidth={1.5} strokeLinecap="square"/>)}
-          <text x={innerX+glassW+cavW/2} y={y3-3} textAnchor="middle" fontSize="6.5" fontFamily="'DM Mono',monospace" fill={C.amber}>SKIN CARTRIDGE</text>
-        </g>
-      )}
+      {skinOk&&(()=>{
+        /* 루버 종류별 도식: 롤블라인드=상단 롤+스크린 절반 / 베네시안=상단 절반까지 블레이드(촘촘) / 수직루버=폭별 수직 박스(≤1200→3, 1200+→4) */
+        const sx=innerX+glassW+4, sw=cavW-8, sy=y3, sh=h3, cx=sx+sw/2, id=skinCart.id;
+        let body=null;
+        if(id==='roller'){
+          const rollH=Math.min(11,sh*0.13), scrTop=sy+rollH, scrH=(sh-rollH)*0.5, tex=Math.max(2,Math.round(scrH/9));
+          body=(<>
+            <rect x={sx+2} y={scrTop} width={sw-4} height={scrH} fill={C.amber} opacity={0.16} stroke={C.amber} strokeWidth={1}/>
+            {Array.from({length:tex}).map((_,k)=><line key={'t'+k} x1={sx+3} x2={sx+sw-3} y1={scrTop+(k+1)*scrH/(tex+1)} y2={scrTop+(k+1)*scrH/(tex+1)} stroke={C.amber} strokeWidth={0.5} opacity={0.45}/>)}
+            <rect x={sx+1} y={scrTop+scrH-2.5} width={sw-2} height={2.6} fill={C.amber}/>
+            <rect x={sx} y={sy} width={sw} height={rollH} rx={Math.min(rollH/2,5)} fill={C.amber} opacity={0.85} stroke={C.amber} strokeWidth={1}/>
+          </>);
+        } else if(id==='venetian'){
+          const half=sh*0.5, n=Math.max(9,Math.round(half/3.4));
+          body=(<>
+            <rect x={sx} y={sy} width={sw} height={3} fill={C.amber}/>
+            {Array.from({length:n}).map((_,k)=><line key={'b'+k} x1={sx+1} x2={sx+sw-1} y1={sy+4+(k+0.5)*(half-4)/n} y2={sy+4+(k+0.5)*(half-4)/n} stroke={C.amber} strokeWidth={1.3} strokeLinecap="round" opacity={0.85}/>)}
+          </>);
+        } else {
+          const n=(f.frameWidth>1200)?4:3, gap=2, bw=(sw-gap*(n+1))/n, bh=sh*0.9, by=sy+sh*0.05;
+          body=Array.from({length:n}).map((_,k)=><rect key={'v'+k} x={sx+gap+k*(bw+gap)} y={by} width={Math.max(2,bw)} height={bh} fill={C.amber} opacity={0.16} stroke={C.amber} strokeWidth={1}/>);
+        }
+        return(<g>
+          <rect x={sx} y={sy} width={sw} height={sh} fill="none" stroke={C.amber} strokeWidth={0.8} strokeDasharray="4 2"/>
+          {body}
+          <text x={cx} y={sy-3} textAnchor="middle" fontSize="6.5" fontFamily="'DM Mono',monospace" fill={C.amber}>SKIN CARTRIDGE</text>
+        </g>);
+      })()}
       {hvacOk&&(
         <g>
           <rect x={innerX+glassW+4} y={y4} width={cavW-8} height={h4} fill="none" stroke={C.green} strokeWidth={1} strokeDasharray="4 2"/>
@@ -589,138 +767,130 @@ function PlatformTab({zones,setZones,zonePer,setZonePer,floorZones,setFloorZones
         <div style={{gridColumn:'1/-1'}}><Lbl ch="비고"/><input value={ov.note||''} onChange={e=>setOverview(s=>({...s,note:e.target.value}))} style={{width:'100%',border:`1px solid ${C.borderDark}`,background:C.white,fontSize:12,color:C.ink,outline:'none',padding:'7px 10px'}}/></div>
       </div>}
 
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:36}}>
-      {/* left */}
-      <div>
-        <SH code="ZONES" sub="고층부·기준층·저층부 — 층구간별 바닥면적 → 존수량" tag="input"/>
-        <div style={{background:C.panel,padding:'10px 14px',marginBottom:14,display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-          <div style={{minWidth:160}}><NF label="존당 기준 바닥면적" unit="㎡/존" value={zonePer} step={10} min={10} onChange={v=>setZonePer(Math.max(10,v))}/></div>
-          <span style={{fontSize:10.5,color:C.sub,lineHeight:1.6,flex:1}}>각 층구간의 <b>층당 바닥면적</b>을 이 기준으로 나눠 층별 존수량을 산정하고 적용층수를 곱합니다. 공조기·제어조닝 견적이 존수량 기준으로 계산됩니다.</span>
+      {/* ═══ 1. 종합 결과 ═══ */}
+      <div style={{marginBottom:26}}>
+        <div style={{display:'flex',alignItems:'baseline',gap:10,borderBottom:`2px solid ${C.ink}`,paddingBottom:7,marginBottom:14,flexWrap:'wrap'}}>
+          <span style={{fontFamily:FF.disp,fontSize:18,letterSpacing:'.08em',color:C.ink}}>SIMULATION RESULT</span>
+          <span style={{fontSize:13,color:C.ink,fontWeight:600}}>종합 결과</span>
+          <span style={{fontSize:11,color:C.sub,marginLeft:'auto'}}>적용 사양 기준 · 실행률 포함</span>
         </div>
-        {(floorZones||[]).map((g,gi)=>{
-          const nf=Math.max(1,(g.to||1)-(g.from||1)+1);
-          const zPerFloor=Math.max(1,Math.ceil((g.areaM2||0)/(zonePer||165)));
-          const zc=zPerFloor*nf;
-          const setG=(patch)=>setFloorZones(s=>s.map((x,i)=>i===gi?{...x,...patch}:x));
-          return(
-          <div key={g.id||gi} style={{padding:'10px 0',borderBottom:`1px solid ${C.border}`}}>
-            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
-              <input value={g.part||''} onChange={e=>setG({part:e.target.value})} style={{fontWeight:700,fontSize:12.5,color:C.ink,border:'none',borderBottom:`1.5px solid ${C.border}`,background:'transparent',outline:'none',width:90,padding:'2px 0'}}/>
-              <span style={{flex:1}}/>
-              <span style={{fontSize:10,color:C.light}}>존수</span>
-              <span style={{fontFamily:"'DM Mono',monospace",fontSize:15,color:C.green,fontWeight:700}}>{fmt(zc)}<span style={{fontSize:9,color:C.light}}>존 ({fmt(zPerFloor)}/층×{nf}층)</span></span>
-              <button onClick={()=>setFloorZones(s=>s.length>1?s.filter((_,i)=>i!==gi):s)} disabled={(floorZones||[]).length<=1} style={{background:'transparent',border:`1px solid ${C.border}`,color:C.red,padding:'5px 7px',fontSize:10,opacity:(floorZones||[]).length<=1?0.3:1,cursor:(floorZones||[]).length<=1?'not-allowed':'pointer'}}><IcoTr s={11}/></button>
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1.2fr',gap:10}}>
-              <NF label="시작층" unit="F" value={g.from} step={1} min={1} onChange={v=>setG({from:Math.max(1,Math.round(v))})}/>
-              <NF label="끝층" unit="F" value={g.to} step={1} min={1} onChange={v=>setG({to:Math.max(1,Math.round(v))})}/>
-              <NF label="층당 바닥면적" unit="㎡" value={g.areaM2} step={50} min={0} onChange={v=>setG({areaM2:Math.max(0,v)})}/>
-            </div>
-          </div>);
-        })}
-        <button onClick={()=>setFloorZones(s=>[...s,{id:'z'+Date.now(),part:`구간 ${s.length+1}`,from:1,to:1,areaM2:660}])} style={{display:'flex',alignItems:'center',justifyContent:'center',gap:5,width:'100%',background:'transparent',border:`1px dashed ${C.border}`,color:C.sub,padding:'8px 0',fontSize:11,marginTop:10,cursor:'pointer'}}><IcoPl s={12}/> 층구간 추가</button>
-        {(()=>{const tot=(floorZones||[]).reduce((a,g)=>a+Math.max(0,g.areaM2||0)*Math.max(1,(g.to||1)-(g.from||1)+1),0);const zc=(floorZones||[]).reduce((a,g)=>a+Math.max(1,Math.ceil((g.areaM2||0)/(zonePer||165)))*Math.max(1,(g.to||1)-(g.from||1)+1),0);return(
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',borderTop:`1.5px solid ${C.ink}`,marginTop:10,paddingTop:8}}>
-            <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:12,letterSpacing:'.08em',color:C.ink}}>합계 연면적 · 존수</span>
-            <span style={{fontFamily:"'DM Mono',monospace",fontSize:13}}>{fmt(Math.round(tot))}㎡ · <span style={{color:C.green,fontWeight:700}}>{fmt(zc)}존</span></span>
-          </div>);})()}
-
-        <HR/>
-        <SH code="MODULES" sub="입면별 FIT 모듈 (프레임 견적 기준)" tag="input"/>
-        {zones.map(z=>(
-          <div key={z.id} style={{display:'grid',gridTemplateColumns:'1.3fr 1fr auto',gap:10,alignItems:'end',padding:'8px 0',borderBottom:`1px solid ${C.border}`}}>
-            <div><Lbl ch="입면"/>
-              <select value={z.face||'F'} onChange={e=>setZones(s=>s.map(zz=>zz.id===z.id?{...zz,face:e.target.value}:zz))} style={{width:'100%',border:`1px solid ${C.borderDark}`,background:C.white,fontSize:12,color:C.ink,outline:'none',padding:'6px 8px'}}>
-                {FACES.map(fc=><option key={fc.id} value={fc.id}>{fc.ko}</option>)}
-                <option value="ETC">기타</option>
-              </select>
-            </div>
-            <NF label="모듈 수" unit="개" value={z.moduleCount} onChange={v=>setZones(s=>s.map(zz=>zz.id===z.id?{...zz,moduleCount:Math.max(0,Math.round(v))}:zz))}/>
-            <div style={{display:'flex',gap:6,alignItems:'end'}}>
-              {frames.length>1
-                ?<div><Lbl ch="프레임"/><select value={z.frameId||(frames[0]&&frames[0].id)} onChange={e=>setZones(s=>s.map(zz=>zz.id===z.id?{...zz,frameId:e.target.value}:zz))} style={{border:`1px solid ${C.borderDark}`,background:C.white,fontSize:11,color:C.ink,padding:'6px 8px',outline:'none'}}>{frames.map(fr=><option key={fr.id} value={fr.id}>{fr.name}</option>)}</select></div>
-                :<div style={{minWidth:20}}/>}
-              <button onClick={()=>setZones(s=>s.length>1?s.filter(zz=>zz.id!==z.id):s)} disabled={zones.length<=1} style={{background:'transparent',border:`1px solid ${C.border}`,color:C.red,padding:'6px 7px',fontSize:10,opacity:zones.length<=1?0.3:1,cursor:zones.length<=1?'not-allowed':'pointer',marginBottom:1}}><IcoTr s={11}/></button>
-            </div>
-          </div>
-        ))}
-        <button onClick={()=>setZones(s=>[...s,{id:Date.now(),name:`입면 ${s.length+1}`,face:'F',moduleCount:12,frameId:(frames[0]&&frames[0].id)||'A'}])} style={{display:'flex',alignItems:'center',justifyContent:'center',gap:5,width:'100%',background:'transparent',border:`1px dashed ${C.border}`,color:C.sub,padding:'8px 0',fontSize:11,marginTop:10,cursor:'pointer'}}><IcoPl s={12}/> 입면 추가</button>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',borderTop:`1.5px solid ${C.ink}`,marginTop:10,paddingTop:8}}>
-          <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:12,letterSpacing:'.08em',color:C.ink}}>총 모듈</span>
-          <span style={{fontFamily:"'DM Mono',monospace",fontSize:13,color:C.amber,fontWeight:700}}>{fmt(zones.reduce((a,z)=>a+(z.moduleCount||0),0))}모듈</span>
-        </div>
-
-        <HR/>
-        <button onClick={()=>setShowE(s=>!s)} style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'transparent',border:'none',padding:'4px 0',width:'100%',marginBottom:showE?14:0}}>
-          <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:12,letterSpacing:'.1em',color:C.sub}}>ENERGY · PRICE PARAMETERS</span>
-          <IcoDn s={15} rot={showE?180:0}/>
-        </button>
-        {showE&&<div style={{background:C.panel,padding:14,display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px 14px'}}>
-          <NF label="기준 EUI kWh/㎡·년" value={E.eui} onChange={v=>setE(s=>({...s,eui:v}))} step={10}/>
-          <NF label="전기요금 원/kWh" value={E.elec} onChange={v=>setE(s=>({...s,elec:v}))} step={10}/>
-        </div>}
-      </div>
-
-      {/* right */}
-      <div>
-        <SH code="SIMULATION RESULT" sub="전체 종합" tag="result"/>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:0,borderLeft:`1.5px solid ${C.border}`,marginBottom:28}}>
-          {[{c:'TOTAL COST',v:won(agg.total),s:`추가투자 ${won(Math.max(0,agg.total-agg.conventional))}`,acc:C.amber},
-            {c:'ENERGY SAVING',v:pct(agg.savedFrac),s:`연간 ${kwh(agg.saved)} 절감`,acc:C.green},
-            {c:'ANNUAL SAVING',v:won(agg.annualSave),s:`CO₂ ${(agg.co2/1000).toFixed(1)} tCO₂/년`,acc:C.green},
-            {c:'PAYBACK',v:agg.payback>0?`${agg.payback.toFixed(1)}Y`:'즉시',s:'추가투자 ÷ 연간절감',acc:C.ink}].map(k=>(
-            <div key={k.c} style={{padding:'0 20px 16px',borderRight:`1.5px solid ${C.border}`}}>
-              <Lbl ch={k.c}/>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:32,lineHeight:1.05,color:k.acc,marginBottom:4}}>{k.v}</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',border:`1px solid ${C.border}`}}>
+          {[{c:'TOTAL COST',ko:'총공사비',v:won(agg.execTotal),s:`재료 ${won(agg.matSub)}`,acc:C.amber},
+            {c:'ENERGY SAVING',ko:'에너지 절감률',v:pct(agg.savedFrac),s:`연간 ${kwh(agg.saved)}`,acc:C.green},
+            {c:'ANNUAL SAVING',ko:'연간 절감액',v:won(agg.annualSave),s:`CO₂ ${(agg.co2/1000).toFixed(1)} tCO₂/년`,acc:C.green},
+            {c:'PAYBACK',ko:'투자 회수',v:agg.payback>0?`${agg.payback.toFixed(1)}Y`:'즉시',s:'추가투자 ÷ 연간절감',acc:C.ink}].map((k,i)=>(
+            <div key={k.c} style={{padding:'14px 18px',borderRight:i<3?`1px solid ${C.border}`:'none'}}>
+              <div style={{fontFamily:FF.disp,fontSize:11,letterSpacing:'.07em',color:C.sub}}>{k.c}</div>
+              <div style={{fontSize:11,color:C.light,marginBottom:7}}>{k.ko}</div>
+              <div style={{fontFamily:FF.disp,fontSize:30,lineHeight:1.05,color:k.acc,marginBottom:3}}>{k.v}</div>
               <div style={{fontSize:10.5,color:C.light}}>{k.s}</div>
             </div>
           ))}
         </div>
+      </div>
 
-        <SH code="COST BREAKDOWN" sub="항목별 공사비" tag="result"/>
-        <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:20}}>
+      {/* ═══ 2. 공사비 구성 ═══ */}
+      <div style={{marginBottom:26}}>
+        <div style={{display:'flex',alignItems:'baseline',gap:10,borderBottom:`2px solid ${C.ink}`,paddingBottom:7,marginBottom:14,flexWrap:'wrap'}}>
+          <span style={{fontFamily:FF.disp,fontSize:18,letterSpacing:'.08em',color:C.ink}}>COST BREAKDOWN</span>
+          <span style={{fontSize:13,color:C.ink,fontWeight:600}}>공사비 구성</span>
+          <span style={{fontSize:11,color:C.sub,marginLeft:'auto'}}>항목별 · 실행률 포함</span>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:18}}>
           {costItems.map(it=>(
             <div key={it.c}>
               <div style={{display:'flex',justifyContent:'space-between',marginBottom:5}}>
-                <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,letterSpacing:'.06em',color:C.sub}}>{it.c}</span>
-                <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.ink}}>{won(it.v)}</span>
+                <span style={{fontFamily:FF.mono,fontSize:11,letterSpacing:'.04em',color:C.sub}}>{it.c}</span>
+                <span style={{fontFamily:FF.mono,fontSize:12,color:C.ink}}>{won(it.v)}</span>
               </div>
-              <div style={{height:3,background:C.panel}}><div style={{height:'100%',width:`${(it.v/cMax)*100}%`,background:it.col,transition:'width .3s'}}/></div>
+              <div style={{height:4,background:C.panel}}><div style={{height:'100%',width:`${(it.v/cMax)*100}%`,background:it.col,transition:'width .3s'}}/></div>
             </div>
           ))}
         </div>
-
-        <div style={{paddingTop:14,borderTop:`1.5px solid ${C.ink}`,display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
-          <div><Lbl ch="기존 커튼월"/><div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,color:C.sub}}>{won(agg.conventional)}</div></div>
-          <div><Lbl ch="FIT 총공사비"/><div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,color:C.amber}}>{won(agg.total)}</div></div>
-          <div><Lbl ch="추가 투자"/><div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,color:C.ink}}>{won(Math.max(0,agg.total-agg.conventional))}</div></div>
-        </div>
-
-        {/* SMART X GREEN PLUS */}
-        <HR/>
-        <Lbl ch="SMART X GREEN PLUS"/>
-        {[{l:'DOUBLE SKIN FACADE',v:OUTER_GLASS.find(g=>g.id===cFrame.outerGlassType)?.id==='high_spec'?10.5:9.6,on:true},
-          {l:`SKIN CARTRIDGE (${SKIN_CARTS.find(c=>c.id===cCrt.skinType)?.en||''})`,v:SKIN_CARTS.find(c=>c.id===cCrt.skinType)?.shade||0,on:cCrt.hasSkin&&cFrame.depth>=(SKIN_CARTS.find(c=>c.id===cCrt.skinType)?.minD||999)},
-          {l:'AIR HANDLING CARTRIDGE',v:8.5,on:hvacKind(cCrt).isCart&&cFrame.depth>=1000},
-          {l:'GRID — 채광 센서',v:1,on:cGrd.hasGrid&&cGrd.daylight},
-          {l:'OS — SUN TRACKING',v:1.5,on:cOs.hasOs&&cOs.sunTrack}].map(r=>(
-          <div key={r.l} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6,opacity:r.on?1:0.28}}>
-            <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.sub}}>{r.l}</span>
-            <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,color:r.on?C.green:C.light}}>-{r.v}%</span>
-          </div>
-        ))}
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',borderTop:`1.5px solid ${C.ink}`,paddingTop:8,marginTop:4}}>
-          <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,fontWeight:600}}>TOTAL REDUCTION</span>
-          <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:28,color:C.green}}>-{(agg.savedFrac*100).toFixed(1)}%</span>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,paddingTop:14,borderTop:`1px solid ${C.border}`}}>
+          {[{l:'기존 커튼월',v:won(agg.conventional),col:C.sub},
+            {l:'FIT 총공사비 (실행률 포함)',v:won(agg.execTotal),col:C.amber},
+            {l:'추가 투자',v:won(Math.max(0,agg.execTotal-agg.conventional)),col:C.ink}].map(x=>(
+            <div key={x.l}><div style={{fontSize:11,color:C.sub,marginBottom:3}}>{x.l}</div><div style={{fontFamily:FF.disp,fontSize:21,color:x.col}}>{x.v}</div></div>
+          ))}
         </div>
       </div>
+
+      {/* ═══ 3. 에너지 절감 ═══ */}
+      <div style={{marginBottom:26}}>
+        <div style={{display:'flex',alignItems:'baseline',gap:10,borderBottom:`2px solid ${C.ink}`,paddingBottom:7,marginBottom:14,flexWrap:'wrap'}}>
+          <span style={{fontFamily:FF.disp,fontSize:18,letterSpacing:'.08em',color:C.ink}}>SMART × GREEN PLUS</span>
+          <span style={{fontSize:13,color:C.ink,fontWeight:600}}>에너지 절감</span>
+          <span style={{fontSize:11,color:C.sub,marginLeft:'auto'}}>시스템별 절감 기여</span>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(148px,1fr))',gap:10,marginBottom:14}}>
+          {[{l:'DOUBLE SKIN FACADE',v:isSolarControl(cFrame)?10.5:9.6,on:true},
+            {l:`SKIN CARTRIDGE (${frameSkinSpec(cFrame,cCrt)?.en||'미적용'})`,v:frameSkinSpec(cFrame,cCrt)?.shade||0,on:cCrt.hasSkin&&!!frameSkinSpec(cFrame,cCrt)&&cFrame.depth>=(frameSkinSpec(cFrame,cCrt)?.minD||999)},
+            {l:'AIR HANDLING CARTRIDGE',v:8.5,on:hvacKind(cCrt).isCart&&cFrame.depth>=1000},
+            {l:'GRID — 채광 센서',v:1,on:cGrd.hasGrid&&cGrd.daylight},
+            {l:'OS — SUN TRACKING',v:1.5,on:cOs.hasOs&&cOs.sunTrack}].map(r=>(
+            <div key={r.l} style={{border:`1px solid ${r.on?C.green:C.border}`,background:r.on?C.greenLt:C.panel,padding:'10px 12px',opacity:r.on?1:0.5}}>
+              <div style={{fontFamily:FF.mono,fontSize:9.5,color:C.sub,marginBottom:5,lineHeight:1.35,minHeight:26}}>{r.l}</div>
+              <div style={{fontFamily:FF.disp,fontSize:21,color:r.on?C.green:C.light}}>-{r.v}%</div>
+            </div>
+          ))}
+        </div>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',borderTop:`1.5px solid ${C.ink}`,paddingTop:8}}>
+          <span style={{fontFamily:FF.disp,fontSize:13,letterSpacing:'.06em',color:C.ink}}>TOTAL REDUCTION · 총 절감률</span>
+          <span style={{fontFamily:FF.disp,fontSize:28,color:C.green}}>-{(agg.savedFrac*100).toFixed(1)}%</span>
+        </div>
+      </div>
+
+      {/* ═══ 4. 적용 물량 검토 (읽기전용) ═══ */}
+      <div style={{marginBottom:8}}>
+        <div style={{display:'flex',alignItems:'baseline',gap:10,borderBottom:`2px solid ${C.ink}`,paddingBottom:7,marginBottom:14,flexWrap:'wrap'}}>
+          <span style={{fontFamily:FF.disp,fontSize:18,letterSpacing:'.08em',color:C.ink}}>QUANTITY REVIEW</span>
+          <span style={{fontSize:13,color:C.ink,fontWeight:600}}>적용 물량 검토</span>
+          <span style={{fontSize:11,color:C.sub,marginLeft:'auto'}}>조닝·모듈 — 입력·조정은 PLAN 탭</span>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
+          <div style={{border:`1px solid ${C.border}`}}>
+            <div style={{background:C.panel,padding:'8px 14px',display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+              <span style={{fontFamily:FF.disp,fontSize:12,letterSpacing:'.06em',color:C.ink}}>ZONES · 조닝</span>
+              <span style={{fontFamily:FF.mono,fontSize:11,color:C.sub}}>존당 {fmt(C_.zonePer||zonePer||165)}㎡</span>
+            </div>
+            {((C_.floorZones||floorZones)||[]).map((g,i)=>{const nf=Math.max(1,(g.to||1)-(g.from||1)+1);const zc=Math.max(1,Math.ceil((g.areaM2||0)/(C_.zonePer||zonePer||165)))*nf;return(
+              <div key={i} style={{display:'flex',justifyContent:'space-between',gap:8,padding:'6px 14px',borderTop:`1px solid ${C.border}`,fontSize:11.5}}>
+                <span style={{color:C.ink,fontWeight:600,minWidth:54}}>{g.part}</span>
+                <span style={{color:C.sub,fontFamily:FF.mono,flex:1,textAlign:'center'}}>{g.from}~{g.to}F · {fmt(g.areaM2)}㎡/층</span>
+                <span style={{color:C.green,fontFamily:FF.mono,fontWeight:700}}>{fmt(zc)}존</span>
+              </div>);})}
+            <div style={{display:'flex',justifyContent:'space-between',padding:'8px 14px',borderTop:`1.5px solid ${C.ink}`,fontSize:12}}>
+              <span style={{fontWeight:700}}>합계</span>
+              <span style={{fontFamily:FF.mono}}>{fmt(Math.round(agg.totalM2))}㎡ · <span style={{color:C.green,fontWeight:700}}>{fmt(agg.zoneCount)}존</span></span>
+            </div>
+          </div>
+          <div style={{border:`1px solid ${C.border}`}}>
+            <div style={{background:C.panel,padding:'8px 14px'}}><span style={{fontFamily:FF.disp,fontSize:12,letterSpacing:'.06em',color:C.ink}}>MODULES · 입면별 모듈</span></div>
+            {((C_.zones||zones)||[]).map((z,i)=>{const fr=((C_.frames||frames)||[]).find(x=>x.id===z.frameId);return(
+              <div key={i} style={{display:'flex',justifyContent:'space-between',gap:8,padding:'6px 14px',borderTop:`1px solid ${C.border}`,fontSize:11.5}}>
+                <span style={{color:C.ink,fontWeight:600,minWidth:54}}>{FACE_KO[z.face]||z.name||z.face}</span>
+                <span style={{color:C.sub,fontFamily:FF.mono,flex:1,textAlign:'center'}}>{fr?fr.name:'-'}</span>
+                <span style={{color:C.amber,fontFamily:FF.mono,fontWeight:700}}>{fmt(z.moduleCount)}모듈</span>
+              </div>);})}
+            <div style={{display:'flex',justifyContent:'space-between',padding:'8px 14px',borderTop:`1.5px solid ${C.ink}`,fontSize:12}}>
+              <span style={{fontWeight:700}}>총 모듈</span>
+              <span style={{fontFamily:FF.mono,color:C.amber,fontWeight:700}}>{fmt(agg.modTotal)}모듈</span>
+            </div>
+          </div>
+        </div>
+        <div style={{display:'flex',gap:18,fontSize:11,color:C.sub,marginTop:12,flexWrap:'wrap'}}>
+          <span>기준 EUI <b style={{color:C.ink,fontFamily:FF.mono}}>{fmt((C_.E||E).eui)}</b> kWh/㎡·년</span>
+          <span>전기요금 <b style={{color:C.ink,fontFamily:FF.mono}}>{fmt((C_.E||E).elec)}</b> 원/kWh</span>
+          <span style={{color:C.light,marginLeft:'auto'}}>※ 조닝·모듈·에너지 파라미터 입력은 PLAN(계획안 작성) 탭으로 이관</span>
+        </div>
       </div>
     </div>
   );
 }
 
 /* ═══ FRAME TAB ═══ */
-function FrameTab({f,setF,crt,frames,activeFrameId,setActiveFrameId,setFrames,planMeta}){
+function FrameTab({f,setF,crt,frames,activeFrameId,setActiveFrameId,setFrames,planMeta,FD}){
   const sec=useMemo(()=>frameSection(f),[f]);
   const pf=k=>v=>setF(s=>({...s,[k]:v}));
   const addType=()=>{
@@ -797,12 +967,29 @@ function FrameTab({f,setF,crt,frames,activeFrameId,setActiveFrameId,setFrames,pl
         <div style={{marginBottom:16}}><Lbl ch="외부 프레임 타입 (견적)"/><ChoiceGrid options={[{id:'유리',label:'유리 타입',sub:'OUT FRAME · MPS-013'},{id:'키넥티',label:'키넥티 타입',sub:'OUT FRAME · MPS-016'}]} value={f.engineFrameType} onChange={pf('engineFrameType')} cols={2}/></div>
 
         <HR/>
-        <div style={{marginBottom:16}}><Lbl ch="외부유리 사양 (a)"/><ChoiceGrid options={OUTER_GLASS.map(g=>({id:g.id,label:g.label,sub:g.sub}))} value={f.outerGlassType} onChange={pf('outerGlassType')} cols={2}/></div>
-        <p style={{fontSize:10,color:C.light,marginBottom:16,lineHeight:1.6}}>※ 유리 두께는 구조계산값(건물높이·풍하중·유리규격)에 따라 결정되며 단가에 연동됩니다. 풍하중 계산 결과 제공 가능.</p>
-
-        <div style={{marginBottom:16}}><Lbl ch="내부유리 타입 (b)"/><ChoiceGrid options={INNER_GLASS_TYPE} value={f.innerGlassType} onChange={pf('innerGlassType')}/></div>
-        <p style={{fontSize:10,color:C.light,marginBottom:16,lineHeight:1.6}}>※ 내부유리 풍하중은 외부유리 대비 1/2 적용.</p>
-        <div style={{marginBottom:16}}><Lbl ch="내부유리 성능 (c) — 단열 등급"/><ChoiceGrid options={INNER_GLASS_PERF} value={f.innerGlassPerf} onChange={pf('innerGlassPerf')}/></div>
+        {/* 유리 — ADMIN '유리 단가(종류별)' 카탈로그 직결. 여기서 고른 항목이 견적단가에 직접 반영 */}
+        {(()=>{
+          const outerItems=glassCatGroup(FD,'jh').items.filter(it=>it.key);
+          const innerItems=glassCatGroup(FD,'bc').items.filter(it=>it.key);
+          const autoThick=f.floors>10?'17.52T':'13.52T';
+          const curOuter=f.outerGlassSel||(outerItems.find(it=>it.key==='외부접합_'+autoThick&&it.preset==='중간')||outerItems[0]||null);
+          const curInner=f.innerGlassSel||(innerItems.find(it=>it.preset==='중간')||innerItems[0]||null);
+          const oid=curOuter?(curOuter.key+'|'+(curOuter.grade||curOuter.preset)):'';
+          const iid=curInner?(curInner.key+'|'+(curInner.grade||curInner.preset)):'';
+          const pick=(field,items)=>id=>{const it=items.find(x=>(x.key+'|'+x.preset)===id);if(it)setF(s=>({...s,[field]:{key:it.key,price:it.price,name:it.name,grade:it.preset}}));};
+          const efx=(FD&&FD.energy_factors)||{};
+          return(<>
+            <div style={{marginBottom:8}}><Lbl ch="외부 접합유리 (ADMIN 카탈로그)"/>
+              <ChoiceGrid options={outerItems.map(it=>({id:it.key+'|'+it.preset,label:it.name,sub:won(it.price)+'/㎡'}))} value={oid} onChange={pick('outerGlassSel',outerItems)} cols={2}/></div>
+            <p style={{fontSize:10,color:C.light,marginBottom:16,lineHeight:1.6}}>※ 두께(13.52/17.52T)는 구조(층수·풍하중)로 결정 — 현재 {f.floors}F → 자동 {autoThick}. 종류·단가는 <b>ADMIN「유리 단가(종류별)」</b>에서 관리되며 선택 즉시 견적 반영.</p>
+            <div style={{marginBottom:8}}><Lbl ch="내부 복층유리 (ADMIN 카탈로그)"/>
+              <ChoiceGrid options={innerItems.map(it=>({id:it.key+'|'+it.preset,label:it.name,sub:won(it.price)+'/㎡'}))} value={iid} onChange={pick('innerGlassSel',innerItems)} cols={2}/></div>
+            <div style={{marginBottom:14}}>
+              <Toggle on={isSolarControl(f)} onClick={()=>setF(s=>({...s,solarControl:!isSolarControl(s)}))} label="고사양 일사차폐 유리" sub={`외피 에너지 절감계수 ${Math.round(((efx.env_high??0.105))*1000)/10}% 적용 (일반 ${Math.round(((efx.env_std??0.096))*1000)/10}%)`}/>
+            </div>
+            <p style={{fontSize:10,color:C.light,marginBottom:8,lineHeight:1.6}}>※ 단열시트·진공단열패널·단판유리(스팬드럴/백패널)는 ADMIN 카탈로그 단가가 자동 반영됩니다. 일사차폐 등급은 단가가 아닌 에너지 계수에만 영향.</p>
+          </>);
+        })()}
       </div>
 
       {/* section diagram */}
@@ -829,43 +1016,45 @@ function FrameTab({f,setF,crt,frames,activeFrameId,setActiveFrameId,setFrames,pl
   );
 }
 
-/* ═══ SKIN CARTRIDGE TAB ═══ */
-function SkinTab({frames,crt,setCrt,FD}){
-  const pc=k=>v=>setCrt(s=>({...s,[k]:v}));
-  const sel=SKIN_CARTS.find(c=>c.id===crt.skinType)||SKIN_CARTS[1];
+/* ═══ SKIN CARTRIDGE TAB ═══ 프레임 타입별 루버 개별 지정 */
+const SKIN_NONE={id:'none',label:'미적용',en:'No Louver',minD:0,maxD:99999,shade:0};
+function SkinTab({frames,crt,setCrt,setFrames,FD}){
+  const setFrameSkin=(fid,id)=>setFrames(fs=>fs.map(fr=>fr.id===fid?{...fr,skinType:id}:fr));
+  const opts=[SKIN_NONE,...SKIN_CARTS];
   return(
-    <div style={{maxWidth:900,margin:'0 auto',padding:'28px 32px'}}>
-      <SH code="SKIN CARTRIDGE" sub="전동 차양 — 스킨카트리지" tag="input"/>
-      <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:20}}>
-        {frames.map(fr=>{const ok=fr.depth>=sel.minD&&fr.depth<=sel.maxD;return(
-          <div key={fr.id} style={{padding:'8px 12px',border:`1px solid ${ok?C.green:C.border}`,background:ok?C.greenLt:C.panel}}>
-            <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:12,letterSpacing:'.04em',color:C.ink}}>{fr.name}</span>
-            <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.sub,marginLeft:8}}>D{fr.depth}</span>
-            <span style={{fontSize:9,marginLeft:8,color:ok?C.green:C.red}}>{ok?'적용가능':'깊이부족'}</span>
-          </div>);})}
-      </div>
-      <Toggle on={crt.hasSkin} onClick={()=>pc('hasSkin')(!crt.hasSkin)} label="스킨카트리지 적용" sub="전동 차양을 이중외피 내 설치 · 각 존의 프레임 타입 깊이에 따라 자동 적용"/>
+    <div style={{maxWidth:920,margin:'0 auto',padding:'28px 32px'}}>
+      <SH code="SKIN CARTRIDGE" sub="전동 차양 — 프레임 타입별 루버" tag="input"/>
+      <Toggle on={crt.hasSkin} onClick={()=>setCrt(s=>({...s,hasSkin:!s.hasSkin}))} label="스킨카트리지 적용" sub="전동 차양을 이중외피 내 설치 · 프레임 타입마다 루버 종류를 다르게 지정 · 비용·에너지 절감은 타입별로 합산"/>
       {crt.hasSkin&&(
-        <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:10}}>
-          {SKIN_CARTS.map(c=>{
-            const on=crt.skinType===c.id;
+        <div style={{marginTop:16,display:'flex',flexDirection:'column',gap:16}}>
+          {frames.map(fr=>{
+            const cur=fr.skinType||crt.skinType||'venetian';
             return(
-              <button key={c.id} onClick={()=>pc('skinType')(c.id)} style={{display:'flex',alignItems:'center',gap:14,width:'100%',textAlign:'left',padding:'14px 16px',
-                border:`1.5px solid ${on?C.ink:C.border}`,background:on?C.ink:C.white,transition:'all .15s'}}>
-                <span style={{width:20,height:20,borderRadius:'50%',border:`1.5px solid ${on?C.white:C.borderDark}`,display:'grid',placeItems:'center',background:on?C.white:'transparent',flexShrink:0}}>
-                  {on&&<span style={{width:8,height:8,borderRadius:'50%',background:C.ink,display:'block'}}/>}
-                </span>
-                <span style={{flex:1}}>
-                  <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,letterSpacing:'.06em',color:on?C.white:C.ink}}>{c.label}</span>
-                  <span style={{display:'block',fontSize:10.5,color:on?'#ccc':C.light,fontFamily:"'DM Mono',monospace",marginTop:2}}>{c.en} · 적용범위 {c.minD}~{c.maxD}mm · 차양효과 -{c.shade}%</span>
-                </span>
-                <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:on?C.white:C.amber}}>{won(skinP(c,FD))}/대</span>
-              </button>
+              <div key={fr.id} style={{border:`1px solid ${C.border}`,background:C.panel,padding:'14px 16px'}}>
+                <div style={{display:'flex',alignItems:'baseline',gap:10,marginBottom:10}}>
+                  <span style={{fontFamily:FF.disp,fontSize:15,letterSpacing:'.05em',color:C.ink}}>{fr.name}</span>
+                  <span style={{fontFamily:FF.mono,fontSize:11,color:C.sub}}>W{fr.frameWidth} · D{fr.depth}</span>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(225px,1fr))',gap:8}}>
+                  {opts.map(c=>{
+                    const on=cur===c.id; const ok=c.id==='none'||(fr.depth>=c.minD&&fr.depth<=c.maxD);
+                    return(
+                      <button key={c.id} onClick={()=>ok&&setFrameSkin(fr.id,c.id)} disabled={!ok} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,padding:'9px 12px',border:`1.5px solid ${on?C.ink:C.border}`,background:on?C.ink:ok?C.white:C.panel,color:on?C.white:ok?C.ink:C.light,opacity:ok?1:0.45,cursor:ok?'pointer':'not-allowed',textAlign:'left'}}>
+                        <span style={{display:'flex',flexDirection:'column',minWidth:0}}>
+                          <span style={{fontFamily:FF.disp,fontSize:12.5,letterSpacing:'.04em',whiteSpace:'nowrap'}}>{c.label}</span>
+                          <span style={{fontSize:9.5,fontFamily:FF.mono,color:on?'#ccc':C.light,marginTop:1}}>{c.id==='none'?'차양 미적용':`D${c.minD}~${c.maxD} · -${c.shade}%`}</span>
+                        </span>
+                        {c.id!=='none'&&<span style={{fontFamily:FF.mono,fontSize:11,color:on?C.white:C.amber,whiteSpace:'nowrap'}}>{won(skinP(c,FD))}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </div>
       )}
-      <p style={{fontSize:10,color:C.light,marginTop:14,lineHeight:1.7}}>※ 선택한 스킨카트리지는 적용범위(깊이)를 만족하는 프레임 타입의 존에만 자동 반영됩니다. 깊이가 부족한 타입의 존은 차양 미적용으로 계산됩니다.</p>
+      <p style={{fontSize:10,color:C.light,marginTop:14,lineHeight:1.7}}>※ 프레임 타입마다 루버를 개별 지정합니다. 적용범위(깊이)를 벗어나는 루버는 선택 불가하며, 「미적용」 또는 깊이 부족 타입의 존은 차양 미적용으로 계산됩니다. SKIN 비용·차양효과는 프레임 타입별 모듈 수량으로 합산됩니다.</p>
     </div>
   );
 }
@@ -1084,6 +1273,7 @@ function OsTab({os,setOs}){
       </p>
 
       <Toggle on={os.hasOs} onClick={()=>po('hasOs')(!os.hasOs)} label="FIT OS 적용" sub="FRAME · CARTRIDGE · GRID 통합 제어 플랫폼"/>
+      <div style={{marginTop:10}}><Toggle on={os.me} onClick={()=>po('me')(!os.me)} label="M&E 추가 공사범위 (엑세스플로어 · 복사패널)" sub="바닥면적 기준 — 견적 재료비에 포함 (#견적 M&E 참고가)"/></div>
 
       {os.hasOs&&(
         <div style={{display:'flex',flexDirection:'column',gap:20,marginTop:20}}>
@@ -1117,7 +1307,6 @@ function OsTab({os,setOs}){
 /* ═══ COST LINE ITEMS (엔진 기반) ═══ */
 function costLines(zones,floorZones,frames,crt,grd,os,P,FD,zonePer){
   const zPer=zonePer||165;
-  const skinSpec=SKIN_CARTS.find(c=>c.id===crt.skinType)||SKIN_CARTS[1];
   const byTypeQty={};
   zones.forEach(z=>{const fr=zoneFrame(z,frames);byTypeQty[fr.id]=(byTypeQty[fr.id]||0)+(z.moduleCount||0);});
   const byType=Object.keys(byTypeQty).map(fid=>{const fr=frames.find(x=>x.id===fid)||frames[0];const qty=byTypeQty[fid];return{fr,qty,est:frameEstimate(fr,qty,FD)};});
@@ -1126,15 +1315,16 @@ function costLines(zones,floorZones,frames,crt,grd,os,P,FD,zonePer){
   const samooConstr=byType.reduce((s,t)=>s+(t.est?t.est.samoo["공사가"]:0),0);
   const mc=zones.reduce((s,z)=>s+(z.moduleCount||0),0);
   const repFr=(zones[0]&&zoneFrame(zones[0],frames))||frames[0]||{};
-  const skinOk=crt.hasSkin&&repFr.depth>=skinSpec.minD;
   const hk=hvacKind(crt);
   const hvacOk=hk.isCart&&repFr.depth>=1000;
   const fz=Array.isArray(floorZones)?floorZones:[];
   let zoneCount=0,totalM2=0; fz.forEach(g=>{const nf=Math.max(1,(g.to||1)-(g.from||1)+1);const a=Math.max(0,g.areaM2||0);zoneCount+=Math.max(1,Math.ceil(a/zPer))*nf;totalM2+=a*nf;});
-  const skinN=skinOk?mc:0, hvacN=hvacOk?zoneCount:0;
+  /* 스킨카트리지 = 프레임 타입별 루버 — 적용 가능(깊이) 타입만 합산 */
+  const skinRows=byType.map(t=>{const sp=frameSkinSpec(t.fr,crt);return (crt.hasSkin&&sp&&t.fr.depth>=sp.minD)?{fr:t.fr,sp,qty:t.qty}:null;}).filter(Boolean);
+  const skinN=skinRows.reduce((s,r)=>s+r.qty,0), hvacN=hvacOk?zoneCount:0;
   let conventional=0; zones.forEach(z=>{const fr=zoneFrame(z,frames);conventional+=(fr.frameWidth/1000)*(fr.frameHeight/1000)*(z.moduleCount||0)*P.pConv;});
   const cart=[];
-  if(skinN>0)cart.push({item:'스킨카트리지',spec:skinSpec.label,unit:'대',qty:skinN,price:skinP(skinSpec,FD),amt:skinN*skinP(skinSpec,FD)});
+  skinRows.forEach(r=>cart.push({item:'스킨카트리지',spec:`${r.fr.name} · ${r.sp.label}`,unit:'대',qty:r.qty,price:skinP(r.sp,FD),amt:r.qty*skinP(r.sp,FD)}));
   if(hvacN>0){
     const baseP=hk.ceil?(P.pHvacCeil||P.pHvac):P.pHvac;
     cart.push({item:hk.ceil?'천장형 공조카트리지':'바닥형 공조카트리지',spec:`분산 공조기 (${zPer}㎡/존)`,unit:'대',qty:hvacN,price:baseP,amt:hvacN*baseP});
@@ -1144,7 +1334,7 @@ function costLines(zones,floorZones,frames,crt,grd,os,P,FD,zonePer){
     if(o.uv)cart.push({item:'UV 필터',spec:'선택옵션',unit:'대',qty:hvacN,price:P.pUv||0,amt:hvacN*(P.pUv||0)});
     if(hk.kind==='floor'){
       const ft=crt.floorType||'iso';
-      if(ft==='iso')cart.push({item:'FTU (등압식)',spec:'바닥 취출',unit:'㎡',qty:Math.round(totalM2),price:P.pFtu||0,amt:totalM2*(P.pFtu||0)});
+      if(ft==='iso'){const ftuN=zoneCount*(P.pFtuPerZone||12);cart.push({item:'FTU (등압식)',spec:`바닥 취출 (존당 ${P.pFtuPerZone||12}개)`,unit:'개',qty:ftuN,price:P.pFtu||0,amt:ftuN*(P.pFtu||0)});}
       else if((crt.presDiff||'circ')==='front')cart.push({item:'전면취출 바닥공조 (가압식)',spec:'전면 취출구',unit:'㎡',qty:Math.round(totalM2),price:P.pDiffFront||0,amt:totalM2*(P.pDiffFront||0)});
       else cart.push({item:'원형디퓨져 (가압식)',spec:'원형 디퓨저',unit:'㎡',qty:Math.round(totalM2),price:P.pDiffCirc||0,amt:totalM2*(P.pDiffCirc||0)});
     }
@@ -1160,14 +1350,28 @@ function costLines(zones,floorZones,frames,crt,grd,os,P,FD,zonePer){
   const gridSub=grid.reduce((s,x)=>s+x.amt,0);
   const osArr=[];
   if(os.hasOs){
-    osArr.push({item:'FIT OS 기본',spec:'통합 제어 플랫폼',unit:'식',qty:1,price:P.pOsBase,amt:P.pOsBase});
+    osArr.push({item:'FIT OS 고정',spec:'CCMS·서버·HUB·UPS',unit:'식',qty:1,price:P.osZoneFixed||0,amt:P.osZoneFixed||0});
+    if((P.osZoneMat||0)>0)osArr.push({item:'OS 조닝 장비·자재',spec:'ICT·센서·공사자재 (조닝당)',unit:'존',qty:zoneCount,price:P.osZoneMat||0,amt:zoneCount*(P.osZoneMat||0)});
     if(os.sunTrack)osArr.push({item:'태양 추적 제어',spec:'Sun Tracking',unit:'식',qty:1,price:P.pOsSun,amt:P.pOsSun});
     if(os.energy)osArr.push({item:'에너지 모니터링',spec:'Dashboard',unit:'식',qty:1,price:P.pOsEnergy,amt:P.pOsEnergy});
     if(os.bms)osArr.push({item:'BMS 연동',spec:'API Integration',unit:'식',qty:1,price:P.pOsBms,amt:P.pOsBms});
-  }
+  } /* OS 노무(조닝당×존수×조닝할인)는 laborSub로 별도 집계 */
   const osSub=osArr.reduce((s,x)=>s+x.amt,0);
-  const total=frameGlassTotal+cartSub+gridSub+osSub;
-  return{byType,frameGlassTotal,samooDeliver,samooConstr,cart,cartSub,compare,compareSub,hvSys:hk.sys,grid,gridSub,os:osArr,osSub,total,conventional,mc,hvacN,skinN,zoneCount};
+  const me=[]; /* M&E 추가 공사범위 (os.me 토글) — 바닥면적 기준 */
+  if(os.me&&FD&&FD.me_prices){const mp=FD.me_prices;
+    if(mp.엑세스플로어)me.push({item:'엑세스플로어',spec:'M&E · 바닥',unit:'㎡',qty:Math.round(totalM2),price:mp.엑세스플로어,amt:totalM2*mp.엑세스플로어});
+    if(mp.복사패널)me.push({item:'복사패널',spec:'M&E · 복사냉난방',unit:'㎡',qty:Math.round(totalM2),price:mp.복사패널,amt:totalM2*mp.복사패널});}
+  const meSub=me.reduce((s,x)=>s+x.amt,0);
+  const total=frameGlassTotal+cartSub+gridSub+osSub+meSub;
+  /* ── 재료/노무/경비 3분할 + 실행률(삼우 간접비) ── 단가=P, 실행률=FD.exec_rate. total=재료비 합 */
+  const matSub=total;
+  const osLaborDisc=zoneLaborDiscount(FD,zoneCount); /* OS·제어 노무 조닝수 할인 */
+  const laborSub=mc*(P.pFrameLabor||0)+skinN*(P.pSkinLabor||0)+hvacN*(P.pHvacLabor||0)+(grd.hasGrid?mc*(P.pGridLabor||0):0)+(os.hasOs?zoneCount*(P.osZoneLabor||0)*osLaborDisc:0); /* OS 노무=조닝당×존수×조닝할인 */
+  const expSub=mc*(P.pFrameExp||0)+skinN*(P.pSkinExp||0)+hvacN*(P.pHvacExp||0)+(grd.hasGrid?mc*(P.pGridExp||0):0)+(os.hasOs?(P.pOsExp||0):0);
+  const er=(FD&&FD.exec_rate)||{재료:1.3,노무:1.5,경비:1.5};
+  const directSub=matSub+laborSub+expSub;
+  const execTotal=Math.round(matSub*(er.재료||1)+laborSub*(er.노무||1)+expSub*(er.경비||1));
+  return{byType,frameGlassTotal,samooDeliver,samooConstr,cart,cartSub,compare,compareSub,hvSys:hk.sys,grid,gridSub,os:osArr,osSub,me,meSub,osLaborDisc,total,matSub,laborSub,expSub,directSub,execTotal,er,conventional,mc,hvacN,skinN,zoneCount};
 }
 
 
@@ -1222,14 +1426,16 @@ function CostTab({zones,frames,crt,grd,os,P,setP,FD,setFD,committed,planMeta}){
           <div key={fr.id} style={{border:`1.5px solid ${C.ink}`,marginBottom:16}}>
             <div style={{background:C.ink,color:C.white,padding:'8px 14px',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:6}}>
               <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:'.06em'}}>{fr.name}</span>
-              <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:'#cfccc6'}}>{fmt(sm.W)}×{fmt(sm.H)}×{fmt(sm.D)} · {sm.glass_thickness} · {fmt(qty)}EA · 할증 {fmt(w.surcharge_kg)}kg/EA · 할인 ×{sm.discount_rate}</span>
+              <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:'#cfccc6'}}>{fmt(sm.W)}×{fmt(sm.H)}×{fmt(sm.D)} · {sm.glass_thickness} · {fmt(qty)}EA · 할증 {fmt(w.surcharge_kg)}kg/EA{w.surcharge_rate?` (수직·연결 ×${w.surcharge_rate})`:''} · 할인 ×{sm.discount_rate}</span>
             </div>
             <table><tbody>
               <Brow label="원자재비 (알루미늄)" v={cb["원자재비"]} note={`${w.surcharge_kg}kg × 단가/kg`}/>
               <Brow label="AZON비 (단열바)" v={cb["AZON비"]}/>
               <Brow label="GASKET비" v={cb["GASKET비"]}/>
               <Brow label="유리비" v={cb["유리비"]} note="구간별 면적 × 사양 단가"/>
-              <Brow label="가공비" v={cb["가공비"]}/>
+              <Brow label="부속자재비" v={cb["부속자재비"]} note="Fastener·Structure Plate·EGI·ROLLER 등"/>
+              <Brow label="가공·조립비" v={cb["가공비"]} note={`${w.surcharge_kg}kg × 가공단가/kg`}/>
+              <Brow label="설치·부대비" v={cb["설치부대비"]} note="유리끼우기·화스너취부·코킹·포장운반"/>
               <Brow label="소계" v={cb["소계"]} strong/>
               <Brow label="관리이윤" v={cb["관리이윤"]}/>
               <Brow label="세트단가 (1개)" v={cb["세트단가_1개"]} strong/>
@@ -1255,12 +1461,12 @@ function CostTab({zones,frames,crt,grd,os,P,setP,FD,setFD,committed,planMeta}){
         <Brow label="FRAME + GLASS 합계 (전 타입)" v={L.frameGlassTotal} strong/>
       </tbody></table></div>
 
-      {(L.cart.length>0||L.grid.length>0||L.os.length>0)&&<>
-        <p style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:'.08em',color:C.ink,marginBottom:8}}>② CARTRIDGE · GRID · OS</p>
+      {(L.cart.length>0||L.grid.length>0||L.os.length>0||(L.me&&L.me.length>0))&&<>
+        <p style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:'.08em',color:C.ink,marginBottom:8}}>② CARTRIDGE · GRID · OS · M&E</p>
         <div style={{border:`1px solid ${C.border}`,marginBottom:20,overflowX:'auto'}}>
           <table>
             <thead><tr style={{borderBottom:`1.5px solid ${C.ink}`}}>{[['항목','left'],['규격','left'],['수량','right'],['단가','right'],['금액','right']].map(([h,a])=><th key={h} style={{padding:'8px 12px',textAlign:a,fontSize:10,fontFamily:"'Bebas Neue',sans-serif",letterSpacing:'.06em',color:C.sub,fontWeight:400}}>{h}</th>)}</tr></thead>
-            <tbody>{[...L.cart,...L.grid,...L.os].map((x,i)=><ARow key={i} x={x}/>)}</tbody>
+            <tbody>{[...L.cart,...L.grid,...L.os,...(L.me||[])].map((x,i)=><ARow key={i} x={x}/>)}</tbody>
           </table>
         </div>
       </>}
@@ -1275,9 +1481,17 @@ function CostTab({zones,frames,crt,grd,os,P,setP,FD,setFD,committed,planMeta}){
         </div>
       </>}
 
-      <div style={{background:C.ink,color:C.white,padding:'16px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-        <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:'.08em'}}>FIT 총 공사비</span>
-        <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:24}}>{won(L.total)}</span>
+      {/* 재료/노무/경비 3분할 + 실행률(삼우 간접비) 포함 총액 */}
+      <div style={{border:`1.5px solid ${C.ink}`,marginBottom:14}}><table style={{width:'100%'}}><tbody>
+        <Brow label="재료비 합계 (FRAME+GLASS · 카트리지 · 조명 · OS)" v={L.matSub}/>
+        <Brow label="노무비 합계" v={L.laborSub}/>
+        <Brow label="경비 합계" v={L.expSub}/>
+        <Brow label="직접공사비 합계 (재료 + 노무 + 경비)" v={L.directSub} strong/>
+      </tbody></table></div>
+      <div style={{background:C.ink,color:C.white,padding:'16px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,flexWrap:'wrap',gap:6}}>
+        <span><span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:'.08em'}}>실행률 포함 총액</span>
+          <span style={{fontSize:10.5,color:'#cfccc6',marginLeft:10}}>삼우 간접비 — 재료 ×{L.er.재료} · 노무 ×{L.er.노무} · 경비 ×{L.er.경비}</span></span>
+        <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:24}}>{won(L.execTotal)}</span>
       </div>
 
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:12,marginBottom:8}}>
@@ -1312,19 +1526,18 @@ function EnergyTab({zones,frames,f,crt,grd,os,E,P,FD,committed}){
   const C_=committed||{zones,frames,crt,grd,os,E,P};
   const cFrame=(C_.frames&&(C_.frames.find(x=>x.id===f.id)||C_.frames[0]))||f;
   const agg=useMemo(()=>zoneAgg(C_.zones,C_.floorZones,C_.frames,C_.crt,C_.grd,C_.os,C_.E,C_.P,FD,C_.zonePer),[committed,FD]);
-  const outerSpec=OUTER_GLASS.find(g=>g.id===cFrame.outerGlassType)||OUTER_GLASS[1];
-  const skinSpec=SKIN_CARTS.find(c=>c.id===C_.crt.skinType)||SKIN_CARTS[1];
+  const skinSpec=frameSkinSpec(cFrame,C_.crt); /* 현재 프레임의 루버 (없으면 null) */
   /* 절감 계수: FD.energy_factors(ADMIN 탭에서 조정). 기본값은 태평로빌딩 EnergyPlus 시뮬레이션(rev-05) */
   const ef=(FD&&FD.energy_factors)||{};
-  const envFac=outerSpec.id==='high_spec'?(ef.env_high??0.105):(ef.env_std??0.096);
-  const shadeFac=C_.crt.hasSkin&&cFrame.depth>=skinSpec.minD?skinSpec.shade/100:0;
+  const envFac=isSolarControl(cFrame)?(ef.env_high??0.105):(ef.env_std??0.096);
+  const shadeFac=(C_.crt.hasSkin&&skinSpec&&cFrame.depth>=skinSpec.minD)?skinSpec.shade/100:0;
   const hvacFac=(hvacKind(C_.crt).isCart&&cFrame.depth>=1000)?(ef.hvac??0.085):0; /* 에너지 절감계수는 카트리지(바닥/천장)만, 중앙·EHP·기타 제외 */
   const gridFac=C_.grd.hasGrid?((C_.grd.daylight?(ef.grid_daylight??0.01):0)+(C_.grd.dimming?(ef.grid_dimming??0.01):0)):0;
   const osFac=C_.os.hasOs?((C_.os.sunTrack?(ef.os_suntrack??0.015):0)+(C_.os.energy?(ef.os_energy??0.01):0)):0;
 
   const systems=[
     {code:'DOUBLE SKIN',ko:'이중외피',fac:envFac,on:true,mech:'내·외부 이중유리 사이의 공기층이 완충대(buffer zone) 역할을 하여 외기 열전달을 차단합니다. 고사양 일사차폐 유리 적용 시 효과가 커집니다.',col:C.blue},
-    {code:'SKIN CARTRIDGE',ko:'전동차양',fac:shadeFac,on:shadeFac>0,mech:`${skinSpec.label}가 일사를 능동적으로 차단해 여름철 냉방 부하를 줄입니다. 차양 종류에 따라 차폐 성능이 달라집니다.`,col:C.amber},
+    {code:'SKIN CARTRIDGE',ko:'전동차양',fac:shadeFac,on:shadeFac>0,mech:`${skinSpec?skinSpec.label:'전동 루버'}가 일사를 능동적으로 차단해 여름철 냉방 부하를 줄입니다. 차양 종류에 따라 차폐 성능이 달라집니다.`,col:C.amber},
     {code:'AIR HANDLING',ko:'공조카트리지',fac:hvacFac,on:hvacFac>0,mech:'공조기를 외피 내 분산 배치하여 급기 경로를 단축하고 존별 개별 제어로 불필요한 공조를 최소화합니다.',col:C.green},
     {code:'GRID',ko:'조명 (채광센서)',fac:gridFac,on:gridFac>0,mech:'채광 센서가 자연광 유입량을 감지해 인공조명을 자동 조절(daylight harvesting)하여 조명 에너지를 절감합니다.',col:'#5a3e7a'},
     {code:'OS',ko:'운영 시스템',fac:osFac,on:osFac>0,mech:'태양 추적 기반 차양 자동 제어와 에너지 모니터링으로 운영 단계의 낭비를 최적화합니다.',col:C.ink},
@@ -1463,7 +1676,7 @@ function renderPrompts(opt,fit,use,site,hasBase){
   };
 }
 function downloadBlob(blob,name){const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500);}
-function frameDefaults(id,name){return {id,name,frameHeight:4500,frameWidth:1200,depth:1200,H1:350,H2:800,H4:350,floors:10,engineFrameType:'유리',glassPreset:'시장단가_중간',frameType:'hidden',outerGlassType:'std_lam',innerGlassType:'standard',innerGlassPerf:'double'};}
+function frameDefaults(id,name){return {id,name,frameHeight:4500,frameWidth:1200,depth:1200,H1:350,H2:800,H4:350,floors:10,engineFrameType:'유리',glassPreset:'시장단가_중간',frameType:'hidden',solarControl:false,outerGlassSel:null,innerGlassSel:null,skinType:'venetian'};}
 function defaultProject(){
   return {
     projectName:'신규 프로젝트',
@@ -1474,9 +1687,11 @@ function defaultProject(){
     zones:[{id:1,name:'정면 입면',face:'F',moduleCount:24,frameId:'A'},{id:2,name:'우측면 입면',face:'R',moduleCount:14,frameId:'A'}],
     crt:{hasSkin:true,skinType:'venetian',hasHvac:true,hvacSys:'cart',cartKind:'floor',floorType:'iso',presDiff:'circ',hvacOpts:{erv:false,humid:false,uv:false}},
     grd:{hasGrid:false,type:'integrated',daylight:false,dimming:false,zoneCtrl:false,emergency:false,colorTemp:4000},
-    os:{hasOs:false,interface:'app',sunTrack:false,energy:false,comfort:false,bms:false,scheduler:false},
+    os:{hasOs:false,interface:'app',sunTrack:false,energy:false,comfort:false,bms:false,scheduler:false,me:false},
     E:{eui:250,elec:130},
-    P:{pFrame:85000,pSheet:60000,pHvac:12000000,pHvacCeil:14000000,pFtu:80000,pDiffCirc:60000,pDiffFront:90000,pErv:3000000,pHumid:1500000,pUv:800000,pEhp:250000,pCentral:300000,pEtc:200000,pConv:700000,pGrid:500000,pDaylight:200000,pDimming:100000,pOsBase:80000000,pOsSun:30000000,pOsEnergy:20000000,pOsBms:50000000},
+    P:{pFrame:85000,pSheet:60000,pHvac:35000000,pHvacCeil:38000000,pFtu:1500000,pFtuPerZone:12,pDiffCirc:60000,pDiffFront:90000,pErv:3000000,pHumid:1500000,pUv:800000,pEhp:250000,pCentral:300000,pEtc:200000,pConv:700000,pGrid:650000,pDaylight:200000,pDimming:100000,pOsBase:80000000,pOsSun:30000000,pOsEnergy:20000000,pOsBms:50000000,
+      pFrameLabor:500000,pFrameExp:200000,pSkinLabor:0,pSkinExp:0,pHvacLabor:0,pHvacExp:0,pGridLabor:0,pGridExp:0,pOsLabor:0,pOsExp:0,
+      osZoneFixed:16000000,osZoneMat:6000000,osZoneLabor:17500000},
     FD:FIT_DATA_DEFAULT
   };
 }
@@ -1489,9 +1704,9 @@ function projectResults(p){
     const L=costLines(p.zones,p.floorZones,frames,p.crt,p.grd,p.os,p.P,p.FD,p.zonePer);
     const modules=p.zones.reduce((s,z)=>s+(z.moduleCount||0),0);
     const m2=agg.totalM2||0;
-    return {total:L.total,frameGlass:L.frameGlassTotal,conventional:L.conventional,addInvest:Math.max(0,L.total-L.conventional),
+    return {total:L.execTotal,frameGlass:L.frameGlassTotal,conventional:L.conventional,addInvest:Math.max(0,L.execTotal-L.conventional),
       savedFrac:agg.savedFrac,annualSave:agg.annualSave,co2:agg.co2,payback:agg.payback,baseline:agg.baseline,optimized:agg.optimized,
-      modules,m2,zoneCount:agg.zoneCount,perM2:m2>0?L.total/m2:0};
+      modules,m2,zoneCount:agg.zoneCount,perM2:m2>0?L.execTotal/m2:0};
   }catch(e){return null;}
 }
 function projectOverview(p){
@@ -2583,7 +2798,7 @@ const PlanStep=({n,title,sub,mode,children})=>(
   </div>
 );
 
-function PlanTab({plan,setPlan,FD,setFD,applyPlan,toast,activeFrame,renders,setTab,aiRenderView,renderBusy,onRegisterCapture,autoStart,onAutoConsumed}){
+function PlanTab({plan,setPlan,FD,setFD,applyPlan,toast,activeFrame,renders,setTab,aiRenderView,renderBusy,onRegisterCapture,autoStart,onAutoConsumed,zones,setZones,floorZones,setFloorZones,zonePer,setZonePer,frames,E,setE}){
   const st=plan.site,tg=plan.targets,fit=plan.fit;
   const [planExtra,setPlanExtra]=useState('');
   const upd=(grp,k)=>v=>setPlan(p=>({...p,[grp]:{...p[grp],[k]:v}}));
@@ -2796,9 +3011,69 @@ function PlanTab({plan,setPlan,FD,setFD,applyPlan,toast,activeFrame,renders,setT
             </div>}
           </div>
         </div>
+        <HR/>
+        <Lbl ch="입면별 FIT 모듈 수량 (프레임 견적 기준 — 직접 조정)"/>
+        <p style={{fontSize:10.5,color:C.sub,marginBottom:8,lineHeight:1.6}}>매스·모듈폭 기준 산출값을 입면별로 직접 조정합니다. 수량·프레임 타입 변경은 하단 <b>적용 바</b>로 반영되어 종합분석·COST에 나타납니다.</p>
+        {(zones||[]).map(z=>(
+          <div key={z.id} style={{display:'grid',gridTemplateColumns:'1.3fr 1fr auto',gap:10,alignItems:'end',padding:'8px 0',borderBottom:`1px solid ${C.border}`}}>
+            <div><Lbl ch="입면"/>
+              <select value={z.face||'F'} onChange={e=>setZones(s=>s.map(zz=>zz.id===z.id?{...zz,face:e.target.value}:zz))} style={{width:'100%',border:`1px solid ${C.borderDark}`,background:C.white,fontSize:12,color:C.ink,outline:'none',padding:'6px 8px'}}>
+                {FACES.map(fc=><option key={fc.id} value={fc.id}>{fc.ko}</option>)}<option value="ETC">기타</option>
+              </select>
+            </div>
+            <NF label="모듈 수" unit="개" value={z.moduleCount} onChange={v=>setZones(s=>s.map(zz=>zz.id===z.id?{...zz,moduleCount:Math.max(0,Math.round(v))}:zz))}/>
+            <div style={{display:'flex',gap:6,alignItems:'end'}}>
+              {(frames||[]).length>1?<div><Lbl ch="프레임"/><select value={z.frameId||(frames[0]&&frames[0].id)} onChange={e=>setZones(s=>s.map(zz=>zz.id===z.id?{...zz,frameId:e.target.value}:zz))} style={{border:`1px solid ${C.borderDark}`,background:C.white,fontSize:11,color:C.ink,padding:'6px 8px',outline:'none'}}>{frames.map(fr=><option key={fr.id} value={fr.id}>{fr.name}</option>)}</select></div>:<div style={{minWidth:20}}/>}
+              <button onClick={()=>setZones(s=>s.length>1?s.filter(zz=>zz.id!==z.id):s)} disabled={(zones||[]).length<=1} style={{background:'transparent',border:`1px solid ${C.border}`,color:C.red,padding:'6px 7px',fontSize:10,opacity:(zones||[]).length<=1?0.3:1,cursor:(zones||[]).length<=1?'not-allowed':'pointer',marginBottom:1}}><IcoTr s={11}/></button>
+            </div>
+          </div>
+        ))}
+        <button onClick={()=>setZones(s=>[...s,{id:Date.now(),name:`입면 ${s.length+1}`,face:'F',moduleCount:12,frameId:(frames[0]&&frames[0].id)||'A'}])} style={{display:'flex',alignItems:'center',justifyContent:'center',gap:5,width:'100%',background:'transparent',border:`1px dashed ${C.border}`,color:C.sub,padding:'8px 0',fontSize:11,marginTop:10,cursor:'pointer'}}><IcoPl s={12}/> 입면 추가</button>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',borderTop:`1.5px solid ${C.ink}`,marginTop:10,paddingTop:8}}>
+          <span style={{fontFamily:FF.disp,fontSize:12,letterSpacing:'.08em',color:C.ink}}>총 모듈</span>
+          <span style={{fontFamily:FF.mono,fontSize:13,color:C.amber,fontWeight:700}}>{fmt((zones||[]).reduce((a,z)=>a+(z.moduleCount||0),0))}모듈</span>
+        </div>
       </Step>
 
-      <Step n="⑤" mode="result" title="QUANTITY · ESTIMATE" sub="수량 산출 + 개략 견적 — 모델 변경 시 준실시간 갱신">
+      <Step n="⑤" mode="input" title="ZONING" sub="공조·제어 조닝 — 층구간별 바닥면적 → 존수량">
+        <div style={{background:C.panel,padding:'10px 14px',marginBottom:14,display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+          <div style={{minWidth:160}}><NF label="존당 기준 바닥면적" unit="㎡/존" value={zonePer} step={10} min={10} onChange={v=>setZonePer(Math.max(10,v))}/></div>
+          <span style={{fontSize:10.5,color:C.sub,lineHeight:1.6,flex:1}}>각 층구간 <b>층당 바닥면적</b>을 이 기준으로 나눠 층별 존수량을 산정하고 적용층수를 곱합니다. 공조기·제어조닝 견적이 존수량 기준으로 산출됩니다.</span>
+        </div>
+        {(floorZones||[]).map((g,gi)=>{
+          const nf=Math.max(1,(g.to||1)-(g.from||1)+1), zPerFloor=Math.max(1,Math.ceil((g.areaM2||0)/(zonePer||165))), zc=zPerFloor*nf;
+          const setG=(patch)=>setFloorZones(s=>s.map((x,i)=>i===gi?{...x,...patch}:x));
+          return(
+          <div key={g.id||gi} style={{padding:'10px 0',borderBottom:`1px solid ${C.border}`}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+              <input value={g.part||''} onChange={e=>setG({part:e.target.value})} style={{fontWeight:700,fontSize:12.5,color:C.ink,border:'none',borderBottom:`1.5px solid ${C.border}`,background:'transparent',outline:'none',width:90,padding:'2px 0'}}/>
+              <span style={{flex:1}}/>
+              <span style={{fontSize:10,color:C.light}}>존수</span>
+              <span style={{fontFamily:FF.mono,fontSize:15,color:C.green,fontWeight:700}}>{fmt(zc)}<span style={{fontSize:9,color:C.light}}>존 ({fmt(zPerFloor)}/층×{nf}층)</span></span>
+              <button onClick={()=>setFloorZones(s=>s.length>1?s.filter((_,i)=>i!==gi):s)} disabled={(floorZones||[]).length<=1} style={{background:'transparent',border:`1px solid ${C.border}`,color:C.red,padding:'5px 7px',fontSize:10,opacity:(floorZones||[]).length<=1?0.3:1,cursor:(floorZones||[]).length<=1?'not-allowed':'pointer'}}><IcoTr s={11}/></button>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1.2fr',gap:10}}>
+              <NF label="시작층" unit="F" value={g.from} step={1} min={1} onChange={v=>setG({from:Math.max(1,Math.round(v))})}/>
+              <NF label="끝층" unit="F" value={g.to} step={1} min={1} onChange={v=>setG({to:Math.max(1,Math.round(v))})}/>
+              <NF label="층당 바닥면적" unit="㎡" value={g.areaM2} step={50} min={0} onChange={v=>setG({areaM2:Math.max(0,v)})}/>
+            </div>
+          </div>);
+        })}
+        <button onClick={()=>setFloorZones(s=>[...s,{id:'z'+Date.now(),part:`구간 ${s.length+1}`,from:1,to:1,areaM2:660}])} style={{display:'flex',alignItems:'center',justifyContent:'center',gap:5,width:'100%',background:'transparent',border:`1px dashed ${C.border}`,color:C.sub,padding:'8px 0',fontSize:11,marginTop:10,cursor:'pointer'}}><IcoPl s={12}/> 층구간 추가</button>
+        {(()=>{const tot=(floorZones||[]).reduce((a,g)=>a+Math.max(0,g.areaM2||0)*Math.max(1,(g.to||1)-(g.from||1)+1),0);const zc=(floorZones||[]).reduce((a,g)=>a+Math.max(1,Math.ceil((g.areaM2||0)/(zonePer||165)))*Math.max(1,(g.to||1)-(g.from||1)+1),0);return(
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',borderTop:`1.5px solid ${C.ink}`,marginTop:10,paddingTop:8}}>
+            <span style={{fontFamily:FF.disp,fontSize:12,letterSpacing:'.08em',color:C.ink}}>합계 연면적 · 존수</span>
+            <span style={{fontFamily:FF.mono,fontSize:13}}>{fmt(Math.round(tot))}㎡ · <span style={{color:C.green,fontWeight:700}}>{fmt(zc)}존</span></span>
+          </div>);})()}
+        <HR/>
+        <Lbl ch="에너지 파라미터"/>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px 14px',maxWidth:420}}>
+          <NF label="기준 EUI kWh/㎡·년" value={E.eui} onChange={v=>setE(s=>({...s,eui:v}))} step={10}/>
+          <NF label="전기요금 원/kWh" value={E.elec} onChange={v=>setE(s=>({...s,elec:v}))} step={10}/>
+        </div>
+      </Step>
+
+      <Step n="⑥" mode="result" title="QUANTITY · ESTIMATE" sub="수량 산출 + 개략 견적 — 모델 변경 시 준실시간 갱신">
         {qty&&qty.total>0?(
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
             <div style={{border:`1px solid ${C.border}`}}>
@@ -2835,12 +3110,12 @@ function PlanTab({plan,setPlan,FD,setFD,applyPlan,toast,activeFrame,renders,setT
         ):<p style={{fontSize:11,color:C.red}}>적용 입면이 없거나 모듈 수가 0입니다 — ④에서 입면·모듈 폭을 확인하세요.</p>}
       </Step>
 
-      <Step n="⑥" title="APPLY · VERSION" sub="프로젝트 연동 + 버전 관리 — 기획서 12.1">
+      <Step n="⑦" title="APPLY · VERSION" sub="프로젝트 연동 + 버전 관리 — 기획서 12.1">
         <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap'}}>
           <button onClick={apply} style={{background:C.green,color:C.white,border:'none',padding:'11px 26px',fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:'.08em',cursor:'pointer'}}>프로젝트에 적용 APPLY TO PROJECT</button>
           <button onClick={saveVersion} style={{background:'transparent',color:C.sub,border:`1px solid ${C.border}`,padding:'11px 18px',fontSize:12,cursor:'pointer'}}>버전 스냅샷 저장</button>
         </div>
-        <p style={{fontSize:10.5,color:C.sub,marginBottom:14,lineHeight:1.7}}>적용 시 — 모듈 폭×층고 프레임(TYPE A) 생성, 적용 입면별 존 구성, 스킨카트리지 설정 반영 후 PLATFORM 탭으로 이동합니다. 기존 작업 중 프레임·존은 대체됩니다.</p>
+        <p style={{fontSize:10.5,color:C.sub,marginBottom:14,lineHeight:1.7}}>적용 시 — 모듈 폭×층고 프레임(TYPE A) 생성, 적용 입면별 모듈·존 자동 구성, 스킨카트리지 설정 반영 후 <b>종합분석(PLATFORM)</b>으로 이동합니다. 기존 프레임·존은 대체됩니다. <b>적용 후 ④ 모듈 수량·⑤ 조닝을 직접 조정</b>하면 하단 적용 바로 즉시 반영됩니다.</p>
         {(plan.versions||[]).length>0&&(
           <div style={{border:`1px solid ${C.border}`}}>
             <table><thead><tr style={{borderBottom:`1.5px solid ${C.ink}`,background:C.panel}}>{['버전','생성 시점','옵션','층수','연면적','모듈폭','총 모듈','개략 견적'].map((h,i)=><th key={h} style={{padding:'7px 12px',textAlign:i<3?'left':'right',fontSize:10,fontFamily:"'Bebas Neue',sans-serif",letterSpacing:'.06em',color:C.sub,fontWeight:400}}>{h}</th>)}</tr></thead>
@@ -2880,7 +3155,7 @@ const AdminSec=({title,sub,open,onToggle,children})=>(
 
 /* ═══ ADMIN TAB ═══ 관리자 — 단가·계수 기준값 GUI 편집 */
 function AdminTab({FD,setFD,toast,P,setP}){
-  const [open,setOpen]=useState({energy:true,unit:false,raw:false,glass:false,skin:false,extra:false,disc:false,base:false,sam:false,api:false,vw:false,airender:false});
+  const [open,setOpen]=useState({energy:true,unit:false,surch:false,acc:false,raw:false,glass:false,skin:false,extra:false,disc:false,base:false,sam:false,api:false,vw:false,airender:false});
   const tog=k=>()=>setOpen(s=>({...s,[k]:!s[k]}));
   const upd=(path,value)=>{
     setFD(d=>{
@@ -2907,6 +3182,27 @@ function AdminTab({FD,setFD,toast,P,setP}){
   const pct=(label,key,step)=>(
     <NF label={label} value={Math.round((ef[key]||0)*1000)/10} step={step||0.1} onChange={v=>upd(`energy_factors.${key}`,Math.round(v*10)/1000)} unit="%"/>
   );
+  /* 유리 단가 카탈로그(종류별) 편집 — 변경 시 glass_price_preset 자동 파생 */
+  const gcat=FD.glass_catalog||[];
+  const [gOpen,setGOpen]=useState({});
+  const mutateCat=(fn)=>setFD(d=>{const cat=(d.glass_catalog||[]).map(g=>({...g,items:(g.items||[]).map(x=>({...x}))}));fn(cat);return{...d,_placeholder:false,glass_catalog:cat,glass_price_preset:presetFromCatalog(cat)};});
+  const setGItem=(gi,ii,f,v)=>mutateCat(cat=>{cat[gi].items[ii][f]=v;});
+  const addGItem=(gi)=>mutateCat(cat=>{cat[gi].items.push({name:'새 항목',price:0,preset:'중간',key:''});});
+  const delGItem=(gi,ii)=>mutateCat(cat=>{cat[gi].items.splice(ii,1);});
+  const addGGroup=()=>mutateCat(cat=>{cat.push({id:'g'+cat.length,label:'새 종류',items:[]});});
+  /* 할증 매트릭스 편집 — rates[층밴드][폭밴드] 셀 직접 입력 */
+  const mtx=FD.surcharge_matrix||FIT_DATA_DEFAULT.surcharge_matrix;
+  const setMtxRate=(fi,wi,v)=>setFD(d=>{const m=d.surcharge_matrix||FIT_DATA_DEFAULT.surcharge_matrix;const rates=m.rates.map(r=>r.slice());rates[fi][wi]=v;return{...d,_placeholder:false,surcharge_matrix:{...m,rates}};});
+  const MTX_TYPES=['수직','가로','연결','유리','기타'];
+  const toggleMtxType=(t)=>setFD(d=>{const m=d.surcharge_matrix||FIT_DATA_DEFAULT.surcharge_matrix;const cur=new Set(m.apply_types||['수직','연결']);if(cur.has(t))cur.delete(t);else cur.add(t);return{...d,_placeholder:false,surcharge_matrix:{...m,apply_types:MTX_TYPES.filter(x=>cur.has(x))}};});
+  /* 부속자재비(항목별)·설치부대비 편집 */
+  const acc=FD.accessory_items||FIT_DATA_DEFAULT.accessory_items||[];
+  const accTotal=acc.reduce((s,a)=>s+(Number(a.price)||0),0);
+  const setAcc=(i,field,v)=>setFD(d=>{const a=(d.accessory_items||FIT_DATA_DEFAULT.accessory_items).map(x=>({...x}));a[i][field]=v;return{...d,_placeholder:false,accessory_items:a};});
+  const addAcc=()=>setFD(d=>({...d,_placeholder:false,accessory_items:[...(d.accessory_items||FIT_DATA_DEFAULT.accessory_items),{name:'새 항목',price:0}]}));
+  const delAcc=(i)=>setFD(d=>{const a=(d.accessory_items||[]).slice();a.splice(i,1);return{...d,_placeholder:false,accessory_items:a};});
+  const ip=FD.install_price||FIT_DATA_DEFAULT.install_price||{};
+  const setIp=(k,v)=>setFD(d=>({...d,_placeholder:false,install_price:{...(d.install_price||FIT_DATA_DEFAULT.install_price),[k]:v}}));
   return(
     <div style={{maxWidth:1100,margin:'0 auto',padding:'28px 32px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:6,flexWrap:'wrap',gap:10}}>
@@ -2917,54 +3213,121 @@ function AdminTab({FD,setFD,toast,P,setP}){
         프로젝트 단가 산출과 에너지 절감 계산의 기준값을 편집합니다. 변경은 <b>즉시</b> 모든 탭의 결과에 반영되며 이 브라우저에 자동 저장됩니다. 다른 PC로 옮기려면 「저장」으로 fitproj.json 파일에 같이 보관하세요.
       </p>
 
-      <AdminSec open={open.energy} onToggle={tog('energy')} title="에너지 절감 계수" sub="시뮬레이션 마진 효과 — 곱셈 중첩식에 투입">
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:'14px 18px'}}>
-          {pct('외피 — 일반 외부유리','env_std')}
-          {pct('외피 — 고사양(일사차폐)','env_high')}
-          {pct('공조카트리지','hvac')}
-          {pct('GRID — 채광 센서','grid_daylight')}
-          {pct('GRID — Dimming','grid_dimming')}
-          {pct('OS — Sun Tracking','os_suntrack')}
-          {pct('OS — Energy Monitoring','os_energy')}
-        </div>
-        <p style={{fontSize:10,color:C.light,marginTop:12,lineHeight:1.7}}>※ 기본값은 태평로빌딩 EnergyPlus(rev-05) 시뮬레이션 마진 효과 — 다른 건물에 적용 시 정밀 시뮬레이션으로 재교정 권장. Skin Cartridge 절감(%)은 카트리지 종류별로 별도 관리됩니다.</p>
-      </AdminSec>
+      <div style={{margin:'26px 0 10px',display:'flex',alignItems:'center',gap:10}}><span style={{fontFamily:"'Bebas Neue','Noto Sans KR',sans-serif",fontSize:17,letterSpacing:'.06em',color:C.ink}}>단가</span><span style={{flex:1,height:2,background:C.ink,opacity:.18}}/></div>
 
       <AdminSec open={open.unit} onToggle={tog('unit')} title="단위 단가 (UNIT PRICE)" sub="원자재·가공·관리이윤 계수">
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:'14px 18px'}}>
-          <NF label="할증률 (배수)" value={up.할증률||1.05} step={0.01} onChange={v=>upd('unit_price.할증률',v)}/>
+          <NF label="할증률 (폴백·배수)" value={up.할증률||1.05} step={0.01} onChange={v=>upd('unit_price.할증률',v)}/>
           <NF label="원자재 단가/kg" value={up.원자재_per_kg||8000} step={500} onChange={v=>upd('unit_price.원자재_per_kg',v)} unit="원"/>
           <NF label="AZON Loss 배수" value={up.azon_loss배수||1.3} step={0.05} onChange={v=>upd('unit_price.azon_loss배수',v)}/>
           <NF label="AZON 단가/m" value={up.azon_per_m||3000} step={500} onChange={v=>upd('unit_price.azon_per_m',v)} unit="원"/>
           <NF label="GASKET Loss 배수" value={up.gasket_loss배수||1.1} step={0.05} onChange={v=>upd('unit_price.gasket_loss배수',v)}/>
           <NF label="GASKET 단가/m" value={up.gasket_per_m||2000} step={500} onChange={v=>upd('unit_price.gasket_per_m',v)} unit="원"/>
-          <NF label="가공비/kg" value={up.가공비_per_kg||3000} step={500} onChange={v=>upd('unit_price.가공비_per_kg',v)} unit="원"/>
+          <NF label="가공·조립비/kg" value={up.가공비_per_kg||5150} step={50} onChange={v=>upd('unit_price.가공비_per_kg',v)} unit="원"/>
           <NF label="관리이윤율" value={up.관리이윤율||0.15} step={0.01} onChange={v=>upd('unit_price.관리이윤율',v)}/>
         </div>
+        <p style={{fontSize:10,color:C.light,marginTop:10,lineHeight:1.7}}>※ <b>할증률</b>은 아래 「유닛 구조할증 매트릭스」가 적용되며, 매트릭스가 없을 때만 이 값으로 전 부재 일괄 할증(폴백)합니다. <b>가공·조립비/kg</b>는 #상세견적 원자재 가공조립 단가(5,150원/kg).</p>
       </AdminSec>
 
-      <AdminSec open={open.raw} onToggle={tog('raw')} title="원자재 단중·이름 (PROFILES)" sub="MPS 코드별 단위중량(kg/m)">
-        <div style={{maxHeight:360,overflowY:'auto',overflowX:'auto',border:`1px solid ${C.border}`}}><table>
-          <thead><tr style={{borderBottom:`1.5px solid ${C.ink}`,background:C.panel,position:'sticky',top:0}}>{['코드','이름','단위중량 (kg/m)'].map(h=><th key={h} style={{textAlign:'left',padding:'6px 10px',fontSize:10,color:C.sub,fontFamily:"'Bebas Neue',sans-serif",letterSpacing:'.06em',fontWeight:400}}>{h}</th>)}</tr></thead>
-          <tbody>
-            {Object.entries(rm).map(([code,m])=>(
-              <tr key={code} style={{borderBottom:`1px solid ${C.border}`}}>
-                <td style={{padding:'6px 10px',fontFamily:"'DM Mono',monospace",fontSize:11,color:C.ink,width:100}}>{code}</td>
-                <td style={{padding:'4px 10px'}}><input value={m.name||''} onChange={e=>upd(`raw_material.${code}`,{...m,name:e.target.value})} style={{width:'100%',border:'none',borderBottom:`1px solid ${C.border}`,background:'transparent',fontSize:11,color:C.ink,outline:'none',padding:'4px 0'}}/></td>
-                <td style={{padding:'4px 10px',width:140}}><NumCell value={m.unit_weight||0} onChange={v=>upd(`raw_material.${code}`,{...m,unit_weight:v})}/></td>
-              </tr>
-            ))}
-          </tbody>
-        </table></div>
-      </AdminSec>
-
-      <AdminSec open={open.glass} onToggle={tog('glass')} title="시장단가 프리셋 (GLASS m²)" sub="유리 m²당 단가">
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:'14px 18px'}}>
-          {['외부접합_13.52T','외부접합_17.52T','내부복층','단열시트','단판유리','진공단열패널'].map(k=>(
-            <NF key={k} label={k.replace(/_/g,' ')} value={gp[k]||0} step={1000} onChange={v=>upd(`glass_price_preset.시장단가_중간.${k}`,v)} unit="원/㎡"/>
-          ))}
+      <AdminSec open={open.acc} onToggle={tog('acc')} title="부속자재비 · 설치·부대비 (세트당)" sub="#상세견적 부속자재·가공조립설치 — 세트당 반영">
+        <p style={{fontSize:11,color:C.sub,margin:'2px 0 12px',lineHeight:1.7}}>FIT Frame <b>세트당</b> 가산되는 부속자재(Fastener·Structure Plate 등)와 설치·부대비(유리끼우기·코킹·포장운반 등). 세트단가에 직접 반영됩니다.</p>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+          <span style={{fontFamily:FF.disp,fontSize:13,letterSpacing:'.04em',color:C.ink}}>부속자재비</span>
+          <span style={{flex:1,height:1,background:C.border}}/>
+          <span style={{fontFamily:FF.mono,fontSize:12,color:C.amber}}>{won(accTotal)}/세트</span>
         </div>
-        <p style={{fontSize:10,color:C.light,marginTop:10,lineHeight:1.7}}>※ 현재는 단일 프리셋(시장단가_중간)을 사용합니다. 다중 프리셋(최저/중간/최고)은 추후 확장 예정.</p>
+        {acc.map((a,i)=>(
+          <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 150px 26px',gap:8,alignItems:'center',marginBottom:6}}>
+            <input value={a.name} onChange={e=>setAcc(i,'name',e.target.value)} style={{border:`1px solid ${C.border}`,padding:'6px 8px',fontSize:12,color:C.ink,outline:'none'}}/>
+            <div style={{display:'flex',alignItems:'center',gap:4,border:`1px solid ${C.borderDark}`,background:C.white,padding:'5px 8px'}}>
+              <input value={a.price} onChange={e=>setAcc(i,'price',Number(String(e.target.value).replace(/[^\d]/g,''))||0)} style={{border:'none',outline:'none',width:'100%',textAlign:'right',fontFamily:FF.mono,fontSize:12,color:C.ink}}/>
+              <span style={{fontSize:9.5,color:C.light}}>원/세트</span>
+            </div>
+            <button onClick={()=>delAcc(i)} title="삭제" style={{background:'transparent',border:`1px solid ${C.border}`,color:C.red,fontSize:12,cursor:'pointer',padding:'5px 0'}}>×</button>
+          </div>
+        ))}
+        <button onClick={addAcc} style={{background:'transparent',border:`1px dashed ${C.green}`,color:C.green,fontSize:11,padding:'5px 12px',cursor:'pointer',marginTop:2,marginBottom:18}}>＋ 부속자재 항목 추가</button>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+          <span style={{fontFamily:FF.disp,fontSize:13,letterSpacing:'.04em',color:C.ink}}>설치·부대비</span>
+          <span style={{flex:1,height:1,background:C.border}}/>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:'14px 18px'}}>
+          <NF label="유리끼우기 /㎡ (접합+복층)" value={ip.glazing_per_m2||24000} step={1000} onChange={v=>setIp('glazing_per_m2',v)} unit="원/㎡"/>
+          <NF label="화스너 취부 (세트)" value={ip.fastener_set||50000} step={5000} onChange={v=>setIp('fastener_set',v)} unit="원/세트"/>
+          <NF label="코킹 (구조+웨더, 세트)" value={ip.caulking_set||40100} step={1000} onChange={v=>setIp('caulking_set',v)} unit="원/세트"/>
+          <NF label="제품 포장·운반 (세트)" value={ip.packing_set||320000} step={10000} onChange={v=>setIp('packing_set',v)} unit="원/세트"/>
+        </div>
+        <p style={{fontSize:10,color:C.light,marginTop:10,lineHeight:1.7}}>※ 유리끼우기는 접합+복층 유리면적(㎡)×단가, 나머지는 세트당 고정. <b>3T AL 진공단열패널</b>은 「유리 단가」의 진공단열패널로 별도 반영되어 부속자재에서 제외했습니다.</p>
+      </AdminSec>
+
+      <AdminSec open={open.surch} onToggle={tog('surch')} title="유닛 구조할증 매트릭스 (SURCHARGE)" sub="층수 × 유닛폭 → 중량 배율">
+        <p style={{fontSize:11,color:C.sub,margin:'4px 0 12px',lineHeight:1.7}}>
+          건물 <b>층수</b>가 높고 유닛 <b>폭</b>이 넓을수록 풍하중·자중에 대응해 단면이 커집니다. 아래 배율을 <b>수직부재(세로멤버)+연결부재(THERMAL MOLD·STIFFENER·CAVITY)</b>의 중량에만 가산합니다. <b>유리·가로(트랜섬)는 할증 없음</b>(×1.0). 견적은 대표프레임의 층수·폭으로 자동 조회됩니다.
+        </p>
+        <div style={{overflowX:'auto'}}>
+          <table style={{borderCollapse:'collapse',fontSize:12,minWidth:360}}>
+            <thead>
+              <tr>
+                <th style={{padding:'6px 10px',textAlign:'left',color:C.light,fontSize:10,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>층수 \ 폭</th>
+                {(mtx.width_bands||[]).map((wb,wi)=>(
+                  <th key={wi} style={{padding:'6px 10px',textAlign:'center',color:C.sub,fontSize:10.5,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{wb.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(mtx.floor_bands||[]).map((fbnd,fi)=>(
+                <tr key={fi}>
+                  <td style={{padding:'5px 10px',color:C.sub,fontSize:10.5,whiteSpace:'nowrap',borderBottom:`1px solid ${C.border}`}}>{fbnd.label}</td>
+                  {(mtx.width_bands||[]).map((wb,wi)=>(
+                    <td key={wi} style={{padding:'4px 6px',borderBottom:`1px solid ${C.border}`}}>
+                      <input value={(mtx.rates[fi]||[])[wi]??1} onChange={e=>{const v=parseFloat(String(e.target.value).replace(/[^\d.]/g,''));if(!isNaN(v))setMtxRate(fi,wi,v);}} style={{border:`1px solid ${C.borderDark}`,background:C.white,padding:'6px 8px',width:64,textAlign:'center',fontFamily:"'DM Mono',monospace",fontSize:12,color:((mtx.rates[fi]||[])[wi]>1)?C.ink:C.light,outline:'none'}}/>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div style={{marginTop:14,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          <span style={{fontSize:10.5,color:C.light}}>할증 적용 부재</span>
+          {MTX_TYPES.map(t=>{const on=(mtx.apply_types||['수직','연결']).includes(t);return(
+            <button key={t} onClick={()=>toggleMtxType(t)} style={{background:on?C.ink:'transparent',color:on?C.white:C.sub,border:`1px solid ${on?C.ink:C.border}`,padding:'4px 12px',fontSize:11,cursor:'pointer',borderRadius:2}}>{t}</button>
+          );})}
+        </div>
+        <p style={{fontSize:10,color:C.light,marginTop:10,lineHeight:1.7}}>※ 배율 1.0 = 할증 없음. 적용 부재 칩을 눌러 어느 부재 type에 할증할지 조정합니다(기본: 수직·연결). FRAME 탭의 층수·유닛폭 변경 시 모든 견적에 즉시 반영됩니다.</p>
+      </AdminSec>
+
+      <AdminSec open={open.glass} onToggle={tog('glass')} title="유리 단가 (종류별)" sub="종류별 펼침 · 단가입력 · 항목 추가">
+        {gcat.map((g,gi)=>(
+          <div key={gi} style={{border:`1px solid ${C.border}`,marginBottom:8,background:C.panel}}>
+            <button onClick={()=>setGOpen(s=>({...s,[gi]:!s[gi]}))} style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'9px 12px',background:'transparent',border:'none',cursor:'pointer',textAlign:'left'}}>
+              <IcoDn s={13} rot={gOpen[gi]?180:0}/>
+              <span style={{fontFamily:"'Bebas Neue','Noto Sans KR',sans-serif",fontSize:13,letterSpacing:'.04em',color:C.ink}}>{g.label}</span>
+              <span style={{fontSize:10,color:C.light}}>{(g.items||[]).length}항목</span>
+            </button>
+            {gOpen[gi]&&<div style={{padding:'2px 12px 12px',background:C.white,borderTop:`1px solid ${C.border}`}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 92px 132px 26px',gap:8,margin:'8px 0 4px',fontSize:9.5,color:C.light}}>
+                <span>명칭</span><span style={{textAlign:'center'}}>유리종류</span><span style={{textAlign:'right'}}>단가</span><span/>
+              </div>
+              {(g.items||[]).map((it,ii)=>(
+                <div key={ii} style={{display:'grid',gridTemplateColumns:'1fr 92px 132px 26px',gap:8,alignItems:'center',marginBottom:6}}>
+                  <input value={it.name} onChange={e=>setGItem(gi,ii,'name',e.target.value)} style={{border:`1px solid ${C.border}`,padding:'6px 8px',fontSize:12,color:C.ink,outline:'none'}}/>
+                  <select value={it.preset||'중간'} onChange={e=>setGItem(gi,ii,'preset',e.target.value)} style={{border:`1px solid ${C.border}`,padding:'6px 4px',fontSize:11,color:C.ink,outline:'none',background:C.white}}>
+                    <option value="중간">일반</option><option value="저철분">저철분</option><option value="공통">공통</option>
+                  </select>
+                  <div style={{display:'flex',alignItems:'center',gap:4,border:`1px solid ${C.borderDark}`,background:C.white,padding:'5px 8px'}}>
+                    <input value={it.price} onChange={e=>setGItem(gi,ii,'price',Number(String(e.target.value).replace(/[^\d]/g,''))||0)} style={{border:'none',outline:'none',width:'100%',textAlign:'right',fontFamily:"'DM Mono',monospace",fontSize:12,color:it.key?C.ink:C.sub}}/>
+                    <span style={{fontSize:9.5,color:C.light}}>원/㎡</span>
+                  </div>
+                  <button onClick={()=>delGItem(gi,ii)} title="삭제" style={{background:'transparent',border:`1px solid ${C.border}`,color:C.red,fontSize:12,cursor:'pointer',padding:'5px 0'}}>×</button>
+                </div>
+              ))}
+              <button onClick={()=>addGItem(gi)} style={{background:'transparent',border:`1px dashed ${C.green}`,color:C.green,fontSize:11,padding:'5px 12px',cursor:'pointer',marginTop:2}}>＋ 항목 추가</button>
+            </div>}
+          </div>
+        ))}
+        <button onClick={addGGroup} style={{background:'transparent',border:`1px dashed ${C.borderDark}`,color:C.sub,fontSize:11,padding:'6px 14px',cursor:'pointer',marginTop:4}}>＋ 종류 추가</button>
+        <p style={{fontSize:10,color:C.light,marginTop:10,lineHeight:1.7}}>※ <b>key 매핑 항목</b>(외부접합·내부복층·단열·단판·진공)은 견적 엔진에 즉시 반영(검정). <b>회색</b>은 참조용 추가항목(자동연동 아님). <b>일반/저철분</b>은 FRAME 유리 프리셋 선택에 대응, <b>공통</b>은 양쪽 모두 적용됩니다.</p>
       </AdminSec>
 
       <AdminSec open={open.skin} onToggle={tog('skin')} title="스킨카트리지 단가 (SKIN CARTRIDGE)" sub="종류별 대당 단가">
@@ -2981,7 +3344,8 @@ function AdminTab({FD,setFD,toast,P,setP}){
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:'14px 18px'}}>
             <NF label="바닥형 공조카트리지" value={P.pHvac} step={500000} onChange={v=>setP(s=>({...s,pHvac:v}))} unit="원/대"/>
             <NF label="천장형 공조카트리지" value={P.pHvacCeil} step={500000} onChange={v=>setP(s=>({...s,pHvacCeil:v}))} unit="원/대"/>
-            <NF label="FTU (등압식 바닥)" value={P.pFtu} step={5000} onChange={v=>setP(s=>({...s,pFtu:v}))} unit="원/㎡"/>
+            <NF label="FTU (등압식 바닥)" value={P.pFtu} step={50000} onChange={v=>setP(s=>({...s,pFtu:v}))} unit="원/개"/>
+            <NF label="FTU 개수 / 존" value={P.pFtuPerZone||12} step={1} onChange={v=>setP(s=>({...s,pFtuPerZone:v}))} unit="개/존"/>
             <NF label="원형디퓨져 (가압식)" value={P.pDiffCirc} step={5000} onChange={v=>setP(s=>({...s,pDiffCirc:v}))} unit="원/㎡"/>
             <NF label="전면취출 (가압식)" value={P.pDiffFront} step={5000} onChange={v=>setP(s=>({...s,pDiffFront:v}))} unit="원/㎡"/>
             <NF label="전열교환기 (옵션)" value={P.pErv} step={100000} onChange={v=>setP(s=>({...s,pErv:v}))} unit="원/대"/>
@@ -2998,22 +3362,25 @@ function AdminTab({FD,setFD,toast,P,setP}){
             <NF label="OS 태양추적" value={P.pOsSun} step={5000000} onChange={v=>setP(s=>({...s,pOsSun:v}))} unit="원/식"/>
             <NF label="OS 에너지 모니터링" value={P.pOsEnergy} step={5000000} onChange={v=>setP(s=>({...s,pOsEnergy:v}))} unit="원/식"/>
             <NF label="OS BMS 연동" value={P.pOsBms} step={5000000} onChange={v=>setP(s=>({...s,pOsBms:v}))} unit="원/식"/>
+            <NF label="FRAME 노무비" value={P.pFrameLabor||0} step={50000} onChange={v=>setP(s=>({...s,pFrameLabor:v}))} unit="원/모듈"/>
+            <NF label="FRAME 경비" value={P.pFrameExp||0} step={50000} onChange={v=>setP(s=>({...s,pFrameExp:v}))} unit="원/모듈"/>
+            <NF label="SKIN 노무비" value={P.pSkinLabor||0} step={50000} onChange={v=>setP(s=>({...s,pSkinLabor:v}))} unit="원/모듈"/>
+            <NF label="SKIN 경비" value={P.pSkinExp||0} step={50000} onChange={v=>setP(s=>({...s,pSkinExp:v}))} unit="원/모듈"/>
+            <NF label="HVAC 노무비" value={P.pHvacLabor||0} step={50000} onChange={v=>setP(s=>({...s,pHvacLabor:v}))} unit="원/존"/>
+            <NF label="HVAC 경비" value={P.pHvacExp||0} step={50000} onChange={v=>setP(s=>({...s,pHvacExp:v}))} unit="원/존"/>
+            <NF label="GRID 노무비" value={P.pGridLabor||0} step={10000} onChange={v=>setP(s=>({...s,pGridLabor:v}))} unit="원/모듈"/>
+            <NF label="GRID 경비" value={P.pGridExp||0} step={10000} onChange={v=>setP(s=>({...s,pGridExp:v}))} unit="원/모듈"/>
+            <NF label="OS 고정비 (CCMS·서버)" value={P.osZoneFixed||0} step={1000000} onChange={v=>setP(s=>({...s,osZoneFixed:v}))} unit="원/식"/>
+            <NF label="OS 조닝 장비·자재" value={P.osZoneMat||0} step={500000} onChange={v=>setP(s=>({...s,osZoneMat:v}))} unit="원/존"/>
+            <NF label="OS 조닝 노무" value={P.osZoneLabor||0} step={500000} onChange={v=>setP(s=>({...s,osZoneLabor:v}))} unit="원/존"/>
+            <NF label="실행률 — 재료(납품)" value={(FD.exec_rate||{}).재료||1.3} step={0.05} onChange={v=>upd('exec_rate.재료',v)}/>
+            <NF label="실행률 — 노무(공사)" value={(FD.exec_rate||{}).노무||1.5} step={0.05} onChange={v=>upd('exec_rate.노무',v)}/>
+            <NF label="실행률 — 경비" value={(FD.exec_rate||{}).경비||1.5} step={0.05} onChange={v=>upd('exec_rate.경비',v)}/>
+            <NF label="M&E 엑세스플로어" value={(FD.me_prices||{}).엑세스플로어||0} step={10000} onChange={v=>upd('me_prices.엑세스플로어',v)} unit="원/㎡"/>
+            <NF label="M&E 복사패널" value={(FD.me_prices||{}).복사패널||0} step={10000} onChange={v=>upd('me_prices.복사패널',v)} unit="원/㎡"/>
           </div>
         ):<p style={{fontSize:11,color:C.light}}>프로젝트 단가(P)가 로드되지 않았습니다.</p>}
         <p style={{fontSize:10,color:C.light,marginTop:12,lineHeight:1.7}}>※ 이 단가는 <b>현재 프로젝트</b>에 저장되는 값입니다(.fitproj.json에 포함). 변경 즉시 PLATFORM·COST 결과에 반영됩니다.</p>
-      </AdminSec>
-
-      <AdminSec open={open.disc} onToggle={tog('disc')} title="할인 티어 (DISCOUNT TIER)" sub="수량 구간별 할인율">
-        <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {dt.map((t,i)=>(
-            <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr 50px',gap:12,alignItems:'end'}}>
-              <NF label={`Tier ${i+1} 최대 수량 (마지막 무제한=9999)`} value={t.max_qty===null?9999:t.max_qty} step={10} onChange={v=>{const nt=[...dt];nt[i]={...nt[i],max_qty:v>=9999?null:v};upd('discount_tiers',nt);}}/>
-              <NF label="할인율 (× factor)" value={t.rate} step={0.01} onChange={v=>{const nt=[...dt];nt[i]={...nt[i],rate:v};upd('discount_tiers',nt);}}/>
-              <button onClick={()=>{const nt=dt.filter((_,k)=>k!==i);upd('discount_tiers',nt);}} disabled={dt.length<=1} style={{background:'transparent',color:C.red,border:`1px solid ${C.border}`,padding:'7px 0',fontSize:11,opacity:dt.length<=1?0.3:1,cursor:dt.length<=1?'not-allowed':'pointer'}}>삭제</button>
-            </div>
-          ))}
-          <button onClick={()=>upd('discount_tiers',[...dt,{max_qty:100,rate:1.0}])} style={{background:'transparent',color:C.green,border:`1px dashed ${C.green}`,padding:'8px 12px',fontSize:11,marginTop:4,cursor:'pointer'}}>＋ 티어 추가</button>
-        </div>
       </AdminSec>
 
       <AdminSec open={open.base} onToggle={tog('base')} title="기초공사 단가 (BASE CONSTRUCTION)" sub="평당 기초·구조·토공사 단가 — 0이면 미포함">
@@ -3030,6 +3397,55 @@ function AdminTab({FD,setFD,toast,P,setP}){
           <NF label="공사 실행률 (배수)" value={sm.공사||1.25} step={0.01} onChange={v=>upd('samoo_multiplier.공사',v)}/>
         </div>
       </AdminSec>
+
+      <div style={{margin:'26px 0 10px',display:'flex',alignItems:'center',gap:10}}><span style={{fontFamily:"'Bebas Neue','Noto Sans KR',sans-serif",fontSize:17,letterSpacing:'.06em',color:C.ink}}>원자재 단중</span><span style={{flex:1,height:2,background:C.ink,opacity:.18}}/></div>
+
+      <AdminSec open={open.raw} onToggle={tog('raw')} title="원자재 단중·이름 (PROFILES)" sub="MPS 코드별 단위중량(kg/m)">
+        <div style={{maxHeight:360,overflowY:'auto',overflowX:'auto',border:`1px solid ${C.border}`}}><table>
+          <thead><tr style={{borderBottom:`1.5px solid ${C.ink}`,background:C.panel,position:'sticky',top:0}}>{['코드','이름','단위중량 (kg/m)'].map(h=><th key={h} style={{textAlign:'left',padding:'6px 10px',fontSize:10,color:C.sub,fontFamily:"'Bebas Neue',sans-serif",letterSpacing:'.06em',fontWeight:400}}>{h}</th>)}</tr></thead>
+          <tbody>
+            {Object.entries(rm).map(([code,m])=>(
+              <tr key={code} style={{borderBottom:`1px solid ${C.border}`}}>
+                <td style={{padding:'6px 10px',fontFamily:"'DM Mono',monospace",fontSize:11,color:C.ink,width:100}}>{code}</td>
+                <td style={{padding:'4px 10px'}}><input value={m.name||''} onChange={e=>upd(`raw_material.${code}`,{...m,name:e.target.value})} style={{width:'100%',border:'none',borderBottom:`1px solid ${C.border}`,background:'transparent',fontSize:11,color:C.ink,outline:'none',padding:'4px 0'}}/></td>
+                <td style={{padding:'4px 10px',width:140}}><NumCell value={m.unit_weight||0} onChange={v=>upd(`raw_material.${code}`,{...m,unit_weight:v})}/></td>
+              </tr>
+            ))}
+          </tbody>
+        </table></div>
+      </AdminSec>
+
+      <div style={{margin:'26px 0 10px',display:'flex',alignItems:'center',gap:10}}><span style={{fontFamily:"'Bebas Neue','Noto Sans KR',sans-serif",fontSize:17,letterSpacing:'.06em',color:C.ink}}>할인율</span><span style={{flex:1,height:2,background:C.ink,opacity:.18}}/></div>
+
+      <AdminSec open={open.disc} onToggle={tog('disc')} title="할인 티어 (DISCOUNT TIER)" sub="수량 구간별 할인율">
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {dt.map((t,i)=>(
+            <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr 50px',gap:12,alignItems:'end'}}>
+              <NF label={`Tier ${i+1} 최대 수량 (마지막 무제한=9999)`} value={t.max_qty===null?9999:t.max_qty} step={10} onChange={v=>{const nt=[...dt];nt[i]={...nt[i],max_qty:v>=9999?null:v};upd('discount_tiers',nt);}}/>
+              <NF label="할인율 (× factor)" value={t.rate} step={0.01} onChange={v=>{const nt=[...dt];nt[i]={...nt[i],rate:v};upd('discount_tiers',nt);}}/>
+              <button onClick={()=>{const nt=dt.filter((_,k)=>k!==i);upd('discount_tiers',nt);}} disabled={dt.length<=1} style={{background:'transparent',color:C.red,border:`1px solid ${C.border}`,padding:'7px 0',fontSize:11,opacity:dt.length<=1?0.3:1,cursor:dt.length<=1?'not-allowed':'pointer'}}>삭제</button>
+            </div>
+          ))}
+          <button onClick={()=>upd('discount_tiers',[...dt,{max_qty:100,rate:1.0}])} style={{background:'transparent',color:C.green,border:`1px dashed ${C.green}`,padding:'8px 12px',fontSize:11,marginTop:4,cursor:'pointer'}}>＋ 티어 추가</button>
+        </div>
+      </AdminSec>
+
+      <div style={{margin:'26px 0 10px',display:'flex',alignItems:'center',gap:10}}><span style={{fontFamily:"'Bebas Neue','Noto Sans KR',sans-serif",fontSize:17,letterSpacing:'.06em',color:C.ink}}>에너지 절감 계수</span><span style={{flex:1,height:2,background:C.ink,opacity:.18}}/></div>
+
+      <AdminSec open={open.energy} onToggle={tog('energy')} title="에너지 절감 계수" sub="시뮬레이션 마진 효과 — 곱셈 중첩식에 투입">
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:'14px 18px'}}>
+          {pct('외피 — 일반 외부유리','env_std')}
+          {pct('외피 — 고사양(일사차폐)','env_high')}
+          {pct('공조카트리지','hvac')}
+          {pct('GRID — 채광 센서','grid_daylight')}
+          {pct('GRID — Dimming','grid_dimming')}
+          {pct('OS — Sun Tracking','os_suntrack')}
+          {pct('OS — Energy Monitoring','os_energy')}
+        </div>
+        <p style={{fontSize:10,color:C.light,marginTop:12,lineHeight:1.7}}>※ 기본값은 태평로빌딩 EnergyPlus(rev-05) 시뮬레이션 마진 효과 — 다른 건물에 적용 시 정밀 시뮬레이션으로 재교정 권장. Skin Cartridge 절감(%)은 카트리지 종류별로 별도 관리됩니다.</p>
+      </AdminSec>
+
+      <div style={{margin:'26px 0 10px',display:'flex',alignItems:'center',gap:10}}><span style={{fontFamily:"'Bebas Neue','Noto Sans KR',sans-serif",fontSize:17,letterSpacing:'.06em',color:C.ink}}>API</span><span style={{flex:1,height:2,background:C.ink,opacity:.18}}/></div>
 
       <AdminSec open={open.airender} onToggle={tog('airender')} title="AI 렌더 API (Gemini / OpenAI)" sub="PLAN 투시 렌더 생성에 사용">
         <div style={{marginBottom:14,maxWidth:420}}>
@@ -3171,7 +3587,7 @@ function ApplyBar({dirty,onApply,onRevert,label,live}){
           : <><b>{label}</b> — 모든 입력이 결과에 반영된 상태입니다.</>}
       </span>
       {live&&<div style={{display:'flex',gap:16,alignItems:'center',flexWrap:'wrap',marginLeft:'auto',marginRight:16}}>
-        {[['총공사비',won(live.total),C.amber],['에너지절감',pct(live.savedFrac),C.green],['회수기간',live.payback>0?live.payback.toFixed(1)+'년':'즉시',C.ink]].map(([k,v,col])=>(
+        {[['총공사비',won(live.execTotal),C.amber],['에너지절감',pct(live.savedFrac),C.green],['회수기간',live.payback>0?live.payback.toFixed(1)+'년':'즉시',C.ink]].map(([k,v,col])=>(
           <span key={k} style={{display:'flex',flexDirection:'column',lineHeight:1.2}}><span style={{fontSize:8.5,color:C.light,letterSpacing:'.06em'}}>{k}{dirty?' (실시간)':''}</span><span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,color:col}}>{v}</span></span>
         ))}
       </div>}
@@ -3201,10 +3617,18 @@ function FitPlatform(){
   /* ADMIN 표준값(FD)은 별도 키로 localStorage에 자동 저장 — 새 프로젝트 시작/외부 불러오기에도 유지 */
   const [FD,setFD]=useState(()=>{
     try{const raw=typeof localStorage!=='undefined'&&localStorage.getItem('fit_platform_admin_fd_v1');if(raw){const parsed=JSON.parse(raw);
-      /* 구버전에 저장된 테스트키는 새 기본 승인키로 자동 교체 */
-      if(!parsed.juso_confm_key||parsed.juso_confm_key==='TESTJUSOGOKR')parsed.juso_confm_key=FIT_DATA_DEFAULT.juso_confm_key;
+      /* 구버전 저장 테스트키·만료예정 구 승인키(2026-06-10 발급분)는 새 기본 승인키로 자동 교체 */
+      if(!parsed.juso_confm_key||parsed.juso_confm_key==='TESTJUSOGOKR'||parsed.juso_confm_key==='devU01TX0FVVEgyMDI2MDYxMDE2MTI0OTExOTAzNzM=')parsed.juso_confm_key=FIT_DATA_DEFAULT.juso_confm_key;
       if(!parsed.vworld_key)parsed.vworld_key=FIT_DATA_DEFAULT.vworld_key; /* V-World 키 — 구버전 FD에 없으면 기본키 주입 */
       if(parsed.samwoo_multiplier&&!parsed.samoo_multiplier)parsed.samoo_multiplier=parsed.samwoo_multiplier; /* 구키 마이그레이션 */
+      /* 재보정 버전 게이트 — 구버전 저장 FD는 단가/원자재/유리/실행률을 새 기준선으로 강제 채택, 사용자 키·계수는 보존 */
+      if((parsed._calib_ver||0)<(FIT_DATA_DEFAULT._calib_ver||0)){
+        return {...FIT_DATA_DEFAULT,
+          juso_confm_key:parsed.juso_confm_key,vworld_key:parsed.vworld_key,
+          ai_provider:parsed.ai_provider||FIT_DATA_DEFAULT.ai_provider,ai_gemini_key:parsed.ai_gemini_key||'',ai_image_key:parsed.ai_image_key||'',
+          energy_factors:{...FIT_DATA_DEFAULT.energy_factors,...(parsed.energy_factors||{})},
+          base_construction:{...FIT_DATA_DEFAULT.base_construction,...(parsed.base_construction||{})}};
+      }
       return {...FIT_DATA_DEFAULT,...parsed,energy_factors:{...FIT_DATA_DEFAULT.energy_factors,...(parsed.energy_factors||{})},base_construction:{...FIT_DATA_DEFAULT.base_construction,...(parsed.base_construction||{})},skin_prices:{...FIT_DATA_DEFAULT.skin_prices,...(parsed.skin_prices||{})}};}}catch{}
     return FIT_DATA_DEFAULT;
   });
@@ -3349,7 +3773,7 @@ function FitPlatform(){
     const newFloorZones=[{id:'low',part:'저층부',from:1,to:lt,areaM2:ftA}];
     if(nfl>lt+1){newFloorZones.push({id:'std',part:'기준층',from:lt+1,to:nfl-1,areaM2:ftA});newFloorZones.push({id:'high',part:'고층부',from:nfl,to:nfl,areaM2:ftA});}
     else if(nfl>lt){newFloorZones.push({id:'std',part:'기준층',from:lt+1,to:nfl,areaM2:ftA});}
-    const newFrames=[fr];
+    const newFrames=[{...fr,skinType:fit.skinType}]; /* PLAN 대표 루버를 프레임에 부여(이후 SKIN 탭에서 타입별 세분) */
     const newCrt={...crt,hasSkin:fit.hasSkin,skinType:fit.skinType};
     const firstParcel=(Array.isArray(plan.site.parcels)&&plan.site.parcels[0])||null;
     const newOverview={...overview,use:plan.targets.use,gfa:String(opt.gfa),floorsAbove:String(opt.floors),height:String(opt.height),location:(firstParcel&&firstParcel.addr)||overview.location};
@@ -3411,8 +3835,8 @@ function FitPlatform(){
     const summary=[
       ['FIT PLATFORM 견적·에너지 요약'],['프로젝트',projectName],['건물명',ov.building||''],['대지위치',ov.location||''],['용도',ov.use||''],['규모',`지상 ${fmt(ov.floorsAbove)||'-'}F / 지하 ${fmt(ov.floorsBelow)||'-'}F`],['대지면적(㎡)',ov.siteArea?numParse(ov.siteArea):''],['연면적(㎡)',ov.gfa?numParse(ov.gfa):''],['생성일',new Date().toLocaleString('ko-KR')],[],
       ['── 공사비 ──'],
-      ['총 공사비(원)',L.total],['  FRAME + GLASS',L.frameGlassTotal],['  스킨카트리지',agg.cSkin],['  공조시스템',agg.cHvac],['  조명(GRID)',agg.cGrid],['  OS',agg.osFlat],
-      ['기존 커튼월(참고)',L.conventional],['추가 투자',Math.max(0,L.total-L.conventional)],['삼우 납품가(계)',L.samooDeliver],['삼우 공사가(계)',L.samooConstr],
+      ['실행률 포함 총액(원)',L.execTotal],['  재료비 합계',L.matSub],['    FRAME + GLASS',L.frameGlassTotal],['    스킨카트리지',agg.cSkin],['    공조시스템',agg.cHvac],['    조명(GRID)',agg.cGrid],['    OS',agg.osFlat],['    M&E',L.meSub||0],['  노무비 합계',L.laborSub],['  경비 합계',L.expSub],['  직접공사비 합계',L.directSub],
+      ['기존 커튼월(참고)',L.conventional],['추가 투자',Math.max(0,L.execTotal-L.conventional)],['삼우 납품가(계)',L.samooDeliver],['삼우 공사가(계)',L.samooConstr],
       ...((agg.hvacCompare||0)>0?[['비교견적(공사범위 제외)',agg.hvacCompare]]:[]),[],
       ['── 에너지 ──'],
       ['에너지 절감율(%)',+(agg.savedFrac*100).toFixed(1)],['기준 에너지(kWh/년)',Math.round(agg.baseline)],['절감 후(kWh/년)',Math.round(agg.optimized)],
@@ -3429,7 +3853,7 @@ function FitPlatform(){
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(zr),'ZONES_층구간');
     const mr=[['입면','모듈수','프레임타입'],...zones.map(z=>[FACE_KO[z.face]||z.name,z.moduleCount,(zoneFrame(z,frames)||{}).name||''])];
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(mr),'MODULES_입면');
-    const sr=[['항목','규격','수량','단가(원)','금액(원)'],...[...L.cart,...L.grid,...L.os].map(x=>[x.item,x.spec,`${x.qty}${x.unit}`,x.price,x.amt])];
+    const sr=[['항목','규격','수량','단가(원)','금액(원)'],...[...L.cart,...L.grid,...L.os,...(L.me||[])].map(x=>[x.item,x.spec,`${x.qty}${x.unit}`,x.price,x.amt])];
     if((L.compare||[]).length){sr.push([],['[비교견적 — 공사범위 제외 · 총공사비 미포함]'],...L.compare.map(x=>[x.item,x.spec,`${x.qty}${x.unit}`,x.price,x.amt]));}
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sr),'추가시스템');
     XLSX.writeFile(wb,`${sanitizeName(projectName)}_견적.xlsx`);
@@ -3457,7 +3881,7 @@ function FitPlatform(){
       <div style="font-size:18px;font-weight:700;margin:14px 0 2px">${projectName}</div>
       ${ovLine?`<div style="font-size:11px;color:#5C5955;margin-bottom:14px">${ovLine}</div>`:'<div style="margin-bottom:14px"></div>'}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
-        <div style="border:1px solid #D8D5CE;padding:12px"><div style="font-size:10px;color:#5C5955;letter-spacing:.08em">총 공사비</div><div style="font-family:'Bebas Neue';font-size:24px;color:#7A4F2A">${won(L.total)}</div></div>
+        <div style="border:1px solid #D8D5CE;padding:12px"><div style="font-size:10px;color:#5C5955;letter-spacing:.08em">총 공사비 (실행률 포함)</div><div style="font-family:'Bebas Neue';font-size:24px;color:#7A4F2A">${won(L.execTotal)}</div></div>
         <div style="border:1px solid #D8D5CE;padding:12px"><div style="font-size:10px;color:#5C5955;letter-spacing:.08em">에너지 절감율</div><div style="font-family:'Bebas Neue';font-size:24px;color:#2A5B3B">${(agg.savedFrac*100).toFixed(1)}%</div></div>
         <div style="border:1px solid #D8D5CE;padding:12px"><div style="font-size:10px;color:#5C5955;letter-spacing:.08em">연간 절감액</div><div style="font-family:'Bebas Neue';font-size:24px;color:#2A5B3B">${won(agg.annualSave)}</div></div>
         <div style="border:1px solid #D8D5CE;padding:12px"><div style="font-size:10px;color:#5C5955;letter-spacing:.08em">투자 회수기간</div><div style="font-family:'Bebas Neue';font-size:24px">${agg.payback>0?agg.payback.toFixed(1)+'년':'즉시'}</div></div>
@@ -3468,7 +3892,10 @@ function FitPlatform(){
       ${agg.cHvac>0?row('공조시스템',won(agg.cHvac)):''}
       ${agg.cGrid>0?row('조명 (GRID)',won(agg.cGrid)):''}
       ${agg.osFlat>0?row('OS 시스템',won(agg.osFlat)):''}
-      ${row('총 공사비',won(L.total),true)}
+      ${(L.meSub||0)>0?row('M&E (엑세스·복사패널)',won(L.meSub)):''}
+      ${row('재료비 합계',won(L.matSub))}
+      ${row('노무비 / 경비',won(L.laborSub)+' / '+won(L.expSub))}
+      ${row('총 공사비 (실행률 포함)',won(L.execTotal),true)}
       ${(agg.hvacCompare||0)>0?row('공조 비교견적 (공사범위 제외)',won(agg.hvacCompare)):''}
       ${row('기존 커튼월 (참고)',won(L.conventional))}
       ${row('삼우 납품가 / 공사가 (계)',`${won(L.samooDeliver)} / ${won(L.samooConstr)}`)}
@@ -3557,19 +3984,22 @@ function FitPlatform(){
       </nav>
 
       {tab==='LIST'     &&<ProjectListTab projects={projects} setProjects={setProjects} sel={sel} setSel={setSel} current={{id:activeProjectId,projectName,zones,frames,crt,grd,os,E,P,FD}} loadFromList={loadFromList} saveCurrentToList={saveCurrentToList} toast={toast} newProject={newProject} saveProject={saveProject} loadProject={loadProject} onCreatePlan={createPlanFromList}/>}
-      {tab==='PLAN'     &&<PlanTab plan={plan} setPlan={setPlan} FD={FD} setFD={setFD} applyPlan={applyPlanToProject} toast={toast} activeFrame={f} renders={renders} setTab={setTab} aiRenderView={aiRenderView} renderBusy={renderBusy} onRegisterCapture={captureRegister} autoStart={planAutoStart} onAutoConsumed={()=>setPlanAutoStart(false)}/>}
+      {tab==='PLAN'     &&<>
+        <PlanTab plan={plan} setPlan={setPlan} FD={FD} setFD={setFD} applyPlan={applyPlanToProject} toast={toast} activeFrame={f} renders={renders} setTab={setTab} aiRenderView={aiRenderView} renderBusy={renderBusy} onRegisterCapture={captureRegister} autoStart={planAutoStart} onAutoConsumed={()=>setPlanAutoStart(false)} zones={zones} setZones={setZones} floorZones={floorZones} setFloorZones={setFloorZones} zonePer={zonePer} setZonePer={setZonePer} frames={frames} E={E} setE={setE}/>
+        <ApplyBar dirty={isDirty(['zones','floorZones','zonePer','E'])} onApply={()=>applyKeys(['zones','floorZones','zonePer','E'],'PLAN')} onRevert={()=>revertKeys(['zones','floorZones','zonePer','E'])} label="PLAN (모듈·조닝·에너지 파라미터)" live={liveAgg}/>
+      </>}
       {tab==='PLATFORM' &&<>
-        <PlatformTab zones={zones} setZones={setZones} zonePer={zonePer} setZonePer={setZonePer} floorZones={floorZones} setFloorZones={setFloorZones} frames={frames} f={f} crt={crt} grd={grd} os={os} E={E} setE={setE} P={P} FD={FD} overview={overview} setOverview={setOverview} committed={committed} plan={plan}/>
-        <ApplyBar dirty={isDirty(['zones','floorZones','overview','E','zonePer'])} onApply={()=>applyKeys(['zones','floorZones','overview','E','zonePer'],'PLATFORM')} onRevert={()=>revertKeys(['zones','floorZones','overview','E','zonePer'])} label="PLATFORM (존·개요·에너지 파라미터)" live={liveAgg}/>
+        <PlatformTab frames={frames} f={f} crt={crt} grd={grd} os={os} E={E} P={P} FD={FD} overview={overview} setOverview={setOverview} committed={committed} plan={plan} zones={zones} floorZones={floorZones} zonePer={zonePer}/>
+        <ApplyBar dirty={isDirty(['overview'])} onApply={()=>applyKeys(['overview'],'PLATFORM')} onRevert={()=>revertKeys(['overview'])} label="PROJECT OVERVIEW (개요)" live={liveAgg}/>
       </>}
       {tab==='COST'     &&<CostTab zones={zones} frames={frames} crt={crt} grd={grd} os={os} P={P} setP={setP} FD={FD} setFD={setFD} committed={committed} planMeta={planMeta}/>}
       {tab==='ENERGY'   &&<EnergyTab zones={zones} frames={frames} f={f} crt={crt} grd={grd} os={os} E={E} P={P} FD={FD} committed={committed}/>}
       {tab==='FRAME'    &&<>
-        <FrameTab f={f} setF={setF} crt={crt} frames={frames} activeFrameId={activeFrameId} setActiveFrameId={setActiveFrameId} setFrames={setFrames} planMeta={planMeta}/>
+        <FrameTab f={f} setF={setF} crt={crt} frames={frames} activeFrameId={activeFrameId} setActiveFrameId={setActiveFrameId} setFrames={setFrames} planMeta={planMeta} FD={FD}/>
         <ApplyBar dirty={isDirty(['frames'])} onApply={()=>applyKeys(['frames'],'FRAME')} onRevert={()=>revertKeys(['frames'])} label="FRAME" live={liveAgg}/>
       </>}
       {tab==='SKIN'     &&<>
-        <SkinTab frames={frames} crt={crt} setCrt={setCrt} FD={FD}/>
+        <SkinTab frames={frames} crt={crt} setCrt={setCrt} setFrames={setFrames} FD={FD}/>
         <ApplyBar dirty={isDirty(['crt'])} onApply={()=>applyKeys(['crt'],'SKIN/HVAC')} onRevert={()=>revertKeys(['crt'])} label="SKIN CARTRIDGE" live={liveAgg}/>
       </>}
       {tab==='HVAC'     &&<>
