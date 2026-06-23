@@ -302,6 +302,7 @@ body.calc-mode .vwui, body.calc-mode #fitCtxPanel, body.calc-mode #fitCtxPanelB,
     <div class="pill" id="pill4"><span class="n">04</span>FIT FRAME</div>
     <div class="pill" id="pill5"><span class="n">05</span>CARTRIDGE</div>
     <div class="pill" id="pill6"><span class="n">06</span>완료</div>
+    <div class="pill" id="pill7">RENDER</div>
   </div>
 </div>
 <button id="goTextCalc">✎ 텍스트 입력 견적 →</button>
@@ -443,7 +444,274 @@ body.calc-mode .vwui, body.calc-mode #fitCtxPanel, body.calc-mode #fitCtxPanelB,
   <div class="nav hide" id="nav3"><button class="btn ghost" id="back2">← 코어</button><button class="btn" id="toStep4">다음 · FIT FRAME →</button></div>
   <div class="nav hide" id="nav4"><button class="btn ghost" id="back3">← FIT 적용</button><button class="btn" id="toStep5">다음 · CARTRIDGE →</button></div>
   <div class="nav hide" id="nav5"><button class="btn ghost" id="back4">← FIT FRAME</button><button class="btn" id="toStep6">완료 · 보고서 →</button></div>
-  <div class="nav hide" id="nav6"><button class="btn ghost" id="back5">← CARTRIDGE</button></div>
+  <div class="nav hide" id="nav6"><button class="btn ghost" id="back5">← CARTRIDGE</button><button class="btn" id="toStep7">렌더 →</button></div>
+  <div class="nav hide" id="nav7"><button class="btn ghost" id="back6">← 완료</button></div>
+</div>
+
+<!-- ===== STEP 7: 렌더 컨트롤 (텍스처 매핑 / 카메라 / 렌더링) ===== -->
+  <div id="panel7" class="hide" style="position:fixed;top:160px;left:28px;width:300px;max-height:calc(100vh - 196px);overflow-y:auto;overflow-x:hidden;z-index:6;pointer-events:auto;background:rgba(255,255,255,0.92);border:1px solid var(--line,#e0ddd5);border-radius:10px;padding:12px;box-shadow:0 6px 24px rgba(0,0,0,.12);">
+    <style>
+      #panel7 .rt-tabs{ display:flex; gap:5px; margin-bottom:10px; }
+      #panel7 .rt-tab{ flex:1; padding:8px 3px; font:800 11px inherit; border:1px solid var(--line); border-radius:5px; background:var(--soft,#f3f1ec); color:var(--muted); cursor:pointer; }
+      #panel7 .rt-tab.on{ background:var(--accent); color:#fff; border-color:var(--accent); }
+      #panel7 .rt-sub{ display:flex; gap:4px; margin-bottom:10px; flex-wrap:wrap; }
+      #panel7 .rt-subt{ flex:1; min-width:54px; padding:6px 2px; font:700 10.5px inherit; border:1px solid var(--line); border-radius:5px; background:#fff; color:var(--muted); cursor:pointer; }
+      #panel7 .rt-subt.on{ background:var(--ink,#1a1a1a); color:#fff; border-color:var(--ink,#1a1a1a); }
+      #panel7 .rt-h{ font-size:11px; font-weight:800; letter-spacing:.06em; color:var(--accent); margin:12px 0 8px; text-transform:uppercase; }
+      #panel7 .rt-h:first-child{ margin-top:0; }
+      #panel7 .rt-seg{ display:flex; gap:6px; margin-bottom:8px; }
+      #panel7 .rt-seg button{ flex:1; padding:7px 4px; font:700 11px inherit; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--sub); cursor:pointer; }
+      #panel7 .rt-seg button.on{ background:var(--accent); color:#fff; border-color:var(--accent); }
+      #panel7 .rt-row{ display:flex; align-items:center; gap:8px; margin:6px 0; font-size:11.5px; color:var(--sub); }
+      #panel7 .rt-row input[type=range]{ flex:1; }
+      #panel7 .rt-grid{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+      #panel7 .rt-grid button, #panel7 .rt-btn{ padding:8px 4px; font:700 11px inherit; border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink); cursor:pointer; }
+      #panel7 .rt-grid button:hover, #panel7 .rt-btn:hover{ border-color:var(--accent); color:var(--accent); }
+      #panel7 .rt-btn.prim{ background:var(--accent); color:#fff; border-color:var(--accent); }
+      #panel7 .rt-shape{ width:34px; padding:5px 0; font-size:15px; border:1px solid var(--line); border-radius:4px; background:#fff; cursor:pointer; }
+      #panel7 .rt-shape.on{ background:var(--accent); color:#fff; border-color:var(--accent); }
+      #panel7 .rt-chk{ display:flex; align-items:center; gap:7px; font-size:12px; font-weight:700; color:var(--ink); margin:10px 0 4px; }
+      #panel7 input[type=text], #panel7 input[type=password], #panel7 select, #panel7 textarea{ font:inherit; font-size:11.5px; border:1px solid var(--line); border-radius:4px; padding:6px 8px; background:#fff; color:var(--ink); width:100%; box-sizing:border-box; }
+      #panel7 textarea{ height:54px; resize:vertical; }
+      #panel7 .rt-hint{ font-size:10.5px; color:var(--muted); line-height:1.4; margin-top:4px; }
+      #panel7 .rt-img{ width:100%; border:1px solid var(--line); border-radius:4px; margin-top:6px; display:block; cursor:zoom-in; }
+      #panel7 .rt-status{ font-size:11px; color:var(--sub); margin-top:6px; line-height:1.4; }
+      /* 썸네일(index.html 카트리지 방식) */
+      #panel7 .rt-grp{ margin-top:12px; }
+      #panel7 .rt-grpt{ font-size:12px; font-weight:700; color:var(--ink); margin-bottom:6px; display:flex; align-items:center; gap:7px; }
+      #panel7 .rt-sw{ width:13px; height:13px; border-radius:3px; flex:0 0 auto; border:1px solid #cfcbc3; }
+      #panel7 .rt-sub2{ display:flex; align-items:flex-start; gap:8px; margin:5px 0 5px 2px; }
+      #panel7 .rt-sublbl{ font-size:11px; color:#4b5159; width:62px; flex:0 0 auto; padding-top:14px; }
+      #panel7 .rt-th{ display:flex; gap:8px; flex-wrap:wrap; }
+      #panel7 .rt-thumb{ width:46px; text-align:center; }
+      #panel7 .rt-thumb img, #panel7 .rt-thumb .ph{ width:46px; height:46px; border:1px solid var(--line); border-radius:7px; background:var(--soft,#f3f1ec); object-fit:contain; display:block; }
+      #panel7 .rt-thumb .cap{ font-size:9px; color:var(--muted); margin-top:3px; display:block; line-height:1.2; word-break:break-all; }
+      #panel7 .rt-thumb .ph.none{ border-style:dashed; background:repeating-linear-gradient(45deg,#edebe6,#edebe6 5px,#f7f6f3 5px,#f7f6f3 10px); }
+      #panel7 .rt-skinrow{ cursor:pointer; border-radius:7px; padding:3px 4px; border:1px solid transparent; }
+      #panel7 .rt-skinrow:hover{ background:rgba(230,141,57,0.06); }
+      #panel7 .rt-skinrow.on{ background:rgba(230,141,57,0.14); border-color:var(--accent,#e68d39); }
+    </style>
+
+    <!-- 메인 하위탭 -->
+    <div class="rt-tabs">
+      <button id="rtTabTex" class="rt-tab on" onclick="RT.mainTab('tex')">텍스처 매핑</button>
+      <button id="rtTabAi"  class="rt-tab" onclick="RT.mainTab('ai')">렌더링</button>
+    </div>
+
+    <!-- ============ I. 텍스처 매핑 ============ -->
+    <div id="rtPaneTex">
+      <!-- 라인 표시/제외 (최상단) -->
+      <div style="display:flex; gap:14px; flex-wrap:wrap; padding-bottom:8px; margin-bottom:8px; border-bottom:1px solid var(--line,#e0ddd5);">
+        <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;font-weight:700;color:var(--ink,#1a1a1a);"><input type="checkbox" id="rtGridOn" checked onchange="RT.onLines()"> 평면 그리드</label>
+        <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;font-weight:700;color:var(--ink,#1a1a1a);"><input type="checkbox" id="rtSiteOn" checked onchange="RT.onLines()"> 대지 경계선</label>
+      </div>
+      <div class="rt-sub">
+        <button id="rtSubStruct" class="rt-subt on" onclick="RT.texTab('struct')">구조체</button>
+        <button id="rtSubFrame"  class="rt-subt" onclick="RT.texTab('frame')">프레임</button>
+        <button id="rtSubCart"   class="rt-subt" onclick="RT.texTab('cart')">카트리지</button>
+        <button id="rtSubPat"    class="rt-subt" onclick="RT.texTab('pat')">패턴</button>
+      </div>
+
+      <!-- 1. 구조체 -->
+      <div id="rtTexStruct">
+        <!-- 매스 -->
+        <label class="rt-chk"><input type="checkbox" id="rtMassOn" onchange="RT.onStruct()"> 매스(규모) 표시</label>
+        <div class="rt-row"><span style="min-width:48px;">밝기</span><input id="rtMassB" type="range" min="0" max="255" value="235" oninput="RT.onStruct()"><span id="rtMassBv" style="min-width:34px;text-align:right;">235</span></div>
+        <div class="rt-row"><span style="min-width:48px;">불투명도</span><input id="rtMassA" type="range" min="0" max="100" value="100" oninput="RT.onStruct()"><span id="rtMassAv" style="min-width:34px;text-align:right;">100%</span></div>
+        <!-- 슬래브 -->
+        <label class="rt-chk"><input type="checkbox" id="rtSlabOn" checked onchange="RT.onStruct()"> 슬래브(각 층) 표시</label>
+        <div class="rt-row"><span style="min-width:48px;">두께</span><input id="rtSlabTh" type="range" min="100" max="1000" value="200" step="10" oninput="RT.onStruct()"><span id="rtSlabThv" style="min-width:48px;text-align:right;">200mm</span></div>
+        <div class="rt-row"><span style="min-width:48px;">밝기</span><input id="rtSlabB" type="range" min="0" max="255" value="100" oninput="RT.onStruct()"><span id="rtSlabBv" style="min-width:34px;text-align:right;">100</span></div>
+        <div class="rt-row"><span style="min-width:48px;">불투명도</span><input id="rtSlabA" type="range" min="0" max="100" value="100" oninput="RT.onStruct()"><span id="rtSlabAv" style="min-width:34px;text-align:right;">100%</span></div>
+        <!-- 코어 -->
+        <label class="rt-chk"><input type="checkbox" id="rtCoreOn" checked onchange="RT.onStruct()"> 코어 표시</label>
+        <div class="rt-row"><span style="min-width:48px;">밝기</span><input id="rtCoreB" type="range" min="0" max="255" value="150" oninput="RT.onStruct()"><span id="rtCoreBv" style="min-width:34px;text-align:right;">150</span></div>
+        <div class="rt-row"><span style="min-width:48px;">불투명도</span><input id="rtCoreA" type="range" min="0" max="100" value="100" oninput="RT.onStruct()"><span id="rtCoreAv" style="min-width:34px;text-align:right;">100%</span></div>
+        <div class="rt-hint">매스/슬래브/코어 표시·밝기·불투명도(슬래브는 두께)를 따로 조절합니다.</div>
+      </div>
+
+      <!-- 2. 프레임 -->
+      <div id="rtTexFrame" style="display:none;">
+        <label class="rt-chk"><input type="checkbox" id="rtFrameOn" checked onchange="RT.onStruct()"> 프레임 매핑 (내측·외측)</label>
+        <div class="rt-hint">각 카트리지 모듈 치수만큼 stretch 매핑됩니다. 내측 frame-2, 외측 frame-1.</div>
+        <div class="rt-grp">
+          <div class="rt-grpt"><span class="rt-sw" style="background:#8a867e;"></span>프레임 모듈</div>
+          <div class="rt-sub2"><span class="rt-sublbl">내측</span><div class="rt-th"><div class="rt-thumb"><img src="source/frame-2.png" alt=""><span class="cap">frame-2.png</span></div></div></div>
+          <div class="rt-sub2"><span class="rt-sublbl">외측</span><div class="rt-th"><div class="rt-thumb"><img src="source/frame-1.png" alt=""><span class="cap">frame-1.png</span></div></div></div>
+          <div class="rt-sub2"><span class="rt-sublbl">코너</span><div class="rt-th">
+            <div class="rt-thumb"><img src="source/frame-3.png" alt=""><span class="cap">frame-3.png<br>오른쪽 끝</span></div>
+            <div class="rt-thumb"><img src="source/frame-4.png" alt=""><span class="cap">frame-4.png<br>왼쪽 끝</span></div></div></div>
+          <div class="rt-sub2"><span class="rt-sublbl">측면</span><div class="rt-th"><div class="rt-thumb"><img src="source/side.png" alt=""><span class="cap">side.png<br>좌우 옆면</span></div></div></div>
+        </div>
+      </div>
+
+      <!-- 3. 카트리지 -->
+      <div id="rtTexCart" style="display:none;">
+        <div class="rt-hint">각 모듈에 들어가는 이미지입니다. 스킨 cart-1·cart-2 배치 비율은 ‘패턴’ 탭에서 조절합니다.</div>
+        <div class="rt-grp">
+          <div class="rt-grpt"><span class="rt-sw" style="background:#b0aca3;"></span>1. 스킨 (skin)</div>
+          <div class="rt-hint" style="margin:2px 0 4px;">행을 클릭해 스킨 종류 선택(05와 연동·견적 반영)</div>
+          <div class="rt-sub2 rt-skinrow" id="rtSkinString" onclick="RT.pickSkin('string')"><span class="rt-sublbl">a. 스트링</span><div class="rt-th"><div class="rt-thumb"><img src="source/cart-s-c.png" alt=""><span class="cap">cart-s-c.png</span></div><div class="rt-thumb"><img src="source/cart-s-o.png" alt=""><span class="cap">cart-s-o.png</span></div></div></div>
+          <div class="rt-sub2 rt-skinrow" id="rtSkinFabric" onclick="RT.pickSkin('fabric')"><span class="rt-sublbl">b. 패브릭</span><div class="rt-th"><div class="rt-thumb"><img src="source/cart-1.png" alt=""><span class="cap">cart-1.png</span></div><div class="rt-thumb"><img src="source/cart-2.png" alt=""><span class="cap">cart-2.png</span></div></div></div>
+          <div class="rt-sub2 rt-skinrow" id="rtSkinMetal" onclick="RT.pickSkin('metal')"><span class="rt-sublbl">c. 메탈</span><div class="rt-th"><div class="rt-thumb"><img src="source/cart-1.png" alt=""><span class="cap">cart-1.png</span></div><div class="rt-thumb"><img src="source/cart-2.png" alt=""><span class="cap">cart-2.png</span></div></div></div>
+          <div class="rt-sub2 rt-skinrow" id="rtSkinRoll" onclick="RT.pickSkin('rollblind')"><span class="rt-sublbl">d. 롤블라인드</span><div class="rt-th"><div class="rt-thumb"><img src="source/cart-r-c.png" alt=""><span class="cap">cart-r-c.png</span></div><div class="rt-thumb"><img src="source/cart-r-o.png" alt=""><span class="cap">cart-r-o.png</span></div></div></div>
+        </div>
+        <div class="rt-grp">
+          <div class="rt-grpt"><span class="rt-sw" style="background:#e68d39;"></span>2. 공조 (hvac)</div>
+          <div class="rt-th" style="margin-left:2px;"><div class="rt-thumb"><img src="source/cart-air.png" alt=""><span class="cap">cart-air.png</span></div></div>
+        </div>
+        <div class="rt-grp">
+          <div class="rt-grpt"><span class="rt-sw" style="background:#fff;"></span>3. 도어 (door)</div>
+          <div class="rt-th" style="margin-left:2px;"><div class="rt-thumb"><div class="ph"></div><span class="cap">기본 도형</span></div></div>
+        </div>
+        <div class="rt-grp">
+          <div class="rt-grpt"><span class="rt-sw" style="background:#edebe6;"></span>4. 없음 (none)</div>
+          <div class="rt-th" style="margin-left:2px;"><div class="rt-thumb"><div class="ph none"></div><span class="cap">비움</span></div></div>
+        </div>
+        <div class="rt-grp">
+          <div class="rt-grpt"><span class="rt-sw" style="background:#7a766e;"></span>5. 코너 프레임 (corner)</div>
+          <div class="rt-th" style="margin-left:2px;"><div class="rt-thumb"><img src="source/frame-3.png" alt=""><span class="cap">frame-3.png</span></div><div class="rt-thumb"><img src="source/frame-4.png" alt=""><span class="cap">frame-4.png</span></div></div>
+        </div>
+      </div>
+
+      <!-- 4. 패턴 -->
+      <div id="rtTexPat" style="display:none;">
+        <div class="rt-seg">
+          <button id="rtPatRandom" class="on" onclick="RT.setPattern('random')">랜덤</button>
+          <button id="rtPatLetter" onclick="RT.setPattern('lettering')">레터링</button>
+        </div>
+        <div id="rtRandomBox">
+          <div class="rt-row"><span style="min-width:34px;">cart-1</span><input id="rtRatio" type="range" min="0" max="100" value="50" oninput="RT.onRatio()"><span style="min-width:34px;">cart-2</span></div>
+          <div class="rt-hint" id="rtRatioLbl">cart-1 50% : cart-2 50% · 스킨 모듈 랜덤 배치</div>
+        </div>
+        <div id="rtLetterBox" style="display:none;">
+          <button class="rt-btn" id="rtFaceBtn" style="width:100%;" onclick="RT.toggleFaceSelect()">면 선택 (모델에서 클릭)</button>
+          <div class="rt-hint" id="rtFaceLbl">선택된 면: 없음</div>
+          <div class="rt-row"><span style="min-width:34px;">글자</span><input id="rtLetter" type="text" maxlength="2" placeholder="가 / AB / 12" style="width:90px;text-align:center;" oninput="RT.onLetter()"></div>
+          <div class="rt-row"><span style="min-width:34px;">프리셋</span>
+            <button class="rt-shape" id="rtShapeSmiley" onclick="RT.onShape('smiley')">☺</button>
+            <button class="rt-shape" id="rtShapeHeart" onclick="RT.onShape('heart')">♥</button>
+            <button class="rt-shape" id="rtShapeStar" onclick="RT.onShape('star')">★</button></div>
+          <div class="rt-row"><span style="min-width:48px;">가로</span><input id="rtScaleX" type="range" min="20" max="300" value="230" step="5" oninput="RT.onScale()"><span id="rtScaleXv" style="min-width:36px;text-align:right;">230%</span></div>
+          <div class="rt-row"><span style="min-width:48px;">세로</span><input id="rtScaleY" type="range" min="20" max="150" value="100" step="5" oninput="RT.onScale()"><span id="rtScaleYv" style="min-width:36px;text-align:right;">100%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ II. 렌더링 (실사화) ============ -->
+    <div id="rtPaneAi" style="display:none;">
+      <div class="rt-h">Gemini API 키</div>
+      <div class="rt-row"><input id="rtKey" type="password" placeholder="키 뒤 2글자만 입력"
+        value="AIzaSyDb3HUaL5dHueXJKHluVyq-VV0ExhjFx" style="flex:1;">
+        <button class="rt-btn" style="flex:0 0 auto;" onclick="RT.saveKey()">저장</button></div>
+      <div class="rt-hint">키 앞부분은 입력돼 있습니다. 뒤 2글자만 이어 입력 후 저장(이 브라우저에만).</div>
+      <div class="rt-row" style="margin-top:8px;"><span style="min-width:34px;">모델</span><input id="rtModel" type="text" value="gemini-3.1-flash-image"></div>
+
+      <div class="rt-h">캡처 & 스타일</div>
+      <div class="rt-grid"><button class="rt-btn" onclick="RT.capture()">전체 화면 캡처</button><button class="rt-btn" onclick="RT.captureRegion()">영역 지정 캡처</button></div>
+      <div class="rt-row" style="margin-top:6px;"><span style="flex:0 0 auto;">또는</span><input type="file" id="rtUpload" accept="image/*" onchange="RT.onUpload(this)" style="flex:1; border:none; padding:0; font-size:11px; background:none;"></div>
+      <div class="rt-row" style="margin-top:8px;"><select id="rtPreset" onchange="RT.applyPreset()">
+        <option value="day">주간 실사 (맑음)</option>
+        <option value="dusk">황혼 / 골든아워</option>
+        <option value="night">야경 (조명)</option>
+        <option value="cloudy">흐린 날</option>
+        <option value="mdf">MDF 모델 (물리 모형)</option>
+        <option value="custom">커스텀</option></select></div>
+      <textarea id="rtPrompt"></textarea>
+
+      <div class="rt-h">레퍼런스 이미지 (선택)</div>
+      <div class="rt-row"><input type="file" id="rtRefUpload" accept="image/*" onchange="RT.onRef(this)" style="flex:1; border:none; padding:0; font-size:11px; background:none;">
+        <button class="rt-btn" style="flex:0 0 auto;" onclick="RT.clearRef()">제거</button></div>
+      <img id="rtRefImg" class="rt-img" alt="" style="display:none; max-height:110px; object-fit:contain;">
+      <div class="rt-hint">참조할 항목 (다중 선택):</div>
+      <div class="rt-row" style="gap:14px; flex-wrap:wrap;">
+        <label style="display:flex;gap:5px;align-items:center;"><input type="checkbox" id="rtRefFacade"> 입면</label>
+        <label style="display:flex;gap:5px;align-items:center;"><input type="checkbox" id="rtRefMaterial"> 재질</label>
+        <label style="display:flex;gap:5px;align-items:center;"><input type="checkbox" id="rtRefColor"> 색상톤</label>
+      </div>
+
+      <div class="rt-row" style="margin-top:10px;"><button class="rt-btn prim" id="rtRunBtn" style="width:100%;" onclick="RT.run()">실사 변환 실행</button></div>
+      <div class="rt-status" id="rtStatus">화면을 캡처하거나 이미지를 업로드한 뒤 변환하세요.</div>
+      <div id="rtSrcWrap" style="display:none;"><div class="rt-hint" style="margin-top:8px;">원본 (캡처) · 클릭 시 비교</div>
+        <img id="rtSrcImg" class="rt-img" alt="" onclick="RT.compare()"></div>
+      <div id="rtResWrap" style="display:none;"><div class="rt-hint" style="margin-top:8px;">변환 결과 · 클릭 시 비교</div>
+        <img id="rtResImg" class="rt-img" alt="" onclick="RT.compare()">
+        <button class="rt-btn" style="width:100%;margin-top:6px;" onclick="RT.download()">결과 다운로드</button></div>
+    </div>
+  </div>
+
+<div id="rtCamPanel" style="display:none;">
+  <style>
+    #rtCamPanel{ position:fixed; top:68px; right:28px; width:228px; z-index:8; pointer-events:auto;
+      font-family:'IBM Plex Sans KR','Apple SD Gothic Neo',sans-serif; background:rgba(255,255,255,0.96);
+      border:1px solid var(--line,#e0ddd5); border-radius:10px; padding:12px; box-shadow:0 6px 24px rgba(0,0,0,.12); }
+    #rtCamPanel .cb-h{ font-size:11px; font-weight:800; letter-spacing:.06em; color:var(--accent,#e68d39); text-transform:uppercase; margin:10px 0 7px; }
+    #rtCamPanel .cb-h:first-child{ margin-top:0; }
+    #rtCamPanel .cb-grid{ display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+    #rtCamPanel .cb-grid button, #rtCamPanel .cb-b{ padding:7px 4px; font:700 11px inherit; border:1px solid var(--line,#e0ddd5); border-radius:6px; background:#fff; color:var(--ink,#1a1a1a); cursor:pointer; }
+    #rtCamPanel .cb-grid button:hover, #rtCamPanel .cb-b:hover{ border-color:var(--accent,#e68d39); color:var(--accent,#e68d39); }
+    #rtCamPanel .cb-row{ display:flex; align-items:center; gap:7px; margin:6px 0; font-size:11.5px; color:#4b5159; }
+    #rtCamPanel .cb-row input[type=range]{ flex:1; }
+    #rtCamPanel .vc-dirs{ display:grid; grid-template-columns:repeat(4,1fr); gap:5px; }
+    #rtCamPanel .vc-dir{ padding:7px 0; font:700 11px inherit; border:1px solid var(--line,#e0ddd5); border-radius:6px; background:#fff; color:var(--ink,#1a1a1a); cursor:pointer; }
+    #rtCamPanel .vc-dir.on{ background:var(--accent,#e68d39); color:#fff; border-color:var(--accent,#e68d39); }
+    #rtCamPanel .cb-go{ width:100%; margin-top:8px; background:var(--ink,#1a1a1a); color:#fff; border:none; border-radius:7px; padding:8px; font:700 12px inherit; cursor:pointer; }
+    #rtCamPanel .cb-tabs{ display:flex; gap:5px; margin-top:11px; border-top:1px solid var(--line,#e0ddd5); padding-top:10px; }
+    #rtCamPanel .cb-tab{ flex:1; font:700 11px inherit; padding:6px 4px; border:1px solid var(--line,#e0ddd5); border-radius:6px; background:var(--soft,#f3f1ec); color:var(--muted,#8a867e); cursor:pointer; }
+    #rtCamPanel .cb-tab.on{ background:var(--ink,#1a1a1a); color:#fff; border-color:var(--ink,#1a1a1a); }
+    #rtCamPanel .cb-hint{ font-size:10px; color:var(--muted,#8a867e); line-height:1.4; margin-top:5px; }
+    #rtCamPanel .cb-mode{ display:flex; gap:5px; margin-bottom:8px; }
+    #rtCamPanel .cb-mode-b{ flex:1; padding:7px 4px; font:700 11px inherit; border:1px solid var(--line,#e0ddd5); border-radius:6px; background:#fff; color:var(--muted,#8a867e); cursor:pointer; }
+    #rtCamPanel .cb-mode-b.on{ background:var(--accent,#e68d39); color:#fff; border-color:var(--accent,#e68d39); }
+    #rtCamPanel .cb-slots{ display:flex; flex-direction:column; gap:4px; margin-bottom:6px; }
+    #rtCamPanel .cb-slot{ display:flex; align-items:center; gap:5px; }
+    #rtCamPanel .cb-slot button.s{ flex:1; text-align:left; padding:6px 8px; font:600 11px inherit; border:1px solid var(--line,#e0ddd5); border-radius:6px; background:#fff; color:var(--ink,#1a1a1a); cursor:pointer; }
+    #rtCamPanel .cb-slot button.s:hover{ border-color:var(--accent,#e68d39); color:var(--accent,#e68d39); }
+    #rtCamPanel .cb-slot button.x{ width:24px; flex:0 0 auto; padding:6px 0; font:700 12px inherit; border:1px solid var(--line,#e0ddd5); border-radius:6px; background:#fff; color:#b06; cursor:pointer; }
+    #rtCamPanel .cb-empty{ font-size:10px; color:var(--muted,#8a867e); }
+  </style>
+  <!-- 카메라 뷰 -->
+  <div id="rtCamPane">
+    <div class="cb-h" id="rtCamTitle">카메라 뷰</div>
+    <div class="cb-mode">
+      <button id="rtMode2pt" class="cb-mode-b on" onclick="RT.setCamMode('2pt')">2점투시</button>
+      <button id="rtModePersp" class="cb-mode-b" onclick="RT.setCamMode('persp')">투시</button>
+    </div>
+    <div class="cb-grid">
+      <button id="rtCorner0" onclick="RT.flyCorner(0)">코너 1</button>
+      <button id="rtCorner1" onclick="RT.flyCorner(1)">코너 2</button>
+      <button id="rtCorner2" onclick="RT.flyCorner(2)">코너 3</button>
+      <button id="rtCorner3" onclick="RT.flyCorner(3)">코너 4</button>
+    </div>
+    <div class="cb-grid" style="margin-top:5px;">
+      <button class="cb-b" onclick="RT.flyTop()">평면(탑뷰)</button>
+      <button class="cb-b" onclick="RT.flyBird()">조감</button>
+    </div>
+    <div class="cb-hint">2점투시 = 세로선 항상 수직. 코너 이름은 가장 가까운 방위로 자동.</div>
+    <div class="cb-h">뷰 저장</div>
+    <div id="rtCamSlots" class="cb-slots"></div>
+    <button class="cb-go" id="rtSaveView" onclick="RT.saveView()">+ 현재 뷰 저장 (0/5)</button>
+  </div>
+  <!-- 뷰체크 (실내뷰) -->
+  <div id="rtVcPane" style="display:none;">
+    <div class="cb-h">뷰체크 (실내뷰)</div>
+    <div style="display:flex; gap:8px; align-items:stretch; margin:6px 0;">
+      <div style="display:flex; flex-direction:column; align-items:center; gap:3px; flex:0 0 auto;">
+        <span style="font-size:9.5px;color:#999;">고층</span>
+        <input id="rtVcFloor" type="range" min="1" max="1" value="1" step="1" oninput="RT.onVcFloor()"
+          style="writing-mode:vertical-lr; direction:rtl; -webkit-appearance:slider-vertical; appearance:slider-vertical; width:22px; height:140px; padding:0;">
+        <span style="font-size:9.5px;color:#999;">저층</span>
+        <span id="rtVcFloorVal" style="font-size:11px;font-weight:700;color:var(--ink,#1a1a1a);">1층</span>
+      </div>
+      <canvas id="rtVcPlan" width="158" height="158" style="flex:1 1 auto; width:158px; height:158px; display:block; border:1px solid var(--line,#e0ddd5); border-radius:6px; background:#faf9f7; cursor:crosshair;"></canvas>
+    </div>
+    <button class="cb-go" onclick="RT.interiorView()">실내뷰 확인</button>
+    <div class="cb-hint">평면을 클릭해 시점 위치 지정(기본=중앙). 화살표 = 가장 가까운 창문 방향. (화면 드래그 시 일반 궤도뷰로 복귀)</div>
+  </div>
+  <div class="cb-tabs">
+    <button id="rtCbCam" class="cb-tab on" onclick="RT.camTab('cam')">카메라 뷰</button>
+    <button id="rtCbView" class="cb-tab" onclick="RT.camTab('view')">뷰체크</button>
+  </div>
 </div>
 
 <div class="hud planwrap hide" id="planwrap">
@@ -1697,21 +1965,22 @@ function autoPlaceHvac(){ clampFit();
 function setStep(s){ wake(); step=s;
   if(drawMode&&s!==1){drawMode=false;drawPts=[];drawHover=null;renderDraw();updateDrawUI();}
   document.activeElement&&document.activeElement.blur&&document.activeElement.blur();
-  for(const k of [1,2,3,4,5,6]) $('pill'+k).classList.toggle('on',k===s);
-  $('ttl').innerHTML = s===1?'건물 <b>규모</b>': s===2?'건물 <b>코어</b>': s===3?'FIT <b>적용 층/면</b>': s===4?'FIT <b>FRAME</b>': s===5?'<b>CARTRIDGE</b>':'<b>완료</b>';
+  for(const k of [1,2,3,4,5,6,7]) $('pill'+k).classList.toggle('on',k===s);
+  $('ttl').innerHTML = s===1?'건물 <b>규모</b>': s===2?'건물 <b>코어</b>': s===3?'FIT <b>적용 층/면</b>': s===4?'FIT <b>FRAME</b>': s===5?'<b>CARTRIDGE</b>': s===6?'<b>완료</b>':'<b>RENDER</b>';
   [['hint1',1],['hint2',2],['hint3',3],['hint4',4],['hint5',5],['panel1',1],['panel2',2],['panel3',3],['panel4',4],['panel5',5],
-   ['ex1',1],['ex2',2],['ex3',3],['ex4',4],['ex5',5],['nav1',1],['nav2',2],['nav3',3],['nav4',4],['nav5',5],['nav6',6]].forEach(a=>toggle(a[0],a[1]===s));
-  if(s===1){tPhi=1.0;zoomK=3.3;} else if(s===2){tPhi=0.5;zoomK=3.0; if((footprint&&footprint.length>=3 && !coreFits(tcx,tcz,tcHalfW,tcHalfD)) || !coreTouched)coreDefault(); clampCore();} else if(s===3){tPhi=0.92;zoomK=3.55; if(!fitTouched) fitTo=tFloors; clampFit();} else if(s===4){tPhi=0.95;zoomK=3.4;clampFit(); editFloor=clamp(editFloor,fitFrom,fTopEff()); floorUI(); modeLine(); autoGroupFrames(); aTypeFloor=fTypeFirstFloor(activeFType); frSig=''; buildPlan();} else if(s===5){tPhi=0.9;zoomK=4.6;clampFit(); editFloor=clamp(editFloor,fitFrom,fTopEff()); floorUI(); modeLine(); if(!hvacAuto){autoPlaceHvac();hvacAuto=true;} frSig=''; buildPlan();} else {tPhi=0.86;zoomK=4.1;clampFit(); frSig=''; buildReport();}
+   ['ex1',1],['ex2',2],['ex3',3],['ex4',4],['ex5',5],['nav1',1],['nav2',2],['nav3',3],['nav4',4],['nav5',5],['nav6',6],['panel7',7],['nav7',7]].forEach(a=>toggle(a[0],a[1]===s));
+  if(s===1){tPhi=1.0;zoomK=3.3;} else if(s===2){tPhi=0.5;zoomK=3.0; if((footprint&&footprint.length>=3 && !coreFits(tcx,tcz,tcHalfW,tcHalfD)) || !coreTouched)coreDefault(); clampCore();} else if(s===3){tPhi=0.92;zoomK=3.55; if(!fitTouched) fitTo=tFloors; clampFit();} else if(s===4){tPhi=0.95;zoomK=3.4;clampFit(); editFloor=clamp(editFloor,fitFrom,fTopEff()); floorUI(); modeLine(); autoGroupFrames(); aTypeFloor=fTypeFirstFloor(activeFType); frSig=''; buildPlan();} else if(s===5){tPhi=0.9;zoomK=4.6;clampFit(); editFloor=clamp(editFloor,fitFrom,fTopEff()); floorUI(); modeLine(); if(!hvacAuto){autoPlaceHvac();hvacAuto=true;} frSig=''; buildPlan();} else if(s===7){tPhi=0.9;zoomK=4.4;clampFit(); editFloor=clamp(editFloor,fitFrom,fTopEff()); frSig='';} else {tPhi=0.86;zoomK=4.1;clampFit(); frSig=''; buildReport();}
   toggle('glasssel',s===4); toggle('planwrap',s===4||s===5); toggle('skinsel',s===5); toggle('drawsel',s===1); toggle('coresel',s===2); toggle('roofsel',s===3);
   toggle('mainpanel',s!==6); toggle('ctrlhud',s!==6); toggle('report',s===6); toggle('navReset',s!==6);
   if(s===4) setActiveType('noframe'); else if(s===5 && activeType==='noframe') setActiveType('skin');
   toggle('palSkin',s===5); toggle('palHvac',s===5); toggle('palDoor',s===5); toggle('palNone',s===5); toggle('palNoframe',false);
   { const fp=$('ftPal'); if(fp)fp.style.display=(s===4)?'grid':'none'; } toggle('ftaddsel',s===4); if(s===4){ renderFTypeChips(); renderFTypeInputs(); }
   if(s===1 && footprint && footprint.length>=3) renderFootprintDims();
-  updateReadout(); if(typeof fitPanel==='function')fitPanel();}
-$('toStep2').onclick=()=>setStep(2); $('toStep3').onclick=()=>setStep(3); $('toStep4').onclick=()=>setStep(4); $('toStep5').onclick=()=>setStep(5); $('toStep6').onclick=()=>setStep(6);
-$('back1').onclick=()=>setStep(1); $('back2').onclick=()=>setStep(2); $('back3').onclick=()=>setStep(3); $('back4').onclick=()=>setStep(4); $('back5').onclick=()=>setStep(5);
-$('pill1').onclick=()=>setStep(1); $('pill2').onclick=()=>setStep(2); $('pill3').onclick=()=>setStep(3); $('pill4').onclick=()=>setStep(4); $('pill5').onclick=()=>setStep(5); $('pill6').onclick=()=>setStep(6);
+  updateReadout(); if(typeof fitPanel==='function')fitPanel();
+  if(step===7 && window.RT && RT.onEnter){ try{ RT.onEnter(); }catch(e){ console.warn('RT.onEnter error:', e); } }}
+$('toStep2').onclick=()=>setStep(2); $('toStep3').onclick=()=>setStep(3); $('toStep4').onclick=()=>setStep(4); $('toStep5').onclick=()=>setStep(5); $('toStep6').onclick=()=>setStep(6); $('toStep7').onclick=()=>setStep(7);
+$('back1').onclick=()=>setStep(1); $('back2').onclick=()=>setStep(2); $('back3').onclick=()=>setStep(3); $('back4').onclick=()=>setStep(4); $('back5').onclick=()=>setStep(5); $('back6').onclick=()=>setStep(6);
+$('pill1').onclick=()=>setStep(1); $('pill2').onclick=()=>setStep(2); $('pill3').onclick=()=>setStep(3); $('pill4').onclick=()=>setStep(4); $('pill5').onclick=()=>setStep(5); $('pill6').onclick=()=>setStep(6); $('pill7').onclick=()=>setStep(7);
 $('btnDraw').onclick=startDraw; $('btnDrawDone').onclick=finishDraw; $('btnDrawCancel').onclick=cancelDraw; $('btnRect').onclick=clearFootprint; var _bmm=$('btnMaxMass'); if(_bmm)_bmm.onclick=toggleMassAnim; _mmBtn(false); var _brm=$('btnRemodel'); if(_brm)_brm.onclick=toggleRemodel; window.__legalOv=window.__legalOv||{far:null,bcr:null};
   var _parseNum=function(x){ var t=String(x).replace(/[^0-9.]/g,''); var v=parseFloat(t); return (t!==''&&isFinite(v)&&v>0)?v:null; };
   var _mmReMax=function(){ if(window.__mmAnimOn && typeof _mmCompute==='function'){ var C=_mmCompute(); if(C){ var g=C.siteA*C.far/100, uF=Math.max(C.floors, Math.round(tFloors)||1), uA=g/uF; window.__mmTarget={gfa:g, siteA:C.siteA, far:C.far, bcr:C.bcr}; _mmApply(C, uA, uF); _mmStat(C, uA, uF); window.__mmBox=_mmWorldBox(); } } };
@@ -2232,8 +2501,8 @@ function tick(){requestAnimationFrame(tick);
   if(!poly && !drawMode){ box.scale.set(w,h,d); box.position.y=h/2; edges.scale.set(w,h,d); edges.position.y=h/2; rebuildFloors(w,h,d,tFloors); }
   slabs.visible = !drawMode && (step>=2); if(slabs.visible) rebuildSlabs(poly,w,h,d,tFloors);
 
-  const s1=step===1,s2=step===2,s3=step===3,s4=step===4,s5=step===5,s6=step===6;
-  if(s4||s5||s6){ faceMat.color.set('#bdb9b1'); faceMat.opacity=0.15; edgeMat.color.set('#8a867e'); edgeMat.opacity=0.55; }
+  const s1=step===1,s2=step===2,s3=step===3,s4=step===4,s5=step===5,s6=step===6,s7=step===7;
+  if(s4||s5||s6||s7){ faceMat.color.set('#bdb9b1'); faceMat.opacity=0.15; edgeMat.color.set('#8a867e'); edgeMat.opacity=0.55; }
   else { faceMat.color.copy(ACCENT); edgeMat.color.copy(ACCENT);
     faceMat.opacity=s2?0.025:(s3?0.02:0.05); edgeMat.opacity=s2?0.6:(s3?0.72:0.9); }
   floorMat.opacity=s2?0.1:((s3||s4||s5||s6)?0.16:0.28);
@@ -6468,6 +6737,524 @@ window.FitCalcApp = App;
   function _vwTick(){ relocateVW(); positionPanelB(); alignStat(); updateLandInfo(); try{ var _bmm=document.getElementById('btnMaxMass'); if(_bmm){ var _VC=window.VWorldContext, _ST=_VC&&_VC.state; var _en=!!(_ST&&_ST.site&&_ST.site.parcels&&_ST.site.parcels.filter(function(p){return !p.road;}).length); _bmm.style.opacity=_en?'1':'.4'; _bmm.style.pointerEvents=_en?'auto':'none'; if(!_en){ _bmm.textContent='기준 매스 자동생성'; } else if(!window.__mmAnimOn){ _bmm.textContent='기준 매스 자동생성 ▶'; } } }catch(e){} try{ var _brm=document.getElementById('btnRemodel'); if(_brm){ var _VC2=window.VWorldContext, _ST2=_VC2&&_VC2.state; var _en2=!!(_ST2&&_ST2.buildingsGroup&&_ST2.buildingsGroup.children&&_ST2.buildingsGroup.children.length); _brm.style.opacity=_en2?'1':'.4'; _brm.style.pointerEvents=_en2?'auto':'none'; } }catch(e){} try{ if(window.__updateSiteReadout) window.__updateSiteReadout(); }catch(e){} }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ addToggle(); _vwTick(); }); else { addToggle(); _vwTick(); }
   setInterval(_vwTick, 350);
+})();
+</script>
+
+<!-- ===== 07 RENDER 모듈 (from 희진 index.html) ===== -->
+<script>
+(function(){
+  "use strict";
+  var T = THREE;
+  var FACEN = {0:[0,1],1:[1,0],2:[0,-1],3:[-1,0]};   // 면 인덱스 → (nx,nz). 북=−Z, 동=+X
+  function $id(i){ return document.getElementById(i); }
+  function setTxt(i,v){ var e=$id(i); if(e) e.textContent=v; }
+  function show(i,on){ var e=$id(i); if(e) e.style.display=on?"block":"none"; }
+  function ckd(i){ var e=$id(i); return !!(e&&e.checked); }
+
+  // ───────── 텍스처/재질 ─────────
+  var TEXBASE="source/";
+  var _tex={}, _mat={}, _loaded=false, _loading=false, _dirty=true;
+  var rtOverlay=new T.Group(); rtOverlay.visible=false; scene.add(rtOverlay);   // 프레임 평면 오버레이
+  var _plane=new T.PlaneGeometry(1,1);
+  var _invis=new T.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide});   // 박스 옆면(미매핑)
+  function loadRT(cb){
+    if(_loaded){ cb&&cb(); return; }
+    if(_loading) return; _loading=true;
+    _mat.doorDark=new T.MeshBasicMaterial({color:0xffffff,side:T.DoubleSide,transparent:true,opacity:0.5,depthWrite:false});   // 도어 = 반투명 흰색
+    var files={c1:"cart-1.png",c2:"cart-2.png",air:"cart-air.png",f1:"frame-1.png",f2:"frame-2.png",f3:"frame-3.png",f4:"frame-4.png",side:"side.png",sc:"cart-s-c.png",so:"cart-s-o.png",rc:"cart-r-c.png",ro:"cart-r-o.png"};
+    var keys=Object.keys(files), n=keys.length, done=0;
+    var ldr=new T.TextureLoader(); if(ldr.setCrossOrigin) ldr.setCrossOrigin("anonymous");   // http(서버) 동일출처 로드·캡처 비-taint. ※ file://(더블클릭)은 WebGL 텍스처 불가 → 로컬 서버로 열 것
+    keys.forEach(function(k){
+      ldr.load(TEXBASE+files[k], function(tx){
+        try{ tx.encoding=renderer.outputEncoding; }catch(e){}
+        tx.anisotropy=8;
+        _tex[k]=tx; _mat[k]=new T.MeshBasicMaterial({map:tx,side:T.DoubleSide,transparent:true,depthWrite:false});   // depthWrite:false → 뒤쪽 슬래브 안 가림
+        if(k==="side"){ var tm=tx.clone(); tm.wrapS=T.RepeatWrapping; tm.repeat.x=-1; try{tm.encoding=renderer.outputEncoding;}catch(e){} tm.anisotropy=8; tm.needsUpdate=true; _mat.sideM=new T.MeshBasicMaterial({map:tm,side:T.DoubleSide,transparent:true,depthWrite:false}); }   // 좌우 미러
+        if(++done===n){ _loaded=true; _loading=false; _dirty=true; cb&&cb(); }
+      }, undefined, function(){ if(++done===n){ _loaded=true; _loading=false; _dirty=true; cb&&cb(); } });
+    });
+  }
+
+  // ───────── 구조체(매스·슬래브·코어) 상태 ─────────
+  var struct={ massOn:false, massB:235, massA:1.0, slabOn:true, slabTh:200, slabB:100, slabA:1.0, coreOn:true, coreB:150, coreA:1.0, frameOn:true };
+  function onStruct(){
+    function rd(i,d){ var e=$id(i); return e?(+e.value||0):d; }
+    struct.massOn=ckd("rtMassOn"); struct.massB=rd("rtMassB",235); struct.massA=rd("rtMassA",100)/100;
+    struct.slabOn=ckd("rtSlabOn"); struct.slabTh=rd("rtSlabTh",200); struct.slabB=rd("rtSlabB",100); struct.slabA=rd("rtSlabA",100)/100;
+    struct.coreOn=ckd("rtCoreOn"); struct.coreB=rd("rtCoreB",150); struct.coreA=rd("rtCoreA",100)/100;
+    struct.frameOn=ckd("rtFrameOn");
+    setTxt("rtMassBv",struct.massB); setTxt("rtMassAv",Math.round(struct.massA*100)+"%");
+    setTxt("rtSlabThv",struct.slabTh+"mm"); setTxt("rtSlabBv",struct.slabB); setTxt("rtSlabAv",Math.round(struct.slabA*100)+"%");
+    setTxt("rtCoreBv",struct.coreB); setTxt("rtCoreAv",Math.round(struct.coreA*100)+"%");
+    if(!isInsert()){ try{ slabTh=struct.slabTh/1000; }catch(e){} }   // 부착형만 두께 조절. 인필형은 기본 두께 고정
+    syncSlabLock();
+    _dirty=true;
+  }
+  function isInsert(){ try{ if(frameMount==="insert") return true; for(var i=0;i<frameTypesEx.length;i++){ if(frameTypesEx[i]&&frameTypesEx[i].mount==="insert") return true; } }catch(e){} return false; }
+  function syncSlabLock(){ var ins=isInsert(), el=$id("rtSlabTh"); if(!el) return;
+    if(ins){ el.disabled=true; try{ el.value=Math.round(slabTh*1000); }catch(e){} struct.slabTh=Math.round(slabTh*1000); setTxt("rtSlabThv",struct.slabTh+"mm (인필 고정)"); }
+    else { el.disabled=false; setTxt("rtSlabThv",struct.slabTh+"mm"); } }
+  function applyStructure(){   // step7 매 프레임(host tick) — 기본값 위에 덮어씀
+    var poly=(typeof footprint!=="undefined"&&footprint&&footprint.length>=3);
+    var mb=struct.massB/255;
+    faceMat.color.setRGB(mb,mb,mb); faceMat.opacity=struct.massA;
+    edgeMat.color.set("#8a867e"); edgeMat.opacity=struct.massOn?0.5:0;
+    polyVolMat.color.copy(faceMat.color); polyVolMat.opacity=struct.massA;
+    polyEdgeMat.color.copy(edgeMat.color); polyEdgeMat.opacity=edgeMat.opacity;
+    if(typeof box!=="undefined"){ box.visible=struct.massOn&&!poly; edges.visible=struct.massOn&&!poly; }
+    if(typeof polyMass!=="undefined") polyMass.visible=struct.massOn&&poly;
+    if(typeof slabs!=="undefined") slabs.visible=struct.slabOn;
+    var sb=struct.slabB/255; slabMat.color.setRGB(sb,sb,sb); slabMat.opacity=struct.slabA; slabMatR.color.copy(slabMat.color); slabMatR.opacity=struct.slabA;   // 지붕 슬래브도 동일 불투명 → 표시
+    if(typeof coreBox!=="undefined"){ coreBox.visible=struct.coreOn; coreEdges.visible=struct.coreOn; }
+    if(typeof extraGrp!=="undefined") extraGrp.visible=struct.coreOn;
+    if(_interior){ if(typeof coreBox!=="undefined"){ coreBox.visible=false; coreEdges.visible=false; } if(typeof extraGrp!=="undefined") extraGrp.visible=false; }   // 뷰체크(실내뷰) 시 코어 끔
+    var cbv=struct.coreB/255; coreFaceMat.color.setRGB(cbv,cbv,cbv); coreFaceMat.opacity=struct.coreA; coreEdgeMat.color.set("#5a5a54"); coreEdgeMat.opacity=struct.coreOn?0.85:0;
+    // 불투명(≈100%)일 때 진짜 솔리드(깊이기록) → 투명/x-ray 방지. 유리 facade(_mat.*)는 depthWrite:false 유지.
+    setSolid(faceMat, struct.massA>=0.99); setSolid(polyVolMat, struct.massA>=0.99);
+    setSolid(slabMat, struct.slabA>=0.99); setSolid(slabMatR, struct.slabA>=0.99);   // 지붕 슬래브 솔리드
+    setSolid(coreFaceMat, struct.coreA>=0.99);
+    if(typeof frGrid!=="undefined") frGrid.visible=false;   // 렌더모드: FIT 1개당 오렌지 외곽선 숨김
+    rtOverlay.visible=struct.frameOn;
+  }
+  function setSolid(mat, opaque){ var wT=!opaque, wD=opaque; if(mat.transparent!==wT||mat.depthWrite!==wD){ mat.transparent=wT; mat.depthWrite=wD; mat.needsUpdate=true; } }
+  function resetStructure(){ [faceMat,polyVolMat,slabMat,slabMatR,coreFaceMat].forEach(function(mt){ if(mt && (mt.transparent!==true||mt.depthWrite!==false)){ mt.transparent=true; mt.depthWrite=false; mt.needsUpdate=true; } }); if(typeof frGrid!=="undefined") frGrid.visible=true; restoreLines(); try{ if(camera.view&&camera.view.enabled&&camera.clearViewOffset) camera.clearViewOffset(); if(_baseFov!=null && camera.fov!==_baseFov){ camera.fov=_baseFov; camera.updateProjectionMatrix(); } }catch(e){} }
+
+  // ───────── 패턴 상태 ─────────
+  var patternMode="random", cartRatio2=0.5, _preLetterRatio=null;
+  var letterText="", letterShape="", letterScaleX=2.3, letterScaleY=1.0, letterFaceKey=null;
+  var faceSelectMode=false;
+  function texHash(i){ var x=Math.sin(i*127.1+17.3)*43758.5453; return x-Math.floor(x); }
+  function drawCharFit(ctx,ch,x,y,w,h,sx,sy){ sx=(sx==null)?1:sx; sy=(sy==null)?1:sy;
+    var fs=Math.max(1,Math.floor(Math.min(h*0.96,w*1.5)));
+    ctx.save(); ctx.translate(x+w/2,y+h/2); ctx.scale(sx,sy);
+    ctx.font="bold "+fs+'px Arial,"Malgun Gothic","Apple SD Gothic Neo",sans-serif';
+    ctx.fillText(ch,0,fs*0.05); ctx.restore(); }
+  function gridOf(ctx,nc,nr){ var d=ctx.getImageData(0,0,nc,nr).data,on=[];
+    for(var r=0;r<nr;r++){ var row=[],cr=nr-1-r; for(var c=0;c<nc;c++) row.push(d[(cr*nc+c)*4]>128); on.push(row);} return on; }
+  function letterGrid(text,nc,nr,vertical,sx,sy){ text=(text||"").slice(0,2); if(!text||nc<1||nr<1) return null;
+    var cv=document.createElement("canvas"); cv.width=nc; cv.height=nr; var ctx=cv.getContext("2d");
+    ctx.fillStyle="#000"; ctx.fillRect(0,0,nc,nr); ctx.fillStyle="#fff"; ctx.textAlign="center"; ctx.textBaseline="middle";
+    var ch=text.split("");
+    if(ch.length===1) drawCharFit(ctx,ch[0],0,0,nc,nr,sx,sy);
+    else if(vertical){ drawCharFit(ctx,ch[0],0,0,nc,nr/2,sx,sy); drawCharFit(ctx,ch[1],0,nr/2,nc,nr/2,sx,sy); }
+    else { drawCharFit(ctx,ch[0],0,0,nc/2,nr,sx,sy); drawCharFit(ctx,ch[1],nc/2,0,nc/2,nr,sx,sy); }
+    return gridOf(ctx,nc,nr); }
+  function drawSmiley(ctx,R){ ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(0,0,R,0,2*Math.PI); ctx.fill();
+    ctx.fillStyle="#000"; ctx.beginPath(); ctx.arc(-R*0.36,-R*0.30,R*0.15,0,2*Math.PI); ctx.fill();
+    ctx.beginPath(); ctx.arc(R*0.36,-R*0.30,R*0.15,0,2*Math.PI); ctx.fill();
+    ctx.strokeStyle="#000"; ctx.lineWidth=Math.max(1,R*0.16); ctx.lineCap="round";
+    ctx.beginPath(); ctx.arc(0,-R*0.05,R*0.55,Math.PI*0.15,Math.PI*0.85); ctx.stroke(); }
+  function drawHeart(ctx,R){ ctx.fillStyle="#fff"; ctx.beginPath(); ctx.moveTo(0,R*0.72);
+    ctx.bezierCurveTo(-R,-R*0.1,-R*0.5,-R*0.85,0,-R*0.28);
+    ctx.bezierCurveTo(R*0.5,-R*0.85,R,-R*0.1,0,R*0.72); ctx.closePath(); ctx.fill(); }
+  function drawStar(ctx,R){ ctx.fillStyle="#fff"; ctx.beginPath();
+    for(var i=0;i<10;i++){ var a=-Math.PI/2+i*Math.PI/5, rad=(i%2===0)?R:R*0.42; var px=Math.cos(a)*rad,py=Math.sin(a)*rad; if(i===0)ctx.moveTo(px,py); else ctx.lineTo(px,py);} ctx.closePath(); ctx.fill(); }
+  function shapeGrid(shape,nc,nr,sx,sy){ if(nc<1||nr<1) return null;
+    var cv=document.createElement("canvas"); cv.width=nc; cv.height=nr; var ctx=cv.getContext("2d");
+    ctx.fillStyle="#000"; ctx.fillRect(0,0,nc,nr); ctx.save(); ctx.translate(nc/2,nr/2); ctx.scale(sx||1,sy||1);
+    var R=Math.min(nc,nr)*0.46; if(shape==="heart")drawHeart(ctx,R); else if(shape==="star")drawStar(ctx,R); else drawSmiley(ctx,R);
+    ctx.restore(); return gridOf(ctx,nc,nr); }
+  var _lg={key:"",grid:null};
+  function getLG(fi){ var pat=letterShape?("#"+letterShape):letterText;
+    var key=pat+"|"+fi.ncols+"x"+fi.nrows+"|"+(fi.vertical?"v":"h")+"|"+letterScaleX+"x"+letterScaleY;
+    if(_lg.key!==key) _lg={ key:key, grid: letterShape?shapeGrid(letterShape,fi.ncols,fi.nrows,letterScaleX,letterScaleY):letterGrid(letterText,fi.ncols,fi.nrows,fi.vertical,letterScaleX,letterScaleY) };
+    return _lg.grid; }
+
+  // ───────── 면 그리드 ─────────
+  var _face={};
+  function buildFaceGrids(){
+    _face={}; var tmp={};
+    frVol.children.forEach(function(m){
+      if(!m.userData||m.userData.fc==null) return;
+      if(m.scale.z<0.15) return;
+      if(typeof m.userData.fc!=="number") return;
+      var fc=m.userData.fc, f=tmp[fc]||(tmp[fc]={bys:{},fls:{},sx:m.scale.x,sy:m.scale.y,sample:[]});
+      f.bys[m.userData.by]=1; f.fls[m.userData.fl]=1; f.sample.push(m);
+    });
+    Object.keys(tmp).forEach(function(k){
+      var f=tmp[k], fc=Number(k);
+      var bys=Object.keys(f.bys).map(Number).sort(function(a,b){return a-b;});
+      var fls=Object.keys(f.fls).map(Number).sort(function(a,b){return a-b;});
+      var ncols=bys.length, nrows=fls.length, vertical=(nrows*f.sy)>(ncols*f.sx), flip=false;
+      var s0=f.sample[0], nrm=(s0&&s0.userData.nx!=null)?[s0.userData.nx,s0.userData.nz]:(FACEN[fc]||[0,1]), a=null,b=null;
+      for(var i=0;i<f.sample.length;i++){ var s=f.sample[i]; if(!a)a=s; else if(s.userData.by!==a.userData.by){ b=s; break; } }
+      if(a&&b){ var dby=b.userData.by-a.userData.by; var tx=(b.position.x-a.position.x)/dby, tz=(b.position.z-a.position.z)/dby; var L=Math.hypot(tx,tz)||1; tx/=L; tz/=L; flip=(nrm[0]*tz-nrm[1]*tx)>0; }
+      _face[fc]={bys:bys,fls:fls,ncols:ncols,nrows:nrows,vertical:vertical,flip:flip};
+    });
+  }
+  function skinUsesC2(m){
+    var fc=m.userData.fc;
+    if(patternMode==="lettering" && letterFaceKey!=null && fc===letterFaceKey && (letterText||letterShape)){
+      var fi=_face[fc];
+      if(fi){ var col=fi.bys.indexOf(m.userData.by); if(fi.flip) col=fi.ncols-1-col;
+        var row=fi.fls.indexOf(m.userData.fl), g=getLG(fi);
+        if(g&&g[row]) return !!g[row][col]; }   // 글자 픽셀=cart-2, 배경=cart-1(전부 cart-1 위 레터링)
+    }
+    var fcn=(typeof fc==="number")?fc:99;
+    return texHash(fcn*100000 + m.userData.fl*100 + m.userData.by) < cartRatio2;
+  }
+  function skinPair(){   // 05 스킨 종류 → [닫힘(cart-1 역할), 열림(cart-2 역할)] 텍스처
+    var t=(typeof skinType!=="undefined")?skinType:"string";
+    if(t==="string" && _mat.sc && _mat.so) return [_mat.sc,_mat.so];
+    if(t==="rollblind" && _mat.rc && _mat.ro) return [_mat.rc,_mat.ro];
+    return [_mat.c1,_mat.c2];   // 패브릭/메탈/기본
+  }
+  function updSkinSel(){   // 현재 skinType을 카트리지 탭 스킨 행에 'on' 표시
+    var t=(typeof skinType!=="undefined")?skinType:"string";
+    [["string","rtSkinString"],["fabric","rtSkinFabric"],["metal","rtSkinMetal"],["rollblind","rtSkinRoll"]].forEach(function(a){ var e=$id(a[1]); if(e) e.classList.toggle("on", a[0]===t); });
+  }
+  function pickSkin(t){   // 05의 setSkin과 동일하게 스킨 종류 변경(전역 skinType·견적·05 UI 동기화) + 재매핑
+    try{ if(typeof setSkin==="function") setSkin(t); else { skinType=t; } }catch(e){ try{ skinType=t; }catch(_){} }
+    updSkinSel(); _dirty=true; if(typeof wake==="function") wake(2);
+  }
+
+  // ───────── 텍스처 적용 + 프레임 평면 ─────────
+  function clearOverlay(){ rtOverlay.clear(); }   // _plane 공유 → dispose 안 함
+  function addFrame(m, mat, off){
+    if(!mat) return;
+    var nx, nz;
+    if(m.userData && m.userData.nx!=null){ nx=m.userData.nx; nz=m.userData.nz; }   // 빌드 시 저장한 실제 면 법선(대각선·오목 면 포함)
+    else { var fc=m.userData.fc, n=FACEN[fc]; if(!n) return; nx=n[0]; nz=n[1]; }
+    var p=new T.Mesh(_plane, mat); p.rotation.y=m.rotation.y; p.scale.set(m.scale.x, m.scale.y, 1);   // 회전은 ry(면 평면에 정렬), 오프셋만 실제 법선
+    p.position.set(m.position.x+nx*off, m.position.y, m.position.z+nz*off);
+    p.renderOrder=4; rtOverlay.add(p);
+  }
+  function faceMatArr(cart){ return [_invis,_invis,_invis,_invis,cart,cart]; }   // BoxGeometry [+x,-x,+y,-y,+z,-z] → 바깥/안(±z)만
+  function addCornerFrame(m, mat, nx, nz, off, width){   // 코너 외부면(법선 nA/nB)에 frame stretch
+    if(!mat) return;
+    var p=new T.Mesh(_plane, mat); p.rotation.y=Math.atan2(nx,nz); p.scale.set(width||0.5, m.scale.y, 1);
+    p.position.set(m.position.x+nx*off, m.position.y, m.position.z+nz*off);
+    p.renderOrder=4; rtOverlay.add(p);
+  }
+  function retexMesh(m){
+    if(!m.userData) return; m.userData.__rt=true;
+    if(m.scale.z<0.15){ if(_mat.doorDark) m.material=_mat.doorDark; return; }   // 도어(반투명 흰색)
+    if(m.userData.corner || typeof m.userData.fc!=="number"){   // 코너 모듈 → frame-3(면A)/frame-4(면B)
+      m.material=_invis;
+      var u=m.userData;
+      if(u.rect && u.nax!=null && _mat.f3 && _mat.f4){
+        addCornerFrame(m, _mat[u.aframe||'f3'], u.nax, u.naz, (u.da||0.5)/2, u.db||0.5);   // 면 A 외부면: 3=우측끝 / 4=좌측끝
+        addCornerFrame(m, _mat[u.bframe||'f4'], u.nbx, u.nbz, (u.db||0.5)/2, u.da||0.5);   // 면 B 외부면
+        // 일반 모듈이 붙는 면(런 방향)에만 side.png — 열린 바깥쪽은 매핑 안 함
+        if(_mat.side){ if(u.tax||u.taz) addCornerFrame(m, _mat.side, u.tax, u.taz, (u.db||0.5)/2, u.da||0.5);
+                       if(u.tbx||u.tbz) addCornerFrame(m, _mat.side, u.tbx, u.tbz, (u.da||0.5)/2, u.db||0.5); }
+      } else if(_mat.f3){ m.material=faceMatArr(_mat.f3); }   // 비직각 코너 폴백: 박스 앞뒤면
+      return;
+    }
+    var t; try{ t=effType(m.userData.fl,m.userData.fc,m.userData.by); }catch(e){ t="skin"; }
+    m.material=_invis;   // 박스 자체는 숨김(위치·스케일 기준만)
+    if(t==="none") return;
+    var pr=skinPair(), cart=(t==="hvac")?_mat.air:(skinUsesC2(m)?pr[1]:pr[0]), bD=m.scale.z;   // 스킨 종류별 카트리지(닫힘/열림), 패턴은 cart-1/2와 동일 행동
+    if(cart) addFrame(m, cart, 0);   // 카트리지 = 내·외측 중앙 평면
+    if(struct.frameOn && _mat.f1 && _mat.f2){ addFrame(m,_mat.f1, bD/2+0.012); addFrame(m,_mat.f2, -bD/2-0.012); }   // 외측 frame-1 / 내측 frame-2
+    if(_mat.side && m.userData.ux!=null){ var fw=m.scale.x;   // 좌우 옆면 2면 = side.png (좌우 미러, 양면)
+      addCornerFrame(m, _mat.side, m.userData.ux, m.userData.uz, fw/2, bD);
+      addCornerFrame(m, _mat.sideM||_mat.side, -m.userData.ux, -m.userData.uz, fw/2, bD); }
+  }
+  function retexAll(){ if(!_loaded) return; buildFaceGrids(); _lg={key:"",grid:null}; clearOverlay(); frVol.children.forEach(retexMesh); if(typeof wake==="function") wake(2); }
+  var _was7=false;
+  function rtTick(){
+    requestAnimationFrame(rtTick);
+    if(typeof step==="undefined" || step!==7){ if(rtOverlay.visible) rtOverlay.visible=false; if(_was7){ resetStructure(); _was7=false; } return; }
+    _was7=true;
+    if(!_loaded){ loadRT(); return; }
+    var need=_dirty || frVol.children.some(function(m){ return m.userData && !m.userData.__rt; });
+    if(need){ _dirty=false; retexAll(); }
+  }
+  requestAnimationFrame(rtTick);
+
+  // ───────── 카메라 ─────────
+  function compass8(brg){ var L=["북","북동","동","남동","남","남서","서","북서"]; return L[Math.round((((brg%360)+360)%360)/45)%8]; }
+  function corners(){
+    var out=[], dirs=[[1,1],[1,-1],[-1,-1],[-1,1]];
+    dirs.forEach(function(d){ var x,z;
+      if(typeof footprint!=="undefined" && footprint && footprint.length>=3){ var best=null,bv=-Infinity; footprint.forEach(function(p){ var v=p.x*d[0]+p.z*d[1]; if(v>bv){bv=v;best=p;} }); x=best.x; z=best.z; }
+      else { x=d[0]*tHalfW; z=d[1]*tHalfD; }
+      out.push({x:x,z:z,name:compass8(Math.atan2(x,-z)*180/Math.PI)}); });
+    return out;
+  }
+  function faceName(fc){ var n=FACEN[fc]; if(!n) return "면"; return compass8(Math.atan2(n[0],-n[1])*180/Math.PI)+"측 면"; }
+  function updateCornerLabels(){ var cs=corners(); for(var i=0;i<4;i++){ var b=$id("rtCorner"+i); if(b) b.textContent=cs[i]?(cs[i].name+" 코너"):("코너 "+(i+1)); } }
+  function flyCorner(i){ exitInterior(); var c=corners()[i]; if(!c) return; tTheta=Math.atan2(c.x,c.z); tPhi=0.835; zoomMul=1.15; if(typeof wake==="function") wake(8); }   // phi 0.835(frac=0.5) → 2점투시 눈높이=건물중심
+  function flyTop(){ exitInterior(); setCamMode("persp"); tPhi=0.05; zoomMul=1.45; if(typeof wake==="function") wake(8); }   // 탑뷰는 피치 필요 → 투시
+  function flyBird(){ exitInterior(); setCamMode("persp"); tPhi=0.80; zoomMul=1.15; if(typeof wake==="function") wake(8); }   // 조감 → 투시
+
+  // ───────── VWORLD 컨텍스트 ─────────
+  var CTXL=["끔","재질","단색"];
+  function cycleBld(){ var v=window.VWorldContext; if(!v||!v.state||!v.state.site){ stat("먼저 STEP 0에서 대지를 불러오세요."); return; } var n=(((v.state.bldState||0)+1)%3); v.showBuildings(n===0?false:n); var e=$id("rtBld"); if(e)e.textContent="주변 건물: "+CTXL[n]; }
+  function cycleGnd(){ var v=window.VWorldContext; if(!v||!v.state||!v.state.site){ stat("먼저 STEP 0에서 대지를 불러오세요."); return; } var n=(((v.state.gndState||0)+1)%3); v.showGround(n===0?false:n); var e=$id("rtGnd"); if(e)e.textContent="지면/항공: "+CTXL[n]; }
+  function updCtxLabels(){ var v=window.VWorldContext, b=(v&&v.state)?(v.state.bldState||0):0, g=(v&&v.state)?(v.state.gndState||0):0; var eb=$id("rtBld"),eg=$id("rtGnd"); if(eb)eb.textContent="주변 건물: "+CTXL[b]; if(eg)eg.textContent="지면/항공: "+CTXL[g]; }
+
+  // ───────── 면 선택(레터링) ─────────
+  var _ray=new T.Raycaster(), _mv=new T.Vector2();
+  function toggleFaceSelect(){ faceSelectMode=!faceSelectMode; var b=$id("rtFaceBtn"); if(b) b.textContent=faceSelectMode?"면 클릭 대기중… (다시 누르면 취소)":"면 선택 (모델에서 클릭)"; }
+  function onCanvasClick(e){ if(typeof step==="undefined"||step!==7||!faceSelectMode) return;
+    var r=renderer.domElement.getBoundingClientRect();
+    _mv.x=((e.clientX-r.left)/r.width)*2-1; _mv.y=-((e.clientY-r.top)/r.height)*2+1;
+    _ray.setFromCamera(_mv,camera);
+    var hits=_ray.intersectObjects(frVol.children,false);
+    for(var i=0;i<hits.length;i++){ var u=hits[i].object.userData; if(u&&typeof u.fc==="number"){
+      letterFaceKey=u.fc; faceSelectMode=false; var b=$id("rtFaceBtn"); if(b) b.textContent="면 선택 (모델에서 클릭)";
+      var fi=_face[u.fc], lbl=$id("rtFaceLbl"); if(lbl) lbl.textContent="선택된 면: "+faceName(u.fc)+(fi?(" · "+fi.ncols+"×"+fi.nrows+"칸"):"");
+      _dirty=true; break; } }
+  }
+  renderer.domElement.addEventListener("click", onCanvasClick);
+
+  // ───────── 하위탭 ─────────
+  function mainTab(name){ if(name==="cam")name="tex"; show("rtPaneTex",name==="tex"); show("rtPaneAi",name==="ai");
+    $id("rtTabTex").classList.toggle("on",name==="tex"); $id("rtTabAi").classList.toggle("on",name==="ai"); }
+  // ── 우상단 카메라 패널 탭 ──
+  function camTab(t){ var cam=(t==="cam"); show("rtCamPane",cam); show("rtVcPane",!cam);
+    var a=$id("rtCbCam"),b=$id("rtCbView"); if(a)a.classList.toggle("on",cam); if(b)b.classList.toggle("on",!cam);
+    var tt=$id("rtCamTitle"); if(tt)tt.textContent=cam?"카메라 뷰":"뷰체크 (실내뷰)";
+    if(!cam){ wireVcPlan(); drawVcPlan(); } }   // 뷰체크 탭 진입 시 평면 갱신
+  // ── 뷰체크 (실내뷰): 평면에서 시점 포인트 지정 → 가장 가까운 창문 방향 ──
+  var _interior=false, _iEye=null, _iLook=null, _iDir=null, _iBase=null, _iDolly=0, _iWinFwd=0;
+  var vcPoint=null, _vcInv=null, _vcWired=false;
+  function updateInteriorEye(){   // 베이스 + 휠 돌리(앞뒤) → 카메라 위치/시선
+    if(!_iBase||!_iDir) return;
+    _iDolly=Math.max(-(_iWinFwd*4+10), Math.min(_iWinFwd-0.5, _iDolly));   // 창문 통과 방지/뒤로 한도
+    _iEye=new T.Vector3(_iBase.x+_iDir.x*_iDolly, _iBase.y, _iBase.z+_iDir.z*_iDolly);
+    _iLook=new T.Vector3(_iEye.x+_iDir.x*10, _iEye.y, _iEye.z+_iDir.z*10);
+  }
+  function onVcFloor(){ var v=$id("rtVcFloor"); setTxt("rtVcFloorVal",((v?v.value:1))+"층"); }
+  function syncVcFloor(){ var v=$id("rtVcFloor"); if(!v) return; var fl=(typeof tFloors!=="undefined"?tFloors:1)||1; v.max=Math.max(1,fl); if(+v.value>fl)v.value=fl; onVcFloor(); }
+  function getFootprint(){
+    if(typeof footprint!=="undefined" && footprint && footprint.length>=3) return footprint.map(function(p){return {x:p.x,z:p.z};});
+    var w=(typeof tHalfW!=="undefined"?tHalfW:12)||12, d=(typeof tHalfD!=="undefined"?tHalfD:12)||12;
+    return [{x:-w,z:-d},{x:w,z:-d},{x:w,z:d},{x:-w,z:d}];
+  }
+  function vcCentroid(){ var fp=getFootprint(),cx=0,cz=0; fp.forEach(function(q){cx+=q.x;cz+=q.z;}); return {x:cx/fp.length, z:cz/fp.length}; }
+  function nearestWin(P){   // 가장 가까운 변(창문 면): 외향 법선 + 수선 발 + 거리
+    var fp=getFootprint(), c=vcCentroid(), best=null, bd=Infinity;
+    for(var i=0;i<fp.length;i++){ var a=fp[i], b=fp[(i+1)%fp.length];
+      var ex=b.x-a.x, ez=b.z-a.z, L2=ex*ex+ez*ez||1;
+      var t=((P.x-a.x)*ex+(P.z-a.z)*ez)/L2; t=Math.max(0,Math.min(1,t));
+      var fx=a.x+ex*t, fz=a.z+ez*t, dist=Math.hypot(P.x-fx,P.z-fz);
+      if(dist<bd){ bd=dist; var nx=ez,nz=-ex,nl=Math.hypot(nx,nz)||1; nx/=nl; nz/=nl;
+        var mx=(a.x+b.x)/2-c.x, mz=(a.z+b.z)/2-c.z; if(nx*mx+nz*mz<0){ nx=-nx; nz=-nz; }   // 외향 보정
+        best={fx:fx,fz:fz,nx:nx,nz:nz,dist:dist}; } }
+    return best;
+  }
+  function drawVcPlan(){
+    var cv=$id("rtVcPlan"); if(!cv) return; var ctx=cv.getContext("2d"), W=cv.width, H=cv.height; ctx.clearRect(0,0,W,H);
+    if(!vcPoint) vcPoint=vcCentroid();
+    var fp=getFootprint(), minX=Infinity,maxX=-Infinity,minZ=Infinity,maxZ=-Infinity;
+    fp.forEach(function(q){minX=Math.min(minX,q.x);maxX=Math.max(maxX,q.x);minZ=Math.min(minZ,q.z);maxZ=Math.max(maxZ,q.z);});
+    var m=20, s=Math.min((W-2*m)/Math.max(0.1,maxX-minX),(H-2*m)/Math.max(0.1,maxZ-minZ));
+    var ox=(W-(maxX-minX)*s)/2-minX*s, oz=(H-(maxZ-minZ)*s)/2-minZ*s;
+    function toC(x,z){ return [ox+x*s, oz+z*s]; }   // z 아래=남쪽
+    _vcInv=function(px,py){ return {x:(px-ox)/s, z:(py-oz)/s}; };
+    ctx.beginPath(); fp.forEach(function(q,i){var c=toC(q.x,q.z); if(i===0)ctx.moveTo(c[0],c[1]); else ctx.lineTo(c[0],c[1]);}); ctx.closePath();
+    ctx.fillStyle="rgba(230,141,57,0.08)"; ctx.fill(); ctx.strokeStyle="#e68d39"; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle="#aaa"; ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText("N",W/2,11);   // 북=위(−Z)
+    var pc=toC(vcPoint.x,vcPoint.z), win=nearestWin(vcPoint);
+    if(win){ var wc=toC(win.fx,win.fz);   // 포인트→가장 가까운 창문(수선) 화살표
+      ctx.strokeStyle="#1a1a1a"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(pc[0],pc[1]); ctx.lineTo(wc[0],wc[1]); ctx.stroke();
+      var ang=Math.atan2(wc[1]-pc[1],wc[0]-pc[0]), ah=7;   // 화살촉
+      ctx.beginPath(); ctx.moveTo(wc[0],wc[1]); ctx.lineTo(wc[0]-ah*Math.cos(ang-0.4),wc[1]-ah*Math.sin(ang-0.4)); ctx.lineTo(wc[0]-ah*Math.cos(ang+0.4),wc[1]-ah*Math.sin(ang+0.4)); ctx.closePath(); ctx.fillStyle="#1a1a1a"; ctx.fill(); }
+    ctx.beginPath(); ctx.arc(pc[0],pc[1],4,0,2*Math.PI); ctx.fillStyle="#e68d39"; ctx.fill(); ctx.strokeStyle="#fff"; ctx.lineWidth=1.5; ctx.stroke();
+  }
+  function wireVcPlan(){ if(_vcWired) return; var cv=$id("rtVcPlan"); if(!cv) return; _vcWired=true;
+    cv.addEventListener("click", function(e){ var r=cv.getBoundingClientRect(); var px=(e.clientX-r.left)*(cv.width/r.width), py=(e.clientY-r.top)*(cv.height/r.height);
+      if(_vcInv){ vcPoint=_vcInv(px,py); drawVcPlan(); } }); }
+  function interiorView(){
+    var v=$id("rtVcFloor"); var n=Math.max(1, Math.min((typeof tFloors!=="undefined"?tFloors:1)||1, +((v&&v.value)||1)));
+    var hs=(typeof sHeight!=="undefined"?sHeight:totalH())/Math.max(0.001,totalH());
+    var eyeY=((levelY(n-1)+levelY(n))/2)*hs;
+    if(!vcPoint) vcPoint=vcCentroid();
+    var win=nearestWin(vcPoint); if(!win) return;
+    var ex=vcPoint.x, ez=vcPoint.z;
+    if(win.dist<1.5){ ex=win.fx-win.nx*1.5; ez=win.fz-win.nz*1.5; }   // 창에 너무 붙으면(과확대) 최소 1.5m 뒤로
+    _iBase=new T.Vector3(ex, eyeY, ez);                              // 시점 베이스(지정 포인트)
+    var dl=Math.hypot(win.nx,win.nz)||1; _iDir=new T.Vector3(win.nx/dl,0,win.nz/dl);   // 창문 방향(수평)
+    _iWinFwd=Math.hypot(win.fx-ex, win.fz-ez);                       // 창문까지 거리
+    _iDolly=0; updateInteriorEye();                                  // 휠로 앞뒤 이동
+    setFov(INTERIOR_FOV);                                            // 누를 때 즉시 렌즈 고정(결정론적·누적 없음)
+    _interior=true; if(typeof wake==="function") wake(8);
+  }
+  function applyInteriorCamera(){ if(_iEye){ camera.position.copy(_iEye); camera.lookAt(_iLook); } }
+  function holdsCamera(){ return _interior; }
+  function exitInterior(){ _interior=false; }
+  renderer.domElement.addEventListener("pointerdown", function(){ if(typeof step!=="undefined"&&step===7&&!faceSelectMode) _interior=false; });
+  renderer.domElement.addEventListener("wheel", function(e){   // 실내뷰: 휠 스크롤 = 앞뒤 이동(돌리)
+    if(typeof step==="undefined"||step!==7||!_interior) return;
+    e.preventDefault(); _iDolly -= e.deltaY*0.01; updateInteriorEye(); if(typeof wake==="function") wake(8);
+  }, {passive:false});
+  // ── 라인 표시/제외 (평면 그리드 · 대지 경계선) ──
+  function onLines(){
+    var g=ckd("rtGridOn"), s=ckd("rtSiteOn");
+    if(typeof grid!=="undefined" && grid) grid.visible=g;
+    var v=window.VWorldContext; if(v&&v.state&&v.state.siteGroup) v.state.siteGroup.visible=s;
+  }
+  function restoreLines(){ if(typeof grid!=="undefined" && grid) grid.visible=true; var v=window.VWorldContext; if(v&&v.state&&v.state.siteGroup) v.state.siteGroup.visible=true; }
+  // ── 카메라 모드: 2점투시(세로선 항상 수직) / 투시 ──
+  var camMode="2pt", _baseFov=null, INTERIOR_FOV=22;   // 실내뷰는 현실적 렌즈(좁은 FOV≈70mm 느낌)
+  function setFov(f){ if(camera.fov!==f){ camera.fov=f; camera.updateProjectionMatrix(); } }
+  function setCamMode(m){ camMode=m; var a=$id("rtMode2pt"),b=$id("rtModePersp"); if(a)a.classList.toggle("on",m==="2pt"); if(b)b.classList.toggle("on",m==="persp"); if(typeof wake==="function")wake(4); }
+  function _clearVO(){ try{ if(camera.view && camera.view.enabled && camera.clearViewOffset) camera.clearViewOffset(); }catch(e){} }
+  function applyRenderCamera(){   // host tick에서 호출(s7)
+    if(_baseFov==null) _baseFov=camera.fov;
+    if(_interior){ _clearVO(); setFov(INTERIOR_FOV); if(_iEye){ camera.position.copy(_iEye); camera.lookAt(_iLook); } return; }
+    setFov(_baseFov);
+    if(camMode==="2pt"){
+      // 2점투시: 수평 시점(세로선 수직) + 수직 렌즈 시프트(setViewOffset)로 건물 프레이밍.
+      var Dh=sRadius;                                    // 수평 거리(줌)
+      var frac=(phi-0.22)/(1.45-0.22); frac=Math.max(0,Math.min(1,frac));   // 드래그 범위 정규화
+      var Hb=(typeof sHeight!=="undefined"?sHeight:30)||30;
+      var eyeY=target.y + (0.5-frac)*1.6*Hb;             // phi로 눈높이: 중심 기준 ±0.8·건물높이(위/아래 모두)
+      camera.position.set(target.x+Dh*Math.sin(theta), eyeY, target.z+Dh*Math.cos(theta));
+      camera.up.set(0,1,0); camera.lookAt(target.x, eyeY, target.z);
+      var D2=Math.hypot(camera.position.x-target.x, camera.position.z-target.z)||1;
+      var tanHalf=Math.tan(camera.fov*Math.PI/360);
+      var ndc=((target.y-eyeY)/D2)/tanHalf; ndc=Math.max(-1.4,Math.min(1.4,ndc));   // 건물중심의 화면 수직 위치 → 0으로 시프트
+      var W=renderer.domElement.width, H=renderer.domElement.height;
+      camera.setViewOffset(W,H, 0, -ndc*H/2, W, H);     // view에 저장 → updateProjectionMatrix에도 유지(깜빡임 없음)
+    } else {
+      _clearVO(); applyCamera();                        // 투시: 시프트 해제 + 일반 원근
+    }
+  }
+  // ── 뷰 저장(최대 5) ──
+  var camViews=[];
+  function saveView(){ if(camViews.length>=5) return; camViews.push({th:tTheta, ph:tPhi, zm:zoomMul, mode:camMode}); renderSlots(); }
+  function recallView(i){ var v=camViews[i]; if(!v) return; exitInterior(); tTheta=v.th; tPhi=v.ph; zoomMul=v.zm; setCamMode(v.mode||"2pt"); if(typeof wake==="function")wake(8); }
+  function delView(i){ camViews.splice(i,1); renderSlots(); }
+  function renderSlots(){ var c=$id("rtCamSlots");
+    if(c){ c.innerHTML="";
+      if(!camViews.length){ var e=document.createElement("div"); e.className="cb-empty"; e.textContent="저장된 뷰 없음"; c.appendChild(e); }
+      else camViews.forEach(function(v,i){ var row=document.createElement("div"); row.className="cb-slot";
+        var b=document.createElement("button"); b.className="s"; b.textContent="뷰 "+(i+1)+" ("+(v.mode==="2pt"?"2점":"투시")+")"; b.onclick=function(){ recallView(i); };
+        var x=document.createElement("button"); x.className="x"; x.textContent="×"; x.onclick=function(){ delView(i); };
+        row.appendChild(b); row.appendChild(x); c.appendChild(row); }); }
+    var sb=$id("rtSaveView"); if(sb) sb.textContent="+ 현재 뷰 저장 ("+camViews.length+"/5)"; }
+  function texTab(name){ show("rtTexStruct",name==="struct"); show("rtTexFrame",name==="frame"); show("rtTexCart",name==="cart"); show("rtTexPat",name==="pat");
+    $id("rtSubStruct").classList.toggle("on",name==="struct"); $id("rtSubFrame").classList.toggle("on",name==="frame"); $id("rtSubCart").classList.toggle("on",name==="cart"); $id("rtSubPat").classList.toggle("on",name==="pat");
+    if(name==="cart") updSkinSel(); }
+
+  // ───────── 패턴 UI ─────────
+  function setPattern(m){
+    if(m==="lettering" && patternMode!=="lettering"){ _preLetterRatio=cartRatio2; cartRatio2=0.0; }   // 레터링 진입: 전부 cart-1(글자만 cart-2)
+    else if(m!=="lettering" && patternMode==="lettering" && _preLetterRatio!=null){   // 랜덤 복귀: 비율 리셋(복원)
+      cartRatio2=_preLetterRatio; _preLetterRatio=null; var pc=Math.round(cartRatio2*100);
+      var rr=$id("rtRatio"); if(rr) rr.value=pc; setTxt("rtRatioLbl","cart-1 "+(100-pc)+"% : cart-2 "+pc+"% · 스킨 모듈 랜덤 배치"); }
+    patternMode=m; $id("rtPatRandom").classList.toggle("on",m==="random"); $id("rtPatLetter").classList.toggle("on",m==="lettering");
+    show("rtRandomBox",m==="random"); show("rtLetterBox",m==="lettering"); _dirty=true; }
+  function onRatio(){ var v=+$id("rtRatio").value||0; cartRatio2=v/100; setTxt("rtRatioLbl","cart-1 "+(100-v)+"% : cart-2 "+v+"% · 스킨 모듈 랜덤 배치"); _dirty=true; }
+  function onLetter(){ var el=$id("rtLetter"); var v=(el.value||"").replace(/\s/g,"").slice(0,2).toUpperCase(); letterText=v; if(el.value!==v) el.value=v; if(v&&letterShape){ letterShape=""; updShape(); } _dirty=true; }
+  function onShape(s){ if(letterShape===s) letterShape=""; else { letterShape=s; letterText=""; var el=$id("rtLetter"); if(el)el.value=""; } updShape(); _dirty=true; }
+  function updShape(){ [["smiley","Smiley"],["heart","Heart"],["star","Star"]].forEach(function(a){ var b=$id("rtShape"+a[1]); if(b) b.classList.toggle("on",letterShape===a[0]); }); }
+  function onScale(){ letterScaleX=(+$id("rtScaleX").value||100)/100; letterScaleY=(+$id("rtScaleY").value||100)/100; setTxt("rtScaleXv",Math.round(letterScaleX*100)+"%"); setTxt("rtScaleYv",Math.round(letterScaleY*100)+"%"); _dirty=true; }
+
+  // ───────── 실사화 (Gemini) ─────────
+  var rtSource=null, rtResult=null, rtRef=null, _aiInit=false;
+  var AI_PREFIX="Professional architectural visualization, hyper-realistic {TIME} photograph from a specific low-altitude drone perspective, exactly matching the view of image. The central simulation mass is rendered with a detailed, repeatable facade module: two layers of clear glass sandwiching a system of semi-translucent, vertical louvers, creating depth. This precise facade pattern and internal texture are maintained, but are now integrated with realistic, subtle sky and surrounding reflections on the glass surface, adding profound realism and specular highlights. All adjacent environments are precisely detailed and texture-mapped to match their Vworld forms, but with realistic concrete, glass, and steel materials. ";
+  var AI_TAIL=" The image has deep depth of field and is captured as if with high-end photographic equipment, exhibiting subtle film grain and chromatic fidelity.";
+  var AI_ENV={ day:{time:"daytime",light:"Bright, natural daylight creates sharp, realistic shadows."},
+    dusk:{time:"golden-hour dusk",light:"Warm golden-hour sunset light creates long, soft shadows and a warm interior glow behind the glass."},
+    night:{time:"night",light:"A dark blue night sky; interiors and the white vertical louvers glow softly from within, with dramatic facade and street lighting and realistic reflections."},
+    cloudy:{time:"overcast daytime",light:"Soft, diffuse overcast daylight with muted tones and gentle, low-contrast shadows."} };
+  function buildP(env){ return AI_PREFIX.replace("{TIME}",env.time)+env.light+AI_TAIL; }
+  var AI_MDF="The project building facade is represented as a highly detailed architectural model made from thick transparent acrylic panels. The facade is composed of a strict grid; the exact module spacing visible in the source image must be preserved without modification. Each module is a deeply recessed square cell within the acrylic facade, joints engraved as precise V-groove chamfer lines. Preserve the original camera view, building geometry, site layout and surrounding context exactly. The entire project building and site elements are fabricated from monochromatic brown MDF only, with laser-cut edges and engraved joint lines visible. All surrounding existing buildings are simple translucent acrylic massing blocks. The site reads as a professional architectural exhibition model.";
+  var AI_PRESETS={ day:buildP(AI_ENV.day), dusk:buildP(AI_ENV.dusk), night:buildP(AI_ENV.night), cloudy:buildP(AI_ENV.cloudy), mdf:AI_MDF };
+  function stat(m){ setTxt("rtStatus",m); }
+  function applyPreset(){ var v=$id("rtPreset").value; if(v==="custom") return; $id("rtPrompt").value=AI_PRESETS[v]||AI_PRESETS.day; }
+  function saveKey(){ try{ localStorage.setItem("geminiKey",($id("rtKey").value||"").trim()); stat("키를 이 브라우저에 저장했습니다."); }catch(e){ stat("키 저장 실패: "+e.message); } }
+  function initAi(){ if(_aiInit) return; _aiInit=true; try{ var sv=localStorage.getItem("geminiKey"); if(sv) $id("rtKey").value=sv; }catch(e){} applyPreset(); }
+  function showSrc(url){ rtSource=url; var im=$id("rtSrcImg"); if(im)im.src=url; show("rtSrcWrap",true); }
+  function capture(){ try{ applyRenderCamera(); renderer.render(scene,camera); showSrc(renderer.domElement.toDataURL("image/jpeg",0.92)); stat("캡처 완료. ‘실사 변환 실행’을 누르세요."); }catch(e){ stat("캡처 실패: "+e.message); } }
+  function captureRegion(){
+    var full; try{ applyRenderCamera(); renderer.render(scene,camera); full=renderer.domElement.toDataURL("image/jpeg",0.95); }catch(e){ stat("캡처 실패: "+e.message); return; }
+    var rect=renderer.domElement.getBoundingClientRect();
+    var ov=document.createElement("div"); ov.style.cssText="position:fixed;inset:0;z-index:100000;cursor:crosshair;background:rgba(20,22,26,0.12);";
+    var bx=document.createElement("div"); bx.style.cssText="position:absolute;border:2px solid #e68d39;background:rgba(230,141,57,0.12);display:none;"; ov.appendChild(bx);
+    var hint=document.createElement("div"); hint.textContent="캡처할 영역을 드래그하세요 (ESC 취소)"; hint.style.cssText="position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#111;color:#fff;font:600 12px sans-serif;padding:6px 14px;border-radius:999px;"; ov.appendChild(hint);
+    document.body.appendChild(ov);
+    var x0,y0,drag=false;
+    function draw(e){ var x=Math.min(x0,e.clientX),y=Math.min(y0,e.clientY),w=Math.abs(e.clientX-x0),h=Math.abs(e.clientY-y0); bx.style.left=x+"px";bx.style.top=y+"px";bx.style.width=w+"px";bx.style.height=h+"px"; }
+    function down(e){ drag=true;x0=e.clientX;y0=e.clientY;bx.style.display="block";draw(e);e.preventDefault(); }
+    function move(e){ if(drag)draw(e); }
+    function up(e){ if(!drag)return; drag=false; var x=Math.min(x0,e.clientX),y=Math.min(y0,e.clientY),w=Math.abs(e.clientX-x0),h=Math.abs(e.clientY-y0); cleanup();
+      if(w<8||h<8){ stat("영역이 너무 작습니다. 다시 시도하세요."); return; }
+      var img=new Image(); img.onload=function(){ var sx=img.width/rect.width, sy=img.height/rect.height;
+        var cx=(x-rect.left)*sx, cy=(y-rect.top)*sy, cw=w*sx, ch=h*sy;
+        var cv=document.createElement("canvas"); cv.width=Math.max(1,Math.round(cw)); cv.height=Math.max(1,Math.round(ch));
+        cv.getContext("2d").drawImage(img,cx,cy,cw,ch,0,0,cv.width,cv.height);
+        showSrc(cv.toDataURL("image/jpeg",0.95)); stat("영역 캡처 완료. ‘실사 변환 실행’을 누르세요."); }; img.src=full; }
+    function key(e){ if(e.key==="Escape"){ cleanup(); stat("취소했습니다."); } }
+    function cleanup(){ window.removeEventListener("mousemove",move); window.removeEventListener("mouseup",up); window.removeEventListener("keydown",key); if(ov.parentNode)ov.parentNode.removeChild(ov); }
+    ov.addEventListener("mousedown",down); window.addEventListener("mousemove",move); window.addEventListener("mouseup",up); window.addEventListener("keydown",key);
+    stat("지도 위에서 캡처할 영역을 드래그하세요.");
+  }
+  function onUpload(input){ var f=input.files&&input.files[0]; if(!f)return; var rd=new FileReader(); rd.onload=function(e){ showSrc(e.target.result); stat("이미지를 불러왔습니다. ‘실사 변환 실행’을 누르세요."); }; rd.readAsDataURL(f); }
+  function onRef(input){ var f=input.files&&input.files[0]; if(!f)return; var rd=new FileReader(); rd.onload=function(e){ rtRef=e.target.result; var im=$id("rtRefImg"); im.src=rtRef; im.style.display="block"; }; rd.readAsDataURL(f); }
+  function clearRef(){ rtRef=null; var im=$id("rtRefImg"); if(im){im.src="";im.style.display="none";} var u=$id("rtRefUpload"); if(u)u.value=""; }
+  function download(){ if(!rtResult){ stat("다운로드할 결과가 없습니다."); return; } var a=document.createElement("a"); a.href=rtResult; a.download="render_"+Date.now()+".png"; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+  function compare(){
+    if(!rtSource&&!rtResult) return;
+    var before=rtSource||rtResult, after=rtResult||rtSource, both=!!(rtSource&&rtResult);
+    var ov=document.createElement("div"); ov.style.cssText="position:fixed;inset:0;z-index:100001;background:rgba(10,10,12,0.8);display:flex;align-items:center;justify-content:center;";
+    var bxx=document.createElement("div"); bxx.style.cssText="position:relative;width:80vw;max-width:900px;"; ov.appendChild(bxx);
+    var wrap=document.createElement("div"); wrap.style.cssText="position:relative;line-height:0;border-radius:10px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,0.5);background:#000;cursor:ew-resize;max-height:84vh;"; bxx.appendChild(wrap);
+    var aft=document.createElement("img"); aft.src=after; aft.style.cssText="width:100%;height:auto;display:block;"; wrap.appendChild(aft);
+    var bef=document.createElement("img"); bef.src=before; bef.style.cssText="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;"; wrap.appendChild(bef);
+    var divr=document.createElement("div"); divr.style.cssText="position:absolute;top:0;bottom:0;left:50%;width:2px;background:#e68d39;"; wrap.appendChild(divr);
+    var close=document.createElement("button"); close.textContent="×"; close.style.cssText="position:absolute;top:-14px;right:-14px;width:30px;height:30px;border-radius:50%;border:none;background:#1a1a1a;color:#fff;font-size:18px;cursor:pointer;"; bxx.appendChild(close);
+    function slide(v){ v=Math.max(0,Math.min(100,v)); bef.style.clipPath="inset(0 "+(100-v)+"% 0 0)"; divr.style.left=v+"%"; }
+    function pct(e){ var r=wrap.getBoundingClientRect(); return (e.clientX-r.left)/r.width*100; }
+    var dragging=false;
+    if(both){ wrap.addEventListener("mousedown",function(e){dragging=true;slide(pct(e));}); window.addEventListener("mousemove",function(e){if(dragging)slide(pct(e));}); window.addEventListener("mouseup",function(){dragging=false;}); }
+    else { divr.style.display="none"; }
+    function cl(){ if(ov.parentNode)ov.parentNode.removeChild(ov); }
+    close.onclick=cl; ov.addEventListener("click",function(e){ if(e.target===ov)cl(); });
+    document.body.appendChild(ov); slide(50);
+  }
+  async function run(){
+    var key=($id("rtKey").value||"").trim(); if(!key){ stat("먼저 Gemini API 키를 입력하세요."); return; }
+    if(!rtSource){ stat("먼저 화면을 캡처하거나 이미지를 업로드하세요."); return; }
+    var model=($id("rtModel").value||"gemini-3.1-flash-image").trim();
+    var prompt=($id("rtPrompt").value||"").trim()||AI_PRESETS.day;
+    var m=rtSource.match(/^data:(.*?);base64,(.*)$/); if(!m){ stat("원본 형식 오류."); return; }
+    var parts=[{text:prompt},{inline_data:{mime_type:m[1],data:m[2]}}];
+    if(rtRef){ var rm=rtRef.match(/^data:(.*?);base64,(.*)$/); if(rm){ var asp=[];
+      if(ckd("rtRefFacade")) asp.push("the facade design language and articulation");
+      if(ckd("rtRefMaterial")) asp.push("the materials and surface textures");
+      if(ckd("rtRefColor")) asp.push("the overall color tone and palette");
+      var at=asp.length?asp.join(", "):"the overall visual style";
+      parts[0].text+="\n\nA SECOND image is provided as a STYLE REFERENCE. Borrow ONLY "+at+" and apply it to the project building. Strictly keep the building geometry, facade module spacing, camera view, site layout, roads and surrounding context from the FIRST image. Do NOT copy the reference image's buildings, composition, or layout.";
+      parts.push({inline_data:{mime_type:rm[1],data:rm[2]}}); } }
+    var btn=$id("rtRunBtn"); btn.disabled=true;
+    var t0=Date.now(), tick=setInterval(function(){ stat("변환 중… "+Math.round((Date.now()-t0)/1000)+"초 (보통 15~30초)"); },1000);
+    stat("변환 중… (보통 15~30초)");
+    var ctrl=new AbortController(), killer=setTimeout(function(){ ctrl.abort(); },120000);
+    try{
+      var url="https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent?key="+encodeURIComponent(key);
+      var body={ contents:[{ parts:parts }], generationConfig:{ responseModalities:["IMAGE"] } };
+      var res=await fetch(url,{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body), signal:ctrl.signal });
+      var data=await res.json();
+      if(!res.ok) throw new Error((data.error&&data.error.message)||("HTTP "+res.status));
+      var rp=((((data.candidates||[])[0]||{}).content)||{}).parts||[], img=null, txt=null;
+      rp.forEach(function(p){ if(p.inlineData||p.inline_data) img=p; else if(p.text) txt=p; });
+      if(!img) throw new Error("이미지가 반환되지 않았습니다(다시 시도)."+(txt?" 응답: "+txt.text:""));
+      var inl=img.inlineData||img.inline_data;
+      rtResult="data:"+(inl.mimeType||inl.mime_type||"image/png")+";base64,"+inl.data;
+      $id("rtResImg").src=rtResult; show("rtResWrap",true);
+      stat("완료! ("+Math.round((Date.now()-t0)/1000)+"초) 이미지를 클릭하면 비교됩니다.");
+    }catch(e){ stat(e.name==="AbortError"?"변환 실패: 시간 초과(120초) — 다시 시도하세요.":"변환 실패: "+e.message); }
+    finally{ clearInterval(tick); clearTimeout(killer); btn.disabled=false; }
+  }
+
+  // ───────── 진입 ─────────
+  function onEnter(){ _dirty=true; _interior=false; loadRT(); onStruct(); onLines(); updateCornerLabels(); syncVcFloor(); vcPoint=vcCentroid(); wireVcPlan(); drawVcPlan(); renderSlots(); setCamMode(camMode); updSkinSel(); initAi(); mainTab("tex"); texTab("struct"); camTab("cam"); }
+
+  window.RT = { onEnter:onEnter, applyStructure:applyStructure, onStruct:onStruct,
+    mainTab:mainTab, texTab:texTab, camTab:camTab, pickSkin:pickSkin, setPattern:setPattern, onRatio:onRatio,
+    toggleFaceSelect:toggleFaceSelect, onLetter:onLetter, onShape:onShape, onScale:onScale,
+    flyCorner:flyCorner, flyTop:flyTop, flyBird:flyBird,
+    onVcFloor:onVcFloor, interiorView:interiorView,
+    applyInteriorCamera:applyInteriorCamera, holdsCamera:holdsCamera, applyRenderCamera:applyRenderCamera,
+    setCamMode:setCamMode, saveView:saveView, onLines:onLines,
+    saveKey:saveKey, applyPreset:applyPreset, capture:capture, captureRegion:captureRegion,
+    onUpload:onUpload, onRef:onRef, clearRef:clearRef, compare:compare, run:run, download:download };
 })();
 </script>
 </body>
