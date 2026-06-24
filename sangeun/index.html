@@ -166,6 +166,12 @@
   .rzBL{position:absolute;left:-5px;bottom:-5px;width:16px;height:16px;cursor:nesw-resize;border-left:2px solid var(--accent);border-bottom:2px solid var(--accent);border-bottom-left-radius:4px;opacity:.45;transition:opacity .15s;}
   .rzBL:hover,.rzL:hover,.rzB:hover{opacity:1;}
   .rzL:hover{box-shadow:inset 2px 0 0 var(--accent);} .rzB:hover{box-shadow:inset 0 -2px 0 var(--accent);}
+   #panel7 .p7body{max-height:calc(100vh - 250px);overflow-y:auto;overflow-x:hidden;}
+   #panel7 .p7rz-l{position:absolute;left:-4px;top:8px;bottom:8px;width:8px;cursor:ew-resize;}
+   #panel7 .p7rz-b{position:absolute;left:8px;right:8px;bottom:-4px;height:8px;cursor:ns-resize;}
+   #panel7 .p7rz-bl{position:absolute;left:-5px;bottom:-5px;width:16px;height:16px;cursor:nesw-resize;border-left:2px solid var(--accent);border-bottom:2px solid var(--accent);border-bottom-left-radius:4px;opacity:.45;transition:opacity .15s;}
+   #panel7 .p7rz-bl:hover,#panel7 .p7rz-l:hover,#panel7 .p7rz-b:hover{opacity:1;}
+   #panel7 .p7rz-l:hover{box-shadow:inset 2px 0 0 var(--accent);} #panel7 .p7rz-b:hover{box-shadow:inset 0 -2px 0 var(--accent);}
   #plansvg rect.bay{cursor:pointer;stroke:#fff;stroke-width:0.6;}
   #plansvg rect.bay:hover{stroke:#1a1a1a;stroke-width:1.2;}
   .modebar{margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
@@ -449,7 +455,7 @@ body.calc-mode .vwui, body.calc-mode #fitCtxPanel, body.calc-mode #fitCtxPanelB,
 </div>
 
 <!-- ===== STEP 7: 렌더 컨트롤 (텍스처 매핑 / 카메라 / 렌더링) ===== -->
-  <div id="panel7" class="hide" style="position:fixed;top:160px;left:28px;width:300px;max-height:calc(100vh - 196px);overflow-y:auto;overflow-x:hidden;z-index:6;pointer-events:auto;background:rgba(255,255,255,0.92);border:1px solid var(--line,#e0ddd5);border-radius:10px;padding:12px;box-shadow:0 6px 24px rgba(0,0,0,.12);">
+  <div id="panel7" class="hide" style="position:fixed;top:174px;right:28px;width:328px;overflow:visible;transform-origin:top right;z-index:6;pointer-events:auto;background:#fff;border:1px solid var(--line,#e0ddd5);border-radius:4px;padding:16px;box-shadow:0 4px 18px rgba(0,0,0,.12);">
     <style>
       #panel7 .rt-tabs{ display:flex; gap:5px; margin-bottom:10px; }
       #panel7 .rt-tab{ flex:1; padding:8px 3px; font:800 11px inherit; border:1px solid var(--line); border-radius:5px; background:var(--soft,#f3f1ec); color:var(--muted); cursor:pointer; }
@@ -492,6 +498,8 @@ body.calc-mode .vwui, body.calc-mode #fitCtxPanel, body.calc-mode #fitCtxPanelB,
       #panel7 .rt-skinrow.on{ background:rgba(230,141,57,0.14); border-color:var(--accent,#e68d39); }
     </style>
 
+    <div class="planhd"><div class="glbl">텍스처 / RENDER</div><div class="zoomctl"><button class="zbtn" id="p7Zout">−</button><span id="p7ZoomLbl">100%</span><button class="zbtn" id="p7Zin">＋</button></div></div>
+    <div class="p7body">
     <!-- 메인 하위탭 -->
     <div class="rt-tabs">
       <button id="rtTabTex" class="rt-tab on" onclick="RT.mainTab('tex')">텍스처 매핑</button>
@@ -638,79 +646,58 @@ body.calc-mode .vwui, body.calc-mode #fitCtxPanel, body.calc-mode #fitCtxPanelB,
         <img id="rtResImg" class="rt-img" alt="" onclick="RT.compare()">
         <button class="rt-btn" style="width:100%;margin-top:6px;" onclick="RT.download()">결과 다운로드</button></div>
     </div>
+    </div>
+    <div class="p7rz-l" id="p7rzL"></div><div class="p7rz-b" id="p7rzB"></div><div class="p7rz-bl" id="p7rzBL"></div>
   </div>
 
 <div id="rtCamPanel" style="display:none;">
   <style>
-    #rtCamPanel{ position:fixed; top:68px; right:28px; width:228px; z-index:8; pointer-events:auto;
-      font-family:'IBM Plex Sans KR','Apple SD Gothic Neo',sans-serif; background:rgba(255,255,255,0.96);
-      border:1px solid var(--line,#e0ddd5); border-radius:10px; padding:12px; box-shadow:0 6px 24px rgba(0,0,0,.12); }
-    #rtCamPanel .cb-h{ font-size:11px; font-weight:800; letter-spacing:.06em; color:var(--accent,#e68d39); text-transform:uppercase; margin:10px 0 7px; }
-    #rtCamPanel .cb-h:first-child{ margin-top:0; }
-    #rtCamPanel .cb-grid{ display:grid; grid-template-columns:1fr 1fr; gap:5px; }
-    #rtCamPanel .cb-grid button, #rtCamPanel .cb-b{ padding:7px 4px; font:700 11px inherit; border:1px solid var(--line,#e0ddd5); border-radius:6px; background:#fff; color:var(--ink,#1a1a1a); cursor:pointer; }
-    #rtCamPanel .cb-grid button:hover, #rtCamPanel .cb-b:hover{ border-color:var(--accent,#e68d39); color:var(--accent,#e68d39); }
-    #rtCamPanel .cb-row{ display:flex; align-items:center; gap:7px; margin:6px 0; font-size:11.5px; color:#4b5159; }
-    #rtCamPanel .cb-row input[type=range]{ flex:1; }
-    #rtCamPanel .vc-dirs{ display:grid; grid-template-columns:repeat(4,1fr); gap:5px; }
-    #rtCamPanel .vc-dir{ padding:7px 0; font:700 11px inherit; border:1px solid var(--line,#e0ddd5); border-radius:6px; background:#fff; color:var(--ink,#1a1a1a); cursor:pointer; }
-    #rtCamPanel .vc-dir.on{ background:var(--accent,#e68d39); color:#fff; border-color:var(--accent,#e68d39); }
-    #rtCamPanel .cb-go{ width:100%; margin-top:8px; background:var(--ink,#1a1a1a); color:#fff; border:none; border-radius:7px; padding:8px; font:700 12px inherit; cursor:pointer; }
-    #rtCamPanel .cb-tabs{ display:flex; gap:5px; margin-top:11px; border-top:1px solid var(--line,#e0ddd5); padding-top:10px; }
-    #rtCamPanel .cb-tab{ flex:1; font:700 11px inherit; padding:6px 4px; border:1px solid var(--line,#e0ddd5); border-radius:6px; background:var(--soft,#f3f1ec); color:var(--muted,#8a867e); cursor:pointer; }
-    #rtCamPanel .cb-tab.on{ background:var(--ink,#1a1a1a); color:#fff; border-color:var(--ink,#1a1a1a); }
-    #rtCamPanel .cb-hint{ font-size:10px; color:var(--muted,#8a867e); line-height:1.4; margin-top:5px; }
-    #rtCamPanel .cb-mode{ display:flex; gap:5px; margin-bottom:8px; }
-    #rtCamPanel .cb-mode-b{ flex:1; padding:7px 4px; font:700 11px inherit; border:1px solid var(--line,#e0ddd5); border-radius:6px; background:#fff; color:var(--muted,#8a867e); cursor:pointer; }
-    #rtCamPanel .cb-mode-b.on{ background:var(--accent,#e68d39); color:#fff; border-color:var(--accent,#e68d39); }
-    #rtCamPanel .cb-slots{ display:flex; flex-direction:column; gap:4px; margin-bottom:6px; }
+    #rtCamPanel{ position:fixed; top:172px; left:28px; width:auto; z-index:8; pointer-events:auto; font-family:'IBM Plex Sans KR','Apple SD Gothic Neo',sans-serif; }
+    #rtCamPanel .skinseg{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; width:176px; }
+    #rtCamPanel .skinseg .segb{ flex:none; width:100%; font-size:12px; padding:11px 0; white-space:nowrap; box-sizing:border-box; }
+    #rtCamPanel .glbl{ margin:14px 0 6px; }
+    #rtCamPanel #rtCamPane > .glbl:first-child{ margin-top:0; }
+    #rtCamPanel .cb-slots{ display:flex; flex-direction:column; gap:4px; margin-top:6px; width:176px; }
     #rtCamPanel .cb-slot{ display:flex; align-items:center; gap:5px; }
-    #rtCamPanel .cb-slot button.s{ flex:1; text-align:left; padding:6px 8px; font:600 11px inherit; border:1px solid var(--line,#e0ddd5); border-radius:6px; background:#fff; color:var(--ink,#1a1a1a); cursor:pointer; }
-    #rtCamPanel .cb-slot button.s:hover{ border-color:var(--accent,#e68d39); color:var(--accent,#e68d39); }
-    #rtCamPanel .cb-slot button.x{ width:24px; flex:0 0 auto; padding:6px 0; font:700 12px inherit; border:1px solid var(--line,#e0ddd5); border-radius:6px; background:#fff; color:#b06; cursor:pointer; }
-    #rtCamPanel .cb-empty{ font-size:10px; color:var(--muted,#8a867e); }
+    #rtCamPanel .cb-slot button.s{ flex:1; text-align:left; padding:6px 8px; font:600 11px inherit; border:1px solid var(--line,#e0ddd5); border-radius:3px; background:#fff; color:var(--text,#1a1a1a); cursor:pointer; }
+    #rtCamPanel .cb-slot button.x{ width:24px; flex:0 0 auto; padding:6px 0; font:700 12px inherit; border:1px solid var(--line,#e0ddd5); border-radius:3px; background:#fff; color:#b06; cursor:pointer; }
+    #rtCamPanel .cb-empty{ font-size:10px; color:var(--muted,#8a867e); background:rgba(255,255,255,0.72); border-radius:3px; padding:2px 6px; width:max-content; }
+    #rtCamPanel .vc-row{ display:flex; gap:8px; align-items:stretch; margin:4px 0; }
+    #rtCamPanel .cb-hint{ font-size:10px; color:var(--muted,#8a867e); line-height:1.4; margin-top:5px; width:176px; box-sizing:border-box; background:rgba(255,255,255,0.78); border-radius:3px; padding:3px 6px; }
   </style>
-  <!-- 카메라 뷰 -->
+  <!-- 3D 뷰 (skinsel과 동일 UI: glbl + seg skinseg + segb) -->
   <div id="rtCamPane">
-    <div class="cb-h" id="rtCamTitle">카메라 뷰</div>
-    <div class="cb-mode">
-      <button id="rtMode2pt" class="cb-mode-b on" onclick="RT.setCamMode('2pt')">2점투시</button>
-      <button id="rtModePersp" class="cb-mode-b" onclick="RT.setCamMode('persp')">투시</button>
+    <div class="glbl">3D 뷰</div>
+    <div class="seg skinseg">
+      <button class="segb on" id="rtMode2pt" onclick="RT.setCamMode('2pt')">2점투시</button>
+      <button class="segb" id="rtModePersp" onclick="RT.setCamMode('persp')">투시</button>
+      <button class="segb" id="rtCorner0" onclick="RT.flyCorner(0)">코너 1</button>
+      <button class="segb" id="rtCorner1" onclick="RT.flyCorner(1)">코너 2</button>
+      <button class="segb" id="rtCorner2" onclick="RT.flyCorner(2)">코너 3</button>
+      <button class="segb" id="rtCorner3" onclick="RT.flyCorner(3)">코너 4</button>
+      <button class="segb" onclick="RT.flyTop()">평면</button>
+      <button class="segb" onclick="RT.flyBird()">조감</button>
     </div>
-    <div class="cb-grid">
-      <button id="rtCorner0" onclick="RT.flyCorner(0)">코너 1</button>
-      <button id="rtCorner1" onclick="RT.flyCorner(1)">코너 2</button>
-      <button id="rtCorner2" onclick="RT.flyCorner(2)">코너 3</button>
-      <button id="rtCorner3" onclick="RT.flyCorner(3)">코너 4</button>
-    </div>
-    <div class="cb-grid" style="margin-top:5px;">
-      <button class="cb-b" onclick="RT.flyTop()">평면(탑뷰)</button>
-      <button class="cb-b" onclick="RT.flyBird()">조감</button>
-    </div>
-    <div class="cb-hint">2점투시 = 세로선 항상 수직. 코너 이름은 가장 가까운 방위로 자동.</div>
-    <div class="cb-h">뷰 저장</div>
-    <div id="rtCamSlots" class="cb-slots"></div>
-    <button class="cb-go" id="rtSaveView" onclick="RT.saveView()">+ 현재 뷰 저장 (0/5)</button>
   </div>
-  <!-- 뷰체크 (실내뷰) -->
-  <div id="rtVcPane" style="display:none;">
-    <div class="cb-h">뷰체크 (실내뷰)</div>
-    <div style="display:flex; gap:8px; align-items:stretch; margin:6px 0;">
-      <div style="display:flex; flex-direction:column; align-items:center; gap:3px; flex:0 0 auto;">
-        <span style="font-size:9.5px;color:#999;">고층</span>
-        <input id="rtVcFloor" type="range" min="1" max="1" value="1" step="1" oninput="RT.onVcFloor()"
-          style="writing-mode:vertical-lr; direction:rtl; -webkit-appearance:slider-vertical; appearance:slider-vertical; width:22px; height:140px; padding:0;">
-        <span style="font-size:9.5px;color:#999;">저층</span>
-        <span id="rtVcFloorVal" style="font-size:11px;font-weight:700;color:var(--ink,#1a1a1a);">1층</span>
+  <!-- 실내뷰 (3D 뷰 버튼 아래, 항상 표시) -->
+  <div id="rtVcSection">
+    <div class="glbl">실내뷰</div>
+    <button class="segb" id="rtVcSetup" style="width:176px;box-sizing:border-box;">실내뷰 설정</button>
+    <div id="rtVcSetupBox" style="display:none;margin-top:8px;width:176px;">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+        <span style="font-size:11px;color:#777;">층</span>
+        <input id="rtVcFloor" type="number" min="1" max="1" value="1" step="1" oninput="RT.onVcFloor()" style="width:54px;text-align:center;font-size:13px;font-weight:700;color:var(--text,#1a1a1a);border:1px solid var(--line,#e0ddd5);border-radius:4px;padding:5px 4px;background:#fff;">
+        <span id="rtVcFloorVal" style="font-size:11px;color:#999;">1층</span>
       </div>
-      <canvas id="rtVcPlan" width="158" height="158" style="flex:1 1 auto; width:158px; height:158px; display:block; border:1px solid var(--line,#e0ddd5); border-radius:6px; background:#faf9f7; cursor:crosshair;"></canvas>
+      <canvas id="rtVcPlan" width="158" height="158" style="width:158px;height:158px;display:block;border:1px solid var(--line,#e0ddd5);border-radius:4px;background:#faf9f7;cursor:crosshair;"></canvas>
+      <div class="cb-hint" style="margin-top:5px;">평면에서 시작점을 누른 채 끌어 바라볼 방향을 정하면 뷰가 바로 전환됩니다.</div>
     </div>
-    <button class="cb-go" onclick="RT.interiorView()">실내뷰 확인</button>
-    <div class="cb-hint">평면을 클릭해 시점 위치 지정(기본=중앙). 화살표 = 가장 가까운 창문 방향. (화면 드래그 시 일반 궤도뷰로 복귀)</div>
   </div>
-  <div class="cb-tabs">
-    <button id="rtCbCam" class="cb-tab on" onclick="RT.camTab('cam')">카메라 뷰</button>
-    <button id="rtCbView" class="cb-tab" onclick="RT.camTab('view')">뷰체크</button>
+  <!-- 뷰 저장 (실내뷰 아래) -->
+  <div id="rtVcSaveSection">
+    <div class="glbl">뷰 저장</div>
+    <button class="segb" id="rtSaveView" onclick="RT.saveView()" style="width:176px;box-sizing:border-box;">+ 현재 뷰 저장 (0/5)</button>
+    <div id="rtCamSlots" class="cb-slots"></div>
   </div>
 </div>
 
@@ -1045,7 +1032,7 @@ function renderGizmo(){ if(document.body.classList.contains('calc-mode'))return;
   const baseS=96, S=Math.max(46, Math.round(baseS*_uiScale)); let vx=cw - S - 28, vy=30+Math.round(38*_uiScale);
   if(step===6){ vx=cw - S - 28; vy=ch - S - 64; } // 06 완료: 우측 상단(보고서 컬럼 위)
   // 01~05: RESET 버튼 바로 위(우측). 좌측 패널 축소 배율(_uiScale)에 맞춰 방위 크기도 축소.
-  _gv.subVectors(camera.position,target).normalize();
+  if(window.RT && RT.isInterior && RT.isInterior()){ camera.getWorldDirection(_gv); _gv.negate(); } else { _gv.subVectors(camera.position,target).normalize(); }
   gCam.position.copy(_gv).multiplyScalar(gDist); gCam.up.set(0,1,0); gCam.lookAt(0,0,0);
   try{
     renderer.autoClear=false;
@@ -1096,7 +1083,7 @@ let drawMode=false, drawPts=[], pendingDraw=false, drawHover=null, preDraw=null;
 const snapHalf=v=>Math.round(v*2)/2;
 function polyArea(p){ if(!p||p.length<3)return 0; let a=0; for(let i=0;i<p.length;i++){const j=(i+1)%p.length; a+=p[i].x*p[j].z-p[j].x*p[i].z;} return Math.abs(a)/2; }
 function polyBounds(p){ let a=1e9,b=1e9,c=-1e9,e=-1e9; p.forEach(q=>{a=Math.min(a,q.x);c=Math.max(c,q.x);b=Math.min(b,q.z);e=Math.max(e,q.z);}); return {minx:a,minz:b,maxx:c,maxz:e}; }
-const ALIGN_TOL=1.2;
+const ALIGN_TOL=1.7;
 let orthoMode=true;
 function orthoSnap(prev,rx,rz){ let x=clamp(rx,-MAX_HALF,MAX_HALF), z=clamp(rz,-MAX_HALF,MAX_HALF);
   if(prev && orthoMode){
@@ -1112,6 +1099,7 @@ function orthoSnap(prev,rx,rz){ let x=clamp(rx,-MAX_HALF,MAX_HALF), z=clamp(rz,-
 function getPlate(){ return (footprint&&footprint.length>=3)?polyArea(footprint):(tHalfW*2)*(tHalfD*2); }
 function moveVertexOrtho(idx,x,z){ if(!(footprint&&footprint.length>=3))return; const n=footprint.length, prev=footprint[(idx+n-1)%n], next=footprint[(idx+1)%n], cur=footprint[idx];
   x=snapHalf(clamp(x,-MAX_HALF,MAX_HALF)); z=snapHalf(clamp(z,-MAX_HALF,MAX_HALF));
+  for(var _k=0;_k<n;_k++){ if(_k===idx)continue; var _q=footprint[_k]; if(Math.abs(x-_q.x)<0.7) x=_q.x; if(Math.abs(z-_q.z)<0.7) z=_q.z; }
   if(Math.abs(cur.x-prev.x) < Math.abs(cur.z-prev.z)) prev.x=x; else prev.z=z;
   if(Math.abs(cur.x-next.x) < Math.abs(cur.z-next.z)) next.x=x; else next.z=z;
   footprint[idx]={x:x,z:z}; }
@@ -1806,6 +1794,7 @@ function onMove(e){ wake(); if(pinching)return; setNDC(e);
     return; }
   if(pendingFace!=null||pendingCorner!=null){ if(Math.hypot(e.clientX-downXY.x,e.clientY-downXY.y)>5){orbiting=true;last={x:e.clientX,y:e.clientY};pendingFace=null;pendingCorner=null;} return; }
   if(orbiting){const dx=e.clientX-last.x,dy=e.clientY-last.y; last={x:e.clientX,y:e.clientY};
+    if(window.RT&&RT.isInterior&&RT.isInterior()){ RT.lookAround(dx,dy); return; }
     tTheta-=dx*0.006; tPhi=clamp(tPhi-dy*0.006,0.22,1.45); return;}
   // hover
   ray.setFromCamera(ndc,camera);
@@ -2017,6 +2006,7 @@ function getDesignState(){ return { v:1, app:'FIT-MASSING', savedAt:new Date().t
   floors:{ perFloorMode:perFloorMode, lowN:lowN, midN:midN, topN:topN, fhLow:fhLow, fhTop:fhTop },
   types:{ frameFloorOv:Object.assign({},frameFloorOv), autoGrpFrame:autoGrpFrame, grpTypeIdx:grpTypeIdx.slice(), aTypeFloor:aTypeFloor, activeFType:activeFType },
   options:{ slabTh:slabTh, repPerFloor:repPerFloor },
+  render:((window.RT && RT.serialize)?RT.serialize():null),
   legalOv:((window.__legalOv && (window.__legalOv.far!=null||window.__legalOv.bcr!=null)) ? {far:window.__legalOv.far, bcr:window.__legalOv.bcr} : null),
   massing:(window.__mmAnimOn ? {on:true} : null),
   site:(function(){ try{ var st=window.VWorldContext&&window.VWorldContext.state, ss=st&&st.site; if(!ss||!ss.parcels||!ss.parcels.length) return null; return { lon0:ss.lon0, lat0:ss.lat0, parcels:ss.parcels.map(function(pp){ return { ring:pp.ring, label:pp.label, road:!!pp.road, pnu:pp.pnu||'', zone:pp._zone, zoneErr:pp._zoneErr, areaM2:pp._areaM2 }; }), parcelCache:(st.parcelCache&&st.parcelCache.length?st.parcelCache.map(function(p){return {ring:p.ring,cen:p.cen,road:!!p.road,label:p.label,pnu:p.pnu||''};}):null), bldState:(st.bldState||0), gndState:(st.gndState||0), buildingsGeo:(window.VWorldContext&&window.VWorldContext.serializeBuildings?window.VWorldContext.serializeBuildings():null), xform:(st.xform?{x:st.xform.x,y:st.xform.y,rot:st.xform.rot}:null), autoAlign:(function(){ var _a=document.getElementById('seAlignToggle'); return _a? /ON/.test(_a.textContent): true; })() }; }catch(e){ return null; } })() }; }
@@ -2042,6 +2032,7 @@ function applyDesignState(d){ if(!d||typeof d!=='object'||d.app!=='FIT-MASSING')
       if(typeof pfApply==='function') pfApply();
     } else { perFloorMode=false; var _pr2=$('pfRows'),_fr2=$('flrRow'); if(_pr2)_pr2.style.display='none'; if(_fr2)_fr2.style.display='flex'; }
     var OP=d.options||{}; if(OP.slabTh!=null){ slabTh=OP.slabTh; var _sti=$('slabThIn'); if(_sti)_sti.value=Math.round(slabTh*1000); slabSig=''; } if(OP.repPerFloor!=null)repPerFloor=!!OP.repPerFloor;
+    if(d.render && window.RT && RT.restore){ try{ RT.restore(d.render); }catch(e){} }
     clampCore(); clampFit(); editFloor=clamp(editFloor,fitFrom,fTopEff());
     setGlass(glassType); setSkin(skinType);
     if($('inDeliv'))$('inDeliv').value=delivRate; if($('inConst'))$('inConst').value=constRate;
@@ -2371,6 +2362,7 @@ $('reset').onclick=()=>{
   window.__legalOv={far:null,bcr:null}; window.__landInfo=null; window.__mmRectMode=true;
   if(window.__mmAnimOn && typeof _mmStopAnim==='function') _mmStopAnim();
   try{ var _ss=document.getElementById('seCtxStat'); if(_ss)_ss.textContent='데이터: 초기화'; }catch(e){}
+  if(window.RT && RT.resetRender){ try{ RT.resetRender(); }catch(e){} }
   frSig=''; setStep(1);};
 $('repReset').onclick=$('reset').onclick;
 
@@ -2634,7 +2626,7 @@ function tick(){requestAnimationFrame(tick);
     }
   } else { if(frGrid.children.length){ frGrid.children.forEach(o=>o.geometry.dispose()); frGrid.clear(); } if(frVol.children.length){ frVol.children.forEach(o=>o.geometry.dispose()); frVol.clear(); } frSig=''; }
 
-  if(s7 && window.RT && RT.applyStructure) RT.applyStructure();
+  if((s6||s7) && window.RT && RT.applyStructure) RT.applyStructure();
   if(s7 && window.RT && RT.applyRenderCamera){ RT.applyRenderCamera(); }
   else { applyCamera(); }
   renderer.render(scene,camera); renderGizmo();
@@ -6803,6 +6795,7 @@ window.FitCalcApp = App;
     if(ins){ el.disabled=true; try{ el.value=Math.round(slabTh*1000); }catch(e){} struct.slabTh=Math.round(slabTh*1000); setTxt("rtSlabThv",struct.slabTh+"mm (인필 고정)"); }
     else { el.disabled=false; setTxt("rtSlabThv",struct.slabTh+"mm"); } }
   function applyStructure(){   // step7 매 프레임(host tick) — 기본값 위에 덮어씀
+  if(typeof step!=="undefined" && step===6 && !_texOK){ resetStructure(); return; }   // 06완료 + 텍스처 없음 → 원본(반투명) 유지, 솔리드화 안 함
     var poly=(typeof footprint!=="undefined"&&footprint&&footprint.length>=3);
     var mb=struct.massB/255;
     faceMat.color.setRGB(mb,mb,mb); faceMat.opacity=struct.massA;
@@ -6815,7 +6808,7 @@ window.FitCalcApp = App;
     var sb=struct.slabB/255; slabMat.color.setRGB(sb,sb,sb); slabMat.opacity=struct.slabA; slabMatR.color.copy(slabMat.color); slabMatR.opacity=struct.slabA;   // 지붕 슬래브도 동일 불투명 → 표시
     if(typeof coreBox!=="undefined"){ coreBox.visible=struct.coreOn; coreEdges.visible=struct.coreOn; }
     if(typeof extraGrp!=="undefined") extraGrp.visible=struct.coreOn;
-    if(_interior){ if(typeof coreBox!=="undefined"){ coreBox.visible=false; coreEdges.visible=false; } if(typeof extraGrp!=="undefined") extraGrp.visible=false; }   // 뷰체크(실내뷰) 시 코어 끔
+    if(_interior && (typeof step==="undefined"||step===7)){ if(typeof coreBox!=="undefined"){ coreBox.visible=false; coreEdges.visible=false; } if(typeof extraGrp!=="undefined") extraGrp.visible=false; }   // 실내뷰(렌더 단계)에서만 코어 끔
     var cbv=struct.coreB/255; coreFaceMat.color.setRGB(cbv,cbv,cbv); coreFaceMat.opacity=struct.coreA; coreEdgeMat.color.set("#5a5a54"); coreEdgeMat.opacity=struct.coreOn?0.85:0;
     // 불투명(≈100%)일 때 진짜 솔리드(깊이기록) → 투명/x-ray 방지. 유리 facade(_mat.*)는 depthWrite:false 유지.
     setSolid(faceMat, struct.massA>=0.99); setSolid(polyVolMat, struct.massA>=0.99);
@@ -6964,10 +6957,10 @@ window.FitCalcApp = App;
   function rtTick(){
     requestAnimationFrame(rtTick);
     var onStep=(typeof step!=="undefined") && (step===7 || step===6);   // 06 RENDER(s7)+07 완료(s6) 모두 텍스처 유지
-    if(!onStep){ if(rtOverlay.visible) rtOverlay.visible=false; if(_was7){ resetStructure(); _was7=false; } return; }
+    if(!onStep){ if(rtOverlay.visible) rtOverlay.visible=false; if(_interior){ exitInterior(); } if(_was7){ resetStructure(); clearOverlay(); if(typeof frSig!=="undefined") frSig=""; _was7=false; } return; }
     if(!_loaded){ loadRT(); return; }
-    if(step===6 && !_texOK){ if(rtOverlay.visible) rtOverlay.visible=false; if(_was7){ resetStructure(); _was7=false; } return; }   // 텍스처 실패(file://) → 보고서는 원본 프레임 유지
     _was7=true;
+    if(step===6 && !_texOK){ if(rtOverlay.visible) rtOverlay.visible=false; clearOverlay(); if(typeof frSig!=="undefined" && frVol.children.some(function(m){return m.userData && m.userData.__rt;})) frSig=""; return; }   // 텍스처 없음 → 원본 프레임 복원, _was7 유지(이탈 시 정리)
     var need=_dirty || frVol.children.some(function(m){ return m.userData && !m.userData.__rt; });
     if(need){ _dirty=false; retexAll(); }
     if(step===6){ rtOverlay.visible=(typeof struct!=="undefined" && struct)?!!struct.frameOn:true; }   // 완료 단계 오버레이 가시화
@@ -7020,16 +7013,23 @@ window.FitCalcApp = App;
     var tt=$id("rtCamTitle"); if(tt)tt.textContent=cam?"카메라 뷰":"뷰체크 (실내뷰)";
     if(!cam){ wireVcPlan(); drawVcPlan(); } }   // 뷰체크 탭 진입 시 평면 갱신
   // ── 뷰체크 (실내뷰): 평면에서 시점 포인트 지정 → 가장 가까운 창문 방향 ──
-  var _interior=false, _iEye=null, _iLook=null, _iDir=null, _iBase=null, _iDolly=0, _iWinFwd=0;
+  var _interior=false, _iEye=null, _iLook=null, _iDir=null, _iBase=null, _iDolly=0, _iWinFwd=0, _iCustomDir=null, _iYaw=0, _iPitch=0, _vcInit=false;
   var vcPoint=null, _vcInv=null, _vcWired=false;
-  function updateInteriorEye(){   // 베이스 + 휠 돌리(앞뒤) → 카메라 위치/시선
-    if(!_iBase||!_iDir) return;
-    _iDolly=Math.max(-(_iWinFwd*4+10), Math.min(_iWinFwd-0.5, _iDolly));   // 창문 통과 방지/뒤로 한도
-    _iEye=new T.Vector3(_iBase.x+_iDir.x*_iDolly, _iBase.y, _iBase.z+_iDir.z*_iDolly);
-    _iLook=new T.Vector3(_iEye.x+_iDir.x*10, _iEye.y, _iEye.z+_iDir.z*10);
+  function updateInteriorEye(){   // 베이스 + 휠 돌리(앞뒤) + 시선(yaw/pitch)
+    if(!_iBase) return;
+    var hx=Math.sin(_iYaw), hz=Math.cos(_iYaw);
+    _iDir=new T.Vector3(hx,0,hz);
+    _iDolly=Math.max(-(_iWinFwd*4+10), Math.min(_iWinFwd-0.5, _iDolly));
+    _iEye=new T.Vector3(_iBase.x+hx*_iDolly, _iBase.y, _iBase.z+hz*_iDolly);
+    var cp=Math.cos(_iPitch), sp=Math.sin(_iPitch);
+    _iLook=new T.Vector3(_iEye.x+hx*cp*10, _iEye.y+sp*10, _iEye.z+hz*cp*10);
   }
-  function onVcFloor(){ var v=$id("rtVcFloor"); setTxt("rtVcFloorVal",((v?v.value:1))+"층"); }
-  function syncVcFloor(){ var v=$id("rtVcFloor"); if(!v) return; var fl=(typeof tFloors!=="undefined"?tFloors:1)||1; v.max=Math.max(1,fl); if(+v.value>fl)v.value=fl; onVcFloor(); }
+  function onVcFloor(){ var v=$id("rtVcFloor"); var fl=(typeof tFloors!=="undefined"?tFloors:1)||1; setTxt("rtVcFloorVal","/ "+fl+"층"); if(_interior) interiorView(); }
+  function _defFloor(){ var lo=(typeof fitFrom!=="undefined")?fitFrom:1; var hi=(typeof fTopEff==="function")?fTopEff():((typeof tFloors!=="undefined"?tFloors:1)||1);
+    var d; if(typeof perFloorMode!=="undefined" && perFloorMode && (typeof midN!=="undefined") && midN>0){ d=lowN + Math.ceil(midN/2); }   // 3단계: 중 구획 중앙
+    else { d=lo; }   // 층별 미설정: FIT 최하층
+    if(d<lo)d=lo; if(d>hi)d=hi; if(d<1)d=1; return d; }
+  function syncVcFloor(){ var v=$id("rtVcFloor"); if(!v) return; var fl=(typeof tFloors!=="undefined"?tFloors:1)||1; v.max=Math.max(1,fl); if(!_vcInit){ v.value=_defFloor(); } if(+v.value>fl)v.value=fl; if(+v.value<1)v.value=1; onVcFloor(); }
   function getFootprint(){
     if(typeof footprint!=="undefined" && footprint && footprint.length>=3) return footprint.map(function(p){return {x:p.x,z:p.z};});
     var w=(typeof tHalfW!=="undefined"?tHalfW:12)||12, d=(typeof tHalfD!=="undefined"?tHalfD:12)||12;
@@ -7059,35 +7059,60 @@ window.FitCalcApp = App;
     ctx.beginPath(); fp.forEach(function(q,i){var c=toC(q.x,q.z); if(i===0)ctx.moveTo(c[0],c[1]); else ctx.lineTo(c[0],c[1]);}); ctx.closePath();
     ctx.fillStyle="rgba(230,141,57,0.08)"; ctx.fill(); ctx.strokeStyle="#e68d39"; ctx.lineWidth=1.5; ctx.stroke();
     ctx.fillStyle="#aaa"; ctx.font="9px sans-serif"; ctx.textAlign="center"; ctx.fillText("N",W/2,11);   // 북=위(−Z)
-    var pc=toC(vcPoint.x,vcPoint.z), win=nearestWin(vcPoint);
-    if(win){ var wc=toC(win.fx,win.fz);   // 포인트→가장 가까운 창문(수선) 화살표
+    var pc=toC(vcPoint.x,vcPoint.z), _aim=null;
+    if(_iCustomDir){ var _fwd=_rayEdge(vcPoint.x,vcPoint.z,_iCustomDir.x,_iCustomDir.z)||6; _aim=toC(vcPoint.x+_iCustomDir.x*_fwd, vcPoint.z+_iCustomDir.z*_fwd); }
+    else { var win=nearestWin(vcPoint); if(win) _aim=toC(win.fx,win.fz); }
+    if(_aim){ var wc=_aim;   // 시작점→시선(드래그) 또는 가장 가까운 창문 화살표
       ctx.strokeStyle="#1a1a1a"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(pc[0],pc[1]); ctx.lineTo(wc[0],wc[1]); ctx.stroke();
       var ang=Math.atan2(wc[1]-pc[1],wc[0]-pc[0]), ah=7;   // 화살촉
       ctx.beginPath(); ctx.moveTo(wc[0],wc[1]); ctx.lineTo(wc[0]-ah*Math.cos(ang-0.4),wc[1]-ah*Math.sin(ang-0.4)); ctx.lineTo(wc[0]-ah*Math.cos(ang+0.4),wc[1]-ah*Math.sin(ang+0.4)); ctx.closePath(); ctx.fillStyle="#1a1a1a"; ctx.fill(); }
     ctx.beginPath(); ctx.arc(pc[0],pc[1],4,0,2*Math.PI); ctx.fillStyle="#e68d39"; ctx.fill(); ctx.strokeStyle="#fff"; ctx.lineWidth=1.5; ctx.stroke();
   }
   function wireVcPlan(){ if(_vcWired) return; var cv=$id("rtVcPlan"); if(!cv) return; _vcWired=true;
-    cv.addEventListener("click", function(e){ var r=cv.getBoundingClientRect(); var px=(e.clientX-r.left)*(cv.width/r.width), py=(e.clientY-r.top)*(cv.height/r.height);
-      if(_vcInv){ vcPoint=_vcInv(px,py); drawVcPlan(); } }); }
+    function _pt(e){ var r=cv.getBoundingClientRect(); return {px:(e.clientX-r.left)*(cv.width/r.width), py:(e.clientY-r.top)*(cv.height/r.height)}; }
+    var _vdrag=false;
+    cv.addEventListener("pointerdown", function(e){ if(!_vcInv) return; e.preventDefault(); try{cv.setPointerCapture(e.pointerId);}catch(_e){} _vdrag=true; var p=_pt(e); vcPoint=_vcInv(p.px,p.py); _iCustomDir=null; drawVcPlan(); });
+    cv.addEventListener("pointermove", function(e){ if(!_vdrag||!_vcInv) return; var p=_pt(e); var c=_vcInv(p.px,p.py); var dx=c.x-vcPoint.x, dz=c.z-vcPoint.z; var L=Math.hypot(dx,dz); if(L>0.3){ var yaw=Math.atan2(dx,dz); var q=Math.PI/2, sn=Math.round(yaw/q)*q, dd=Math.abs(yaw-sn); if(dd>Math.PI)dd=2*Math.PI-dd; if(dd<0.21)yaw=sn; _iCustomDir=new T.Vector3(Math.sin(yaw),0,Math.cos(yaw)); drawVcPlan(); interiorView(); } });
+    function _end(e){ if(!_vdrag) return; _vdrag=false; try{cv.releasePointerCapture(e.pointerId);}catch(_e){} interiorView(); }
+    cv.addEventListener("pointerup", _end); cv.addEventListener("pointercancel", _end);
+    var sb=$id("rtVcSetup"); if(sb) sb.addEventListener("click", function(){ var box=$id("rtVcSetupBox"); if(!box) return; var open=box.style.display!=="none"; box.style.display=open?"none":"block"; if(open){ exitInterior(); } else { syncVcFloor(); if(!_vcInit){ vcPoint=vcCentroid(); _iCustomDir=null; } drawVcPlan(); interiorView(); } }); }
+  function _rayEdge(px,pz,dx,dz){ var fp=getFootprint(), best=Infinity;
+    for(var i=0;i<fp.length;i++){ var a=fp[i], b=fp[(i+1)%fp.length]; var Ex=b.x-a.x, Ez=b.z-a.z;
+      var det=(-dx*Ez)+(Ex*dz); if(Math.abs(det)<1e-9) continue;
+      var rx=a.x-px, rz=a.z-pz; var t=(-rx*Ez+Ex*rz)/det, u=(dx*rz-dz*rx)/det;
+      if(t>0.05 && u>=-0.001 && u<=1.001 && t<best) best=t; }
+    return isFinite(best)?best:8; }
   function interiorView(){
     var v=$id("rtVcFloor"); var n=Math.max(1, Math.min((typeof tFloors!=="undefined"?tFloors:1)||1, +((v&&v.value)||1)));
     var hs=(typeof sHeight!=="undefined"?sHeight:totalH())/Math.max(0.001,totalH());
     var eyeY=((levelY(n-1)+levelY(n))/2)*hs;
     if(!vcPoint) vcPoint=vcCentroid();
-    var win=nearestWin(vcPoint); if(!win) return;
     var ex=vcPoint.x, ez=vcPoint.z;
-    if(win.dist<1.5){ ex=win.fx-win.nx*1.5; ez=win.fz-win.nz*1.5; }   // 창에 너무 붙으면(과확대) 최소 1.5m 뒤로
-    _iBase=new T.Vector3(ex, eyeY, ez);                              // 시점 베이스(지정 포인트)
-    var dl=Math.hypot(win.nx,win.nz)||1; _iDir=new T.Vector3(win.nx/dl,0,win.nz/dl);   // 창문 방향(수평)
-    _iWinFwd=Math.hypot(win.fx-ex, win.fz-ez);                       // 창문까지 거리
-    _iDolly=0; updateInteriorEye();                                  // 휠로 앞뒤 이동
+    if(_iCustomDir){                                                 // 평면 드래그로 지정한 시선 방향
+      _iBase=new T.Vector3(ex, eyeY, ez);
+      _iDir=_iCustomDir.clone();
+      _iWinFwd=_rayEdge(ex,ez,_iDir.x,_iDir.z)||8;
+    } else {
+      var win=nearestWin(vcPoint); if(!win) return;
+      if(win.dist<1.5){ ex=win.fx-win.nx*1.5; ez=win.fz-win.nz*1.5; }
+      _iBase=new T.Vector3(ex, eyeY, ez);
+      var dl=Math.hypot(win.nx,win.nz)||1; _iDir=new T.Vector3(win.nx/dl,0,win.nz/dl);
+      _iWinFwd=Math.hypot(win.fx-ex, win.fz-ez);
+    }
+    _iYaw=Math.atan2(_iDir.x,_iDir.z); _iPitch=0; _iDolly=0; updateInteriorEye();                                  // 휠로 앞뒤 이동
     setFov(INTERIOR_FOV);                                            // 누를 때 즉시 렌즈 고정(결정론적·누적 없음)
-    _interior=true; if(typeof wake==="function") wake(8);
+    _interior=true; _vcInit=true; _vcActive(true); if(typeof wake==="function") wake(8);
   }
   function applyInteriorCamera(){ if(_iEye){ camera.position.copy(_iEye); camera.lookAt(_iLook); } }
   function holdsCamera(){ return _interior; }
-  function exitInterior(){ _interior=false; }
-  renderer.domElement.addEventListener("pointerdown", function(){ if(typeof step!=="undefined"&&step===7&&!faceSelectMode) _interior=false; });
+  function lookAround(dx,dy){ if(!_interior) return; _iYaw-=dx*0.005; _iPitch=Math.max(-1.2,Math.min(1.2,_iPitch-dy*0.005)); updateInteriorEye(); _iCustomDir=new T.Vector3(Math.sin(_iYaw),0,Math.cos(_iYaw)); if(typeof drawVcPlan==="function") drawVcPlan(); if(typeof wake==="function") wake(8); }
+  function isInterior(){ return !!_interior; }
+  function _vcActive(on){ var bt=$id("rtVcSetup"); if(bt) bt.classList.toggle("on", !!on);
+    var a=$id("rtMode2pt"), b=$id("rtModePersp");
+    if(on){ if(a)a.classList.remove("on"); if(b)b.classList.remove("on"); }
+    else { if(a)a.classList.toggle("on",camMode==="2pt"); if(b)b.classList.toggle("on",camMode==="persp"); } }
+  function exitInterior(){ _interior=false; _vcActive(false); var box=$id("rtVcSetupBox"); if(box) box.style.display="none"; }
+  renderer.domElement.addEventListener("pointerdown", function(){ /* 실내뷰 중 드래그=시선 회전(lookAround), 자동 종료 안 함 */ });
   renderer.domElement.addEventListener("wheel", function(e){   // 실내뷰: 휠 스크롤 = 앞뒤 이동(돌리)
     if(typeof step==="undefined"||step!==7||!_interior) return;
     e.preventDefault(); _iDolly -= e.deltaY*0.01; updateInteriorEye(); if(typeof wake==="function") wake(8);
@@ -7102,7 +7127,7 @@ window.FitCalcApp = App;
   // ── 카메라 모드: 2점투시(세로선 항상 수직) / 투시 ──
   var camMode="2pt", _baseFov=null, INTERIOR_FOV=22;   // 실내뷰는 현실적 렌즈(좁은 FOV≈70mm 느낌)
   function setFov(f){ if(camera.fov!==f){ camera.fov=f; camera.updateProjectionMatrix(); } }
-  function setCamMode(m){ camMode=m; var a=$id("rtMode2pt"),b=$id("rtModePersp"); if(a)a.classList.toggle("on",m==="2pt"); if(b)b.classList.toggle("on",m==="persp"); if(typeof wake==="function")wake(4); }
+  function setCamMode(m){ exitInterior(); camMode=m; var a=$id("rtMode2pt"),b=$id("rtModePersp"); if(a)a.classList.toggle("on",m==="2pt"); if(b)b.classList.toggle("on",m==="persp"); if(typeof wake==="function")wake(4); }
   function _clearVO(){ try{ if(camera.view && camera.view.enabled && camera.clearViewOffset) camera.clearViewOffset(); }catch(e){} }
   function applyRenderCamera(){   // host tick에서 호출(s7)
     if(_baseFov==null) _baseFov=camera.fov;
@@ -7255,17 +7280,66 @@ window.FitCalcApp = App;
   }
 
   // ───────── 진입 ─────────
-  function onEnter(){ _dirty=true; _interior=false; loadRT(); onStruct(); onLines(); updateCornerLabels(); syncVcFloor(); vcPoint=vcCentroid(); wireVcPlan(); drawVcPlan(); renderSlots(); setCamMode(camMode); updSkinSel(); initAi(); mainTab("tex"); texTab("struct"); camTab("cam"); }
+  function onEnter(){ _dirty=true; _interior=false; loadRT(); var _sti0=$id("rtSlabTh"); if(_sti0 && typeof slabTh!=="undefined") _sti0.value=Math.round(slabTh*1000); onStruct(); onLines(); updateCornerLabels(); syncVcFloor(); vcPoint=vcCentroid(); wireVcPlan(); drawVcPlan(); renderSlots(); setCamMode(camMode); updSkinSel(); initAi(); mainTab("tex"); texTab("struct"); camTab("cam"); }
 
-  window.RT = { onEnter:onEnter, applyStructure:applyStructure, onStruct:onStruct,
+  function _setStructUI(st){ function sc(id,on){ var e=$id(id); if(e) e.checked=!!on; } function sv(id,v){ var e=$id(id); if(e) e.value=v; }
+    sc("rtMassOn",st.massOn); sv("rtMassB",st.massB); sv("rtMassA",Math.round((st.massA!=null?st.massA:1)*100));
+    sc("rtSlabOn",st.slabOn); sv("rtSlabTh",st.slabTh); sv("rtSlabB",st.slabB); sv("rtSlabA",Math.round((st.slabA!=null?st.slabA:1)*100));
+    sc("rtCoreOn",st.coreOn); sv("rtCoreB",st.coreB); sv("rtCoreA",Math.round((st.coreA!=null?st.coreA:1)*100));
+    sc("rtFrameOn",st.frameOn); }
+  function serialize(){ return { struct:{ massOn:struct.massOn, massB:struct.massB, massA:struct.massA, slabOn:struct.slabOn, slabTh:struct.slabTh, slabB:struct.slabB, slabA:struct.slabA, coreOn:struct.coreOn, coreB:struct.coreB, coreA:struct.coreA, frameOn:struct.frameOn },
+    pattern:patternMode, ratio:cartRatio2, letter:{ text:letterText, shape:letterShape, sx:letterScaleX, sy:letterScaleY, faceKey:letterFaceKey },
+    views:camViews.map(function(v){ return {th:v.th,ph:v.ph,zm:v.zm,mode:v.mode}; }), camMode:camMode }; }
+  function restore(o){ if(!o) return; try{
+      if(o.struct) _setStructUI(o.struct);
+      if(o.pattern) patternMode=o.pattern;
+      if(o.ratio!=null){ cartRatio2=o.ratio; var rr=$id("rtRatio"); if(rr) rr.value=Math.round(cartRatio2*100); }
+      if(o.letter){ letterText=o.letter.text||""; letterShape=o.letter.shape||""; letterScaleX=o.letter.sx||2.3; letterScaleY=o.letter.sy||1.0; letterFaceKey=(o.letter.faceKey!=null?o.letter.faceKey:null); }
+      if(o.views){ camViews.length=0; o.views.forEach(function(v){ camViews.push({th:v.th,ph:v.ph,zm:v.zm,mode:v.mode}); }); renderSlots(); }
+      if(o.camMode) camMode=o.camMode;
+      try{ setPattern(patternMode); }catch(e){} try{ onStruct(); }catch(e){} _dirty=true;
+    }catch(e){} }
+  function resetRender(){ try{ exitInterior(); }catch(e){} _vcInit=false; _iCustomDir=null; vcPoint=null;
+    camViews.length=0; try{ renderSlots(); }catch(e){}
+    patternMode="random"; cartRatio2=0.5; _preLetterRatio=null; letterText=""; letterShape=""; letterScaleX=2.3; letterScaleY=1.0; letterFaceKey=null;
+    var rr=$id("rtRatio"); if(rr) rr.value=50; setTxt("rtRatioLbl","cart-1 50% : cart-2 50% · 스킨 모듈 랜덤 배치");
+    var coreTh=Math.round((typeof slabTh!=="undefined"?slabTh:0.2)*1000);
+    _setStructUI({ massOn:false, massB:235, massA:1.0, slabOn:true, slabTh:coreTh, slabB:100, slabA:1.0, coreOn:true, coreB:150, coreA:1.0, frameOn:true });
+    camMode="2pt"; try{ setPattern("random"); }catch(e){} try{ onStruct(); }catch(e){} _dirty=true; }
+  window.RT = { onEnter:onEnter, applyStructure:applyStructure, onStruct:onStruct, serialize:serialize, restore:restore, resetRender:resetRender,
     mainTab:mainTab, texTab:texTab, camTab:camTab, pickSkin:pickSkin, setPattern:setPattern, onRatio:onRatio,
     toggleFaceSelect:toggleFaceSelect, onLetter:onLetter, onShape:onShape, onScale:onScale,
     flyCorner:flyCorner, flyTop:flyTop, flyBird:flyBird,
-    onVcFloor:onVcFloor, interiorView:interiorView,
+    onVcFloor:onVcFloor, interiorView:interiorView, lookAround:lookAround, isInterior:isInterior,
     applyInteriorCamera:applyInteriorCamera, holdsCamera:holdsCamera, applyRenderCamera:applyRenderCamera,
     setCamMode:setCamMode, saveView:saveView, onLines:onLines,
     saveKey:saveKey, applyPreset:applyPreset, capture:capture, captureRegion:captureRegion,
     onUpload:onUpload, onRef:onRef, clearRef:clearRef, compare:compare, run:run, download:download };
+})();
+</script>
+<script>
+/* ===== 06 RENDER 패널(panel7) 줌·모서리 리사이즈 (평면도 방식) ===== */
+(function(){ function $(id){return document.getElementById(id);}
+  var P7BASE=328, _p7s=1;
+  function syncCamTop(){ var c=document.getElementById('rtCamPanel'); if(c){ var sc=window._VWUI_S||1; c.style.top=(68+104*sc).toFixed(1)+'px'; } }
+  function setP7Scale(v){ _p7s=Math.max(0.7,Math.min(2.0,v)); var p=$('panel7');
+    var fitS=window._VWUI_S||1; var eff=_p7s*fitS;   // 평면도와 동일하게 전역 fit 스케일(최대 1.2) 반영
+    if(p) p.style.transform=(Math.abs(eff-1)<0.005)?'':('scale('+eff.toFixed(3)+')');
+    var l=$('p7ZoomLbl'); if(l) l.textContent=Math.round(_p7s*100)+'%'; }
+  function wire(){ var p=$('panel7'); if(!p) return; if(!p.__p7w){ var zin=$('p7Zin'),zout=$('p7Zout'); if(!zin||!zout) return; p.__p7w=true;
+    zin.onclick=function(){ setP7Scale(_p7s+0.1); }; zout.onclick=function(){ setP7Scale(_p7s-0.1); };
+    var rsz=null;
+    function mv(e){ if(!rsz)return; var dx=rsz.sx-e.clientX, dy=e.clientY-rsz.sy; var d=rsz.t==='l'?dx:(rsz.t==='b'?dy:Math.max(dx,dy)); setP7Scale(rsz.s0 + d/P7BASE); }
+    function up(){ rsz=null; document.body.style.userSelect=''; window.removeEventListener('pointermove',mv); window.removeEventListener('pointerup',up); }
+    function dn(t,e){ rsz={t:t,sx:e.clientX,sy:e.clientY,s0:_p7s}; document.body.style.userSelect='none'; e.preventDefault(); e.stopPropagation(); window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up); }
+    [['p7rzL','l'],['p7rzB','b'],['p7rzBL','bl']].forEach(function(a){ var h=$(a[0]); if(h) h.addEventListener('pointerdown',function(e){ dn(a[1],e); }); });
+    window.addEventListener('resize',function(){ requestAnimationFrame(function(){ setP7Scale(_p7s); syncCamTop(); }); });
+    }
+    setP7Scale(_p7s);
+    syncCamTop();
+  }
+  if(document.readyState!=='loading') wire(); else document.addEventListener('DOMContentLoaded',wire);
+  setTimeout(wire,800);
 })();
 </script>
 </body>
