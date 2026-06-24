@@ -187,7 +187,7 @@
   .afbtn:hover span{color:rgba(255,255,255,0.85);}
   .nav{display:flex;gap:8px;margin-top:16px;}
   .btn{flex:1;font-size:11px;letter-spacing:0.12em;font-weight:600;padding:11px 0;border-radius:2px;
-    cursor:pointer;transition:all .18s;text-transform:uppercase;text-align:center;
+    cursor:pointer;transition:all .18s;text-transform:uppercase;text-align:center;white-space:nowrap;
     border:1px solid var(--accent);background:var(--accent);color:#fff;}
   .btn.ghost{background:transparent;color:var(--sub);border-color:var(--line);}
   .btn.ghost:hover{border-color:var(--accent);color:var(--accent);}
@@ -220,7 +220,7 @@
   #tagFD{transform:translate(calc(-50% + 88px),-50%);}
   .hide{display:none !important;}
   html,body{touch-action:pan-x pan-y;}
-  @media (max-width:560px){.panel{width:calc(100% - 56px);left:28px;bottom:20px;}.controls{display:none;}.brand .ttl{font-size:20px;}}
+  @media (max-width:560px){.panel{width:calc(100% - 56px);left:28px;bottom:20px;}.controls{display:none;}.brand .ttl{font-size:20px;}.repnav{width:calc(100% - 56px);bottom:20px;}}
 #appbar{position:fixed;top:0;left:0;right:0;z-index:50;height:56px;box-sizing:border-box;
   display:flex;align-items:center;justify-content:space-between;padding:0 40px;
   border-bottom:1px solid #d8d8d4;background:rgba(239,239,237,0.96);
@@ -301,8 +301,8 @@ body.calc-mode .vwui, body.calc-mode #fitCtxPanel, body.calc-mode #fitCtxPanelB,
     <div class="pill" id="pill3"><span class="n">03</span>FIT 적용 층/면</div>
     <div class="pill" id="pill4"><span class="n">04</span>FIT FRAME</div>
     <div class="pill" id="pill5"><span class="n">05</span>CARTRIDGE</div>
-    <div class="pill" id="pill6"><span class="n">06</span>완료</div>
-    <div class="pill" id="pill7">RENDER</div>
+    <div class="pill" id="pill7"><span class="n">06</span>RENDER</div>
+    <div class="pill" id="pill6"><span class="n">07</span>완료</div>
   </div>
 </div>
 <button id="goTextCalc">✎ 텍스트 입력 견적 →</button>
@@ -443,9 +443,9 @@ body.calc-mode .vwui, body.calc-mode #fitCtxPanel, body.calc-mode #fitCtxPanelB,
   <div class="nav hide" id="nav2"><button class="btn ghost" id="back1">← 건물 규모</button><button class="btn" id="toStep3">다음 · FIT 적용 →</button></div>
   <div class="nav hide" id="nav3"><button class="btn ghost" id="back2">← 코어</button><button class="btn" id="toStep4">다음 · FIT FRAME →</button></div>
   <div class="nav hide" id="nav4"><button class="btn ghost" id="back3">← FIT 적용</button><button class="btn" id="toStep5">다음 · CARTRIDGE →</button></div>
-  <div class="nav hide" id="nav5"><button class="btn ghost" id="back4">← FIT FRAME</button><button class="btn" id="toStep6">완료 · 보고서 →</button></div>
+  <div class="nav hide" id="nav5"><button class="btn ghost" id="back4">← FIT FRAME</button><button class="btn" id="toStep6">다음 · RENDER →</button></div>
   <div class="nav hide" id="nav6"><button class="btn ghost" id="back5">← CARTRIDGE</button><button class="btn" id="toStep7">렌더 →</button></div>
-  <div class="nav hide" id="nav7"><button class="btn ghost" id="back6">← 완료</button></div>
+  <div class="nav hide" id="nav7"><button class="btn ghost" id="back6">← CARTRIDGE</button><button class="btn" id="toDone">완료 · 보고서 →</button></div>
 </div>
 
 <!-- ===== STEP 7: 렌더 컨트롤 (텍스처 매핑 / 카메라 / 렌더링) ===== -->
@@ -890,7 +890,7 @@ body.calc-mode .vwui, body.calc-mode #fitCtxPanel, body.calc-mode #fitCtxPanelB,
     </div>
   </div>
   <div class="repnav right"><button class="btn ghost" id="repReset">↺ RESET</button></div>
-  <div class="repnav"><button class="btn ghost" id="repBack">← CARTRIDGE</button><button class="btn" id="toEstimate">견적 산출 →</button></div>
+  <div class="repnav"><button class="btn ghost" id="repBack">← RENDER</button><button class="btn" id="toEstimate">견적 산출 →</button></div>
 </div><div class="dimtag" id="tagW"><input class="dimin" id="inW" inputmode="decimal"/><span class="u">m</span></div>
 <div class="dimtag" id="tagD"><input class="dimin" id="inD" inputmode="decimal"/><span class="u">m</span></div>
 <div id="extraTags"></div>
@@ -1979,8 +1979,8 @@ function setStep(s){ wake(); step=s;
   if(s===1 && footprint && footprint.length>=3) renderFootprintDims();
   updateReadout(); if(typeof fitPanel==='function')fitPanel();
   if(step===7 && window.RT && RT.onEnter){ try{ RT.onEnter(); }catch(e){ console.warn('RT.onEnter error:', e); } }}
-$('toStep2').onclick=()=>setStep(2); $('toStep3').onclick=()=>setStep(3); $('toStep4').onclick=()=>setStep(4); $('toStep5').onclick=()=>setStep(5); $('toStep6').onclick=()=>setStep(6); $('toStep7').onclick=()=>setStep(7);
-$('back1').onclick=()=>setStep(1); $('back2').onclick=()=>setStep(2); $('back3').onclick=()=>setStep(3); $('back4').onclick=()=>setStep(4); $('back5').onclick=()=>setStep(5); $('back6').onclick=()=>setStep(6);
+$('toStep2').onclick=()=>setStep(2); $('toStep3').onclick=()=>setStep(3); $('toStep4').onclick=()=>setStep(4); $('toStep5').onclick=()=>setStep(5); $('toStep6').onclick=()=>setStep(7); $('toStep7').onclick=()=>setStep(7);
+$('back1').onclick=()=>setStep(1); $('back2').onclick=()=>setStep(2); $('back3').onclick=()=>setStep(3); $('back4').onclick=()=>setStep(4); $('back5').onclick=()=>setStep(5); $('back6').onclick=()=>setStep(5); { var _td=$('toDone'); if(_td)_td.onclick=()=>setStep(6); }
 $('pill1').onclick=()=>setStep(1); $('pill2').onclick=()=>setStep(2); $('pill3').onclick=()=>setStep(3); $('pill4').onclick=()=>setStep(4); $('pill5').onclick=()=>setStep(5); $('pill6').onclick=()=>setStep(6); $('pill7').onclick=()=>setStep(7);
 $('btnDraw').onclick=startDraw; $('btnDrawDone').onclick=finishDraw; $('btnDrawCancel').onclick=cancelDraw; $('btnRect').onclick=clearFootprint; var _bmm=$('btnMaxMass'); if(_bmm)_bmm.onclick=toggleMassAnim; _mmBtn(false); var _brm=$('btnRemodel'); if(_brm)_brm.onclick=toggleRemodel; window.__legalOv=window.__legalOv||{far:null,bcr:null};
   var _parseNum=function(x){ var t=String(x).replace(/[^0-9.]/g,''); var v=parseFloat(t); return (t!==''&&isFinite(v)&&v>0)?v:null; };
@@ -1995,7 +1995,7 @@ $('btnDraw').onclick=startDraw; $('btnDrawDone').onclick=finishDraw; $('btnDrawC
   var _se=$('srEdit'); if(_se)_se.onclick=function(){ if(window.__legalEdit){ _legalCommit(); _legalDone(); } else { window.__legalEdit=true; applyLegalEditUI(); var fi=$('srFarIn'); if(fi)fi.focus(); } };
   applyLegalEditUI();
   updateDrawUI();
-$('repBack').onclick=()=>setStep(5);
+$('repBack').onclick=()=>setStep(7); { var _trr=$('toRenderRep'); if(_trr)_trr.onclick=()=>setStep(7); }
 let delivRate=120, constRate=150;
 function rateChanged(){ delivRate=parseFloat($('inDeliv').value)||0; constRate=parseFloat($('inConst').value)||0; if(step===6) buildReport(); }
 $('inDeliv').addEventListener('input',rateChanged); $('inConst').addEventListener('input',rateChanged);
@@ -6761,7 +6761,7 @@ window.FitCalcApp = App;
 
   // ───────── 텍스처/재질 ─────────
   var TEXBASE="source/";
-  var _tex={}, _mat={}, _loaded=false, _loading=false, _dirty=true;
+  var _tex={}, _mat={}, _loaded=false, _loading=false, _dirty=true, _texOK=false;
   var rtOverlay=new T.Group(); rtOverlay.visible=false; (typeof bldGrp!=='undefined'&&bldGrp?bldGrp:scene).add(rtOverlay);   // 지형 오프셋(bldGrp) 따라가도록 bldGrp 자식으로   // 프레임 평면 오버레이
   var _plane=new T.PlaneGeometry(1,1);
   var _invis=new T.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,side:T.DoubleSide});   // 박스 옆면(미매핑)
@@ -6778,8 +6778,8 @@ window.FitCalcApp = App;
         tx.anisotropy=8;
         _tex[k]=tx; _mat[k]=new T.MeshBasicMaterial({map:tx,side:T.DoubleSide,transparent:true,depthWrite:false});   // depthWrite:false → 뒤쪽 슬래브 안 가림
         if(k==="side"){ var tm=tx.clone(); tm.wrapS=T.RepeatWrapping; tm.repeat.x=-1; try{tm.encoding=renderer.outputEncoding;}catch(e){} tm.anisotropy=8; tm.needsUpdate=true; _mat.sideM=new T.MeshBasicMaterial({map:tm,side:T.DoubleSide,transparent:true,depthWrite:false}); }   // 좌우 미러
-        if(++done===n){ _loaded=true; _loading=false; _dirty=true; cb&&cb(); }
-      }, undefined, function(){ if(++done===n){ _loaded=true; _loading=false; _dirty=true; cb&&cb(); } });
+        if(++done===n){ _loaded=true; _loading=false; _texOK=!!(_mat.f1||_mat.f2||_mat.c1||_mat.c2||_mat.air); _dirty=true; cb&&cb(); }
+      }, undefined, function(){ if(++done===n){ _loaded=true; _loading=false; _texOK=!!(_mat.f1||_mat.f2||_mat.c1||_mat.c2||_mat.air); _dirty=true; cb&&cb(); } });
     });
   }
 
@@ -6963,11 +6963,14 @@ window.FitCalcApp = App;
   var _was7=false;
   function rtTick(){
     requestAnimationFrame(rtTick);
-    if(typeof step==="undefined" || step!==7){ if(rtOverlay.visible) rtOverlay.visible=false; if(_was7){ resetStructure(); _was7=false; } return; }
-    _was7=true;
+    var onStep=(typeof step!=="undefined") && (step===7 || step===6);   // 06 RENDER(s7)+07 완료(s6) 모두 텍스처 유지
+    if(!onStep){ if(rtOverlay.visible) rtOverlay.visible=false; if(_was7){ resetStructure(); _was7=false; } return; }
     if(!_loaded){ loadRT(); return; }
+    if(step===6 && !_texOK){ if(rtOverlay.visible) rtOverlay.visible=false; if(_was7){ resetStructure(); _was7=false; } return; }   // 텍스처 실패(file://) → 보고서는 원본 프레임 유지
+    _was7=true;
     var need=_dirty || frVol.children.some(function(m){ return m.userData && !m.userData.__rt; });
     if(need){ _dirty=false; retexAll(); }
+    if(step===6){ rtOverlay.visible=(typeof struct!=="undefined" && struct)?!!struct.frameOn:true; }   // 완료 단계 오버레이 가시화
   }
   requestAnimationFrame(rtTick);
 
