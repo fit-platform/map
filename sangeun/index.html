@@ -1518,9 +1518,9 @@ function colBlockedSet(){ var sig=[colOn,colGap,colW,colInset,frameMount,frameIn
       FA.forEach(function(fa){ if(!fa||!fSel(fa.i))return; var L=fa.L, bg=bayGeo(L);
         var n=Math.max(1, Math.round(L/colGap)), st=L/n;   // 모서리 포함 균등 분할(간격≈colGap)
         for(var i=0;i<=n;i++){ var id=fa.i+'_'+i; var t=(id in colTOv)?Math.max(0,Math.min(L,colTOv[id])):(i*st); var x=fa.p0x+fa.ux*t, z=fa.p0z+fa.uz*t;
-          _colMeta[id]={fa_i:fa.i, i:i, n:n, t:t, p0x:fa.p0x, p0z:fa.p0z, ux:fa.ux, uz:fa.uz, L:L};
-          var key=Math.round(x*20)+','+Math.round(z*20);
-          if(colDeleted.has(key)) continue;
+          var key=Math.round(x*20)+','+Math.round(z*20); var _del=colDeleted.has(key);
+          _colMeta[id]={fa_i:fa.i, i:i, n:n, t:t, p0x:fa.p0x, p0z:fa.p0z, ux:fa.ux, uz:fa.uz, L:L, del:_del};
+          if(_del) continue;
           if(!cmap[key]) cmap[key]={x:x, z:z, sx:0, sz:0, id:id};   // 면 안쪽 이동 누적(코너=인접 두 면 모두)
           cmap[key].sx += -(fa.nx||0)*off; cmap[key].sz += -(fa.nz||0)*off;   // 외곽선 안쪽면=기둥 바깥면 기준(colW/2) + 깊이(inset)
           var tc=Math.max(0,Math.min(L-1e-4,t)), bMin=Math.max(0,Math.floor((tc-half-bg.off)/bg.w)), bMax=Math.min(bg.cols-1,Math.floor((tc+half-bg.off)/bg.w));
@@ -1535,17 +1535,19 @@ function renderColumns(){ colBlockedSet();
     _colPts.forEach(function(p){ var g=new THREE.BoxGeometry(colW,H,colW); var m=new THREE.Mesh(g,colFaceMat); m.position.set(p.x,H/2,p.z); m.renderOrder=2; m.userData={type:'column',key:p.key,id:p.id}; colGrp.add(m);
       var eg=new THREE.LineSegments(new THREE.EdgesGeometry(g),colEdgeMat); eg.position.copy(m.position); colGrp.add(eg); }); }
   colGrp.visible = colOn && (typeof step!=='undefined' && step>=2 && step<=7);
-  var tL=document.getElementById('colTagL'), tR=document.getElementById('colTagR'); var _ox=(typeof sbcx!=='undefined'?sbcx:0), _oz=(typeof sbcz!=='undefined'?sbcz:0);
-  if(colOn && colEdit && step===2 && colSel && _colMeta[colSel]){ var me=_colMeta[colSel], pL=_colMeta[me.fa_i+'_'+(me.i-1)], pN=_colMeta[me.fa_i+'_'+(me.i+1)];
-    if(pL && pN){ var yT=Math.max(1,(typeof totalH==='function'?totalH():10))*0.5;
+  if(typeof bldGrp!=='undefined' && bldGrp) colGrp.position.copy(bldGrp.position); else colGrp.position.set(0,0,0);   // 대지 중심이동 따라가기(원점 고정 방지)
+  var tL=document.getElementById('colTagL'), tR=document.getElementById('colTagR'); var _by=(typeof bldGrp!=='undefined'&&bldGrp?bldGrp.position.y:0);
+  if(colOn && colEdit && step===2 && colSel && _colMeta[colSel]){ var me=_colMeta[colSel], pL=_colNeighbor(me,-1), pN=_colNeighbor(me,1);
+    if(pL && pN){ var yT=Math.max(1,(typeof totalH==='function'?totalH():10))*0.5+_by;
       var mlt=(pL.t+me.t)/2, mrt=(me.t+pN.t)/2;
-      place(tL, me.p0x+me.ux*mlt-_ox, yT, me.p0z+me.uz*mlt-_oz); place(tR, me.p0x+me.ux*mrt-_ox, yT, me.p0z+me.uz*mrt-_oz);
+      place(tL, me.p0x+me.ux*mlt, yT, me.p0z+me.uz*mlt); place(tR, me.p0x+me.ux*mrt, yT, me.p0z+me.uz*mrt);
       var dl=document.getElementById('colDinL'), dr=document.getElementById('colDinR');
       if(dl && document.activeElement!==dl) dl.value=Math.round((me.t-pL.t)*1000).toLocaleString('en-US');
       if(dr && document.activeElement!==dr) dr.value=Math.round((pN.t-me.t)*1000).toLocaleString('en-US'); }
     else { if(tL){tL.style.opacity='0';tL.style.pointerEvents='none';} if(tR){tR.style.opacity='0';tR.style.pointerEvents='none';} } }
   else { if(tL){tL.style.opacity='0';tL.style.pointerEvents='none';} if(tR){tR.style.opacity='0';tR.style.pointerEvents='none';} } }
-function _applyColDim(side){ if(!colSel||!_colMeta[colSel])return; var me=_colMeta[colSel], pL=_colMeta[me.fa_i+'_'+(me.i-1)], pN=_colMeta[me.fa_i+'_'+(me.i+1)]; if(!pL||!pN)return;
+function _colNeighbor(me, dir){ var i=me.i+dir; while(i>=0 && i<=me.n){ var nm=_colMeta[me.fa_i+'_'+i]; if(nm && !nm.del) return nm; i+=dir; } return null; }
+function _applyColDim(side){ if(!colSel||!_colMeta[colSel])return; var me=_colMeta[colSel], pL=_colNeighbor(me,-1), pN=_colNeighbor(me,1); if(!pL||!pN)return;
   var el=document.getElementById(side==='L'?'colDinL':'colDinR'); if(!el)return; var nn=parseFloat(String(el.value).replace(/[^0-9.\-]/g,'')); if(isNaN(nn))return;
   var d=Math.max(0.05, nn/1000), nt=(side==='L')?(pL.t+d):(pN.t-d); nt=Math.max(pL.t+0.05, Math.min(pN.t-0.05, nt)); colTOv[me.fa_i+'_'+me.i]=nt; _colSig=''; frSig=''; wake(); }       // 추가 코어 박스/모서리 [box0,edges0,box1,edges1,...]
 const extraHandles=new THREE.Group(); scene.add(extraHandles); // 추가 코어 모서리 핸들 [c0..c3, c0..c3, ...]
@@ -2120,7 +2122,7 @@ function applyDesignState(d){ if(!d||typeof d!=='object'||d.app!=='FIT-MASSING')
     setUnitMode(unitMode); unitVer++; hvacAuto=(function(){ try{ var h=false; [baseType,floorOv].forEach(function(o){ for(var k in o){ if(o[k]==='hvac') h=true; } }); return h; }catch(e){ return true; } })(); frSig=''; if(typeof undoStack!=='undefined'&&undoStack){undoStack.length=0;redoStack.length=0;} setStep(6);
     try{ if(d.site && window.VWorldContext && window.VWorldContext.restoreSite){ window.VWorldContext.restoreSite(d.site); } }catch(e){}
     try{ if(d.legalOv){ window.__legalOv={far:(d.legalOv.far!=null?+d.legalOv.far:null), bcr:(d.legalOv.bcr!=null?+d.legalOv.bcr:null)}; var _ff=$('srFarIn'),_bb=$('srBcrIn'); if(_ff && window.__legalOv.far!=null)_ff.value=window.__legalOv.far; if(_bb && window.__legalOv.bcr!=null)_bb.value=window.__legalOv.bcr; } if(typeof window.__updateSiteReadout==='function') window.__updateSiteReadout(); }catch(e){}
-    if(d.massing && d.massing.on){ setTimeout(function(){ try{ if(!window.__mmAnimOn && typeof window.__toggleMassAnim==='function') window.__toggleMassAnim(true); }catch(e){} }, 400); }
+    try{ if(typeof _mmStopAnim==='function') _mmStopAnim(); else { if(window.__mmTimer){clearInterval(window.__mmTimer);window.__mmTimer=null;} window.__mmAnimOn=false; } }catch(e){} window.__mmUserResized=true; window.__mmUserDrawn=!!(footprint && footprint.length>=3);   // 불러오기: 저장된 건물 치수/높이 그대로 유지(기준매스 자동생성 끔)
     return true;
   }catch(err){ console.error('불러오기 오류',err); return false; }
 }
