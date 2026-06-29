@@ -510,8 +510,8 @@ body.calc-mode .vwui, body.calc-mode #fitCtxPanel, body.calc-mode #fitCtxPanelB,
     <div id="rtPaneTex">
       <!-- 라인 표시/제외 (최상단) -->
       <div style="display:flex; gap:14px; flex-wrap:wrap; padding-bottom:8px; margin-bottom:8px; border-bottom:1px solid var(--line,#e0ddd5);">
-        <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;font-weight:700;color:var(--ink,#1a1a1a);"><input type="checkbox" id="rtGridOn" onchange="RT.onLines()"> 평면 그리드</label>
-        <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;font-weight:700;color:var(--ink,#1a1a1a);"><input type="checkbox" id="rtSiteOn" onchange="RT.onLines()"> 대지 경계선</label>
+        <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;font-weight:700;color:var(--ink,#1a1a1a);"><input type="checkbox" id="rtGridOn" checked onchange="RT.onLines()"> 평면 그리드</label>
+        <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;font-weight:700;color:var(--ink,#1a1a1a);"><input type="checkbox" id="rtSiteOn" checked onchange="RT.onLines()"> 대지 경계선</label>
       </div>
       <div class="rt-sub">
         <button id="rtSubStruct" class="rt-subt on" onclick="RT.texTab('struct')">구조체</button>
@@ -618,29 +618,13 @@ body.calc-mode .vwui, body.calc-mode #fitCtxPanel, body.calc-mode #fitCtxPanelB,
 
     <!-- ============ II. 렌더링 (실사화) ============ -->
     <div id="rtPaneAi" style="display:none;">
-      <div class="rt-sub">
-        <button id="rtSubApi"    class="rt-subt" onclick="RT.aiTab('api')">API 설정</button>
-        <button id="rtSubAiMain" class="rt-subt on" onclick="RT.aiTab('main')">변환</button>
-      </div>
-
-      <!-- API 설정 -->
-      <div id="rtAiApi" style="display:none;">
       <div class="rt-h">Gemini API 키</div>
       <div class="rt-row"><input id="rtKey" type="password" placeholder="키 뒤 2글자만 입력"
         value="AIzaSyDb3HUaL5dHueXJKHluVyq-VV0ExhjFx" style="flex:1;">
         <button class="rt-btn" style="flex:0 0 auto;" onclick="RT.saveKey()">저장</button></div>
       <div class="rt-hint">키 앞부분은 입력돼 있습니다. 뒤 2글자만 이어 입력 후 저장(이 브라우저에만).</div>
       <div class="rt-row" style="margin-top:8px;"><span style="min-width:34px;">모델</span><input id="rtModel" type="text" value="gemini-3.1-flash-image"></div>
-      <div class="rt-row" style="margin-top:6px;"><span style="min-width:34px;">해상도</span><select id="rtImgSize">
-        <option value="1K">1K (1024)</option>
-        <option value="2K" selected>2K (2048)</option>
-        <option value="4K">4K (4096)</option>
-        <option value="auto">자동(모델 기본)</option></select></div>
-      <div class="rt-hint">생성 이미지 출력 해상도. 미지원 모델이면 자동으로 기본값으로 재시도합니다.</div>
-      </div>
 
-      <!-- 변환 (나머지) -->
-      <div id="rtAiMain">
       <div class="rt-h">캡처 & 스타일</div>
       <div class="rt-grid"><button class="rt-btn" onclick="RT.capture()">전체 화면 캡처</button><button class="rt-btn" onclick="RT.captureRegion()">영역 지정 캡처</button></div>
       <div class="rt-row" style="margin-top:6px;"><span style="flex:0 0 auto;">또는</span><input type="file" id="rtUpload" accept="image/*" onchange="RT.onUpload(this)" style="flex:1; border:none; padding:0; font-size:11px; background:none;"></div>
@@ -664,26 +648,13 @@ body.calc-mode .vwui, body.calc-mode #fitCtxPanel, body.calc-mode #fitCtxPanelB,
         <label style="display:flex;gap:5px;align-items:center;"><input type="checkbox" id="rtRefColor"> 색상톤</label>
       </div>
 
-      <div class="rt-h">정합성 가이드</div>
-      <label style="display:flex;gap:6px;align-items:center;font-size:11.5px;"><input type="checkbox" id="rtLineart" checked onchange="RT.onLineToggle()"> 정합성 가이드 함께 전송</label>
-      <div class="rt-row" style="gap:16px;margin-top:5px;">
-        <label style="display:flex;gap:5px;align-items:center;font-size:11.5px;"><input type="radio" name="rtGuideType" value="line" checked onchange="RT.onLineToggle()"> 라인아트</label>
-        <label style="display:flex;gap:5px;align-items:center;font-size:11.5px;"><input type="radio" name="rtGuideType" value="model" onchange="RT.onLineToggle()"> 모델뷰</label>
-      </div>
-      <div class="rt-hint">캡처 시 소스·라인아트·모델뷰가 <b>같은 뷰로 동시 생성</b>됩니다(카메라 일치). 둘 중 선택한 것만 전송 — 라인아트=외곽/프레임/층선 추출, 모델뷰=5번탭(카트리지) 모델. 썸네일 클릭 시 비교 팝업.</div>
-      <button class="rt-btn" id="rtModelCap" style="width:100%;margin-top:6px;" onclick="RT.captureModel()">🔄 모델뷰만 다시 캡처</button>
-      <img id="rtLineImg" class="rt-img" alt="" style="display:none; max-height:110px; object-fit:contain; cursor:zoom-in;" onclick="RT.compare()">
-
       <div class="rt-row" style="margin-top:10px;"><button class="rt-btn prim" id="rtRunBtn" style="width:100%;" onclick="RT.run()">실사 변환 실행</button></div>
-      <div class="rt-row" style="margin-top:6px;"><button class="rt-btn" id="rtPreviewBtn" style="width:100%;" onclick="RT.previewSend()">🔍 전송 레퍼런스 확인</button></div>
       <div class="rt-status" id="rtStatus">화면을 캡처하거나 이미지를 업로드한 뒤 변환하세요.</div>
       <div id="rtSrcWrap" style="display:none;"><div class="rt-hint" style="margin-top:8px;">원본 (캡처) · 클릭 시 비교</div>
         <img id="rtSrcImg" class="rt-img" alt="" onclick="RT.compare()"></div>
       <div id="rtResWrap" style="display:none;"><div class="rt-hint" style="margin-top:8px;">변환 결과 · 클릭 시 비교</div>
         <img id="rtResImg" class="rt-img" alt="" onclick="RT.compare()">
-        <button class="rt-btn" style="width:100%;margin-top:6px;" onclick="RT.download()">결과 다운로드</button>
-        <button class="rt-btn" style="width:100%;margin-top:6px;" onclick="RT.downloadAll()">원본+라인아트+결과 한번에 저장</button></div>
-      </div>
+        <button class="rt-btn" style="width:100%;margin-top:6px;" onclick="RT.download()">결과 다운로드</button></div>
     </div>
     </div>
     <div class="p7rz-l" id="p7rzL"></div><div class="p7rz-b" id="p7rzB"></div><div class="p7rz-bl" id="p7rzBL"></div>
@@ -1111,7 +1082,7 @@ const ACCENT=new THREE.Color('#e68d39'), HOT=new THREE.Color('#1a1a1a');
 const grid=new THREE.GridHelper(160,40,0xc7c7bf,0xe2e2db);
 grid.material.transparent=true; grid.material.opacity=0.9; grid.position.y=-0.04; grid.renderOrder=-1; scene.add(grid);
 
-const faceMat=new THREE.MeshBasicMaterial({color:ACCENT,transparent:true,opacity:0.05,depthWrite:false,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1});
+const faceMat=new THREE.MeshBasicMaterial({color:ACCENT,transparent:true,opacity:0.05,depthWrite:false});
 const box=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),faceMat); scene.add(box);
 const edgeMat=new THREE.LineBasicMaterial({color:ACCENT,transparent:true,opacity:0.9});
 const edges=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1)),edgeMat); edges.renderOrder=1; scene.add(edges);
@@ -1200,7 +1171,7 @@ const drawCloseMat=new THREE.LineBasicMaterial({color:'#9a968e',transparent:true
 const drawDotMat=new THREE.MeshBasicMaterial({color:'#f5821f'});
 const drawFirstMat=new THREE.MeshBasicMaterial({color:'#111'});
 const drawGuideMat=new THREE.LineBasicMaterial({color:'#1f9c8c',transparent:true,opacity:0.85});
-const polyVolMat=new THREE.MeshBasicMaterial({color:ACCENT,transparent:true,opacity:0.06,depthWrite:false,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1});
+const polyVolMat=new THREE.MeshBasicMaterial({color:ACCENT,transparent:true,opacity:0.06,depthWrite:false});
 const polyEdgeMat=new THREE.LineBasicMaterial({color:ACCENT,transparent:true,opacity:0.9});
 const polyFloorMat=new THREE.LineBasicMaterial({color:ACCENT,transparent:true,opacity:0.28});
 const polyMass=new THREE.Group(); scene.add(polyMass); let polyMassSig='';
@@ -7832,7 +7803,7 @@ window.FitCalcApp = App;
     if(_interior && (typeof step==="undefined"||step===7)){ if(typeof coreBox!=="undefined"){ coreBox.visible=false; coreEdges.visible=false; } if(typeof extraGrp!=="undefined") extraGrp.visible=false; }   // 실내뷰(렌더 단계)에서만 코어 끔
     var cbv=struct.coreB/255; coreFaceMat.color.setRGB(cbv,cbv,cbv); coreFaceMat.opacity=struct.coreA; coreEdgeMat.color.set("#5a5a54"); coreEdgeMat.opacity=struct.coreOn?0.85:0;
     // 불투명(≈100%)일 때 진짜 솔리드(깊이기록) → 투명/x-ray 방지. 유리 facade(_mat.*)는 depthWrite:false 유지.
-    setMassSolid(faceMat, struct.massA); setMassSolid(polyVolMat, struct.massA);   // 매스: 항상 depthWrite=true(불투명도 정확 반영·x-ray 방지)
+    setSolid(faceMat, struct.massA>=0.99); setSolid(polyVolMat, struct.massA>=0.99);
     setSolid(slabMat, struct.slabA>=0.99); setSolid(slabMatR, struct.slabA>=0.99);   // 지붕 슬래브 솔리드
     setSolid(coreFaceMat, struct.coreA>=0.99);
     if(typeof colGrp!=="undefined"){ var clb=struct.colB/255; if(typeof colFaceMat!=="undefined"){ colFaceMat.color.setRGB(clb,clb,clb); colFaceMat.opacity=struct.colA; setSolid(colFaceMat, struct.colA>=0.99); } if(typeof colEdgeMat!=="undefined"){ colEdgeMat.color.set("#5a5a54"); colEdgeMat.opacity=struct.colOn?0.85:0; } colGrp.visible=(typeof colOn!=="undefined"&&!!colOn)&&struct.colOn; if(_interior && (typeof step==="undefined"||step===7)) colGrp.visible=false; }
@@ -7840,8 +7811,6 @@ window.FitCalcApp = App;
     rtOverlay.visible=struct.frameOn;
   }
   function setSolid(mat, opaque){ var wT=!opaque, wD=opaque; if(mat.transparent!==wT||mat.depthWrite!==wD){ mat.transparent=wT; mat.depthWrite=wD; mat.needsUpdate=true; } }
-  // 매스 전용: 반투명이어도 항상 깊이기록(앞면이 안쪽/뒷면을 가려 불투명도 정확 반영). polygonOffset으로 파사드와 z-fighting 방지.
-  function setMassSolid(mat, a){ var wT=(a<0.999), wD=true; if(mat.transparent!==wT||mat.depthWrite!==wD){ mat.transparent=wT; mat.depthWrite=wD; mat.needsUpdate=true; } }
   function resetStructure(){ [faceMat,polyVolMat,slabMat,slabMatR,coreFaceMat,(typeof colFaceMat!=="undefined"?colFaceMat:null)].forEach(function(mt){ if(mt && (mt.transparent!==true||mt.depthWrite!==false)){ mt.transparent=true; mt.depthWrite=false; mt.needsUpdate=true; } }); if(typeof frGrid!=="undefined") frGrid.visible=true; restoreLines(); try{ if(camera.view&&camera.view.enabled&&camera.clearViewOffset) camera.clearViewOffset(); if(_baseFov!=null && camera.fov!==_baseFov){ camera.fov=_baseFov; camera.updateProjectionMatrix(); } }catch(e){} }
 
   // ───────── 패턴 상태 ─────────
@@ -8034,9 +8003,6 @@ window.FitCalcApp = App;
   // ───────── 하위탭 ─────────
   function mainTab(name){ if(name==="cam")name="tex"; show("rtPaneTex",name==="tex"); show("rtPaneAi",name==="ai");
     $id("rtTabTex").classList.toggle("on",name==="tex"); $id("rtTabAi").classList.toggle("on",name==="ai"); }
-  // ── 렌더링 탭 하위: API 설정 / 변환 ──
-  function aiTab(name){ var api=(name==="api"); show("rtAiApi",api); show("rtAiMain",!api);
-    var a=$id("rtSubApi"),m=$id("rtSubAiMain"); if(a)a.classList.toggle("on",api); if(m)m.classList.toggle("on",!api); }
   // ── 우상단 카메라 패널 탭 ──
   function camTab(t){ var cam=(t==="cam"); show("rtCamPane",cam); show("rtVcPane",!cam);
     var a=$id("rtCbCam"),b=$id("rtCbView"); if(a)a.classList.toggle("on",cam); if(b)b.classList.toggle("on",!cam);
@@ -8213,8 +8179,8 @@ window.FitCalcApp = App;
   function onScale(){ letterScaleX=(+$id("rtScaleX").value||100)/100; letterScaleY=(+$id("rtScaleY").value||100)/100; setTxt("rtScaleXv",Math.round(letterScaleX*100)+"%"); setTxt("rtScaleYv",Math.round(letterScaleY*100)+"%"); _dirty=true; }
 
   // ───────── 실사화 (Gemini) ─────────
-  var rtSource=null, rtResult=null, rtRef=null, rtLine=null, rtModel=null, _aiInit=false;
-  var AI_PREFIX="Professional architectural visualization, hyper-realistic {TIME} photograph from a specific low-altitude drone perspective, exactly matching the view of image. The central simulation mass is rendered with a detailed, repeatable facade module: two layers of clear glass sandwiching a system of semi-translucent, vertical louvers, creating depth. This precise facade pattern and internal texture are maintained, but are now integrated with realistic, subtle sky and surrounding reflections on the glass surface, adding profound realism and specular highlights. IMPORTANT — the surrounding buildings appear in the source ONLY as crude, low-resolution, flatly-textured Vworld massing blocks; do NOT copy that low-quality appearance. Treat them as placeholders and FULLY RE-RENDER every surrounding building as a believable, fully three-dimensional real building: add convincing facade articulation, individual windows with frames and reveals, mullions, balconies, parapets, rooftop equipment, and physically accurate concrete, glass, brick, metal and stone materials with proper depth, crisp shadows, ambient occlusion and reflections — while keeping each building's original footprint, position, height and overall massing unchanged. The whole scene must read as a real photograph, not a textured 3D model. ";
+  var rtSource=null, rtResult=null, rtRef=null, _aiInit=false;
+  var AI_PREFIX="Professional architectural visualization, hyper-realistic {TIME} photograph from a specific low-altitude drone perspective, exactly matching the view of image. The central simulation mass is rendered with a detailed, repeatable facade module: two layers of clear glass sandwiching a system of semi-translucent, vertical louvers, creating depth. This precise facade pattern and internal texture are maintained, but are now integrated with realistic, subtle sky and surrounding reflections on the glass surface, adding profound realism and specular highlights. All adjacent environments are precisely detailed and texture-mapped to match their Vworld forms, but with realistic concrete, glass, and steel materials. ";
   var AI_TAIL=" The image has deep depth of field and is captured as if with high-end photographic equipment, exhibiting subtle film grain and chromatic fidelity.";
   var AI_ENV={ day:{time:"daytime",light:"Bright, natural daylight creates sharp, realistic shadows."},
     dusk:{time:"golden-hour dusk",light:"Warm golden-hour sunset light creates long, soft shadows and a warm interior glow behind the glass."},
@@ -8262,85 +8228,10 @@ window.FitCalcApp = App;
   function applyPreset(){ var v=$id("rtPreset").value; if(v==="custom") return; $id("rtPrompt").value=AI_PRESETS[v]||AI_PRESETS.day; }
   function saveKey(){ try{ localStorage.setItem("geminiKey",($id("rtKey").value||"").trim()); stat("키를 이 브라우저에 저장했습니다."); }catch(e){ stat("키 저장 실패: "+e.message); } }
   function initAi(){ if(_aiInit) return; _aiInit=true; try{ var sv=localStorage.getItem("geminiKey"); if(sv) $id("rtKey").value=sv; }catch(e){} applyPreset(); }
-  function showSrc(url){ rtSource=url; var im=$id("rtSrcImg"); if(im)im.src=url; show("rtSrcWrap",true); rtLine=null; rtModel=null; updateLineart(); }
-  // 캡처/업로드 후 라인아트 미리 추출(토글·비교·다운로드용). 실패해도 무시.
-  function guideMode(){ return (document.querySelector('input[name="rtGuideType"]:checked')||{}).value||"line"; }
-  function updateLineart(){
-    var t=$id("rtLineImg");
-    if(!rtSource){ rtLine=null; if(t) t.style.display="none"; return Promise.resolve(); }
-    return extractLineart(rtSource).then(function(u){ rtLine=u; if(t) t.src=u; onLineToggle(); })
-      .catch(function(){ rtLine=null; if(t) t.style.display="none"; });
-  }
-  // 썸네일에 실제 전송될 가이드(라인아트 또는 모델뷰)를 표시 → 클릭 시 비교 팝업
-  function onLineToggle(){ var t=$id("rtLineImg"); if(!t) return;
-    if(!ckd("rtLineart")){ t.style.display="none"; return; }
-    if(guideMode()==="model"){ if(rtModel){ t.src=rtModel; t.style.display="block"; } else { t.style.display="none"; } return; }
-    if(!rtLine && rtSource){ updateLineart(); } else if(rtLine){ t.src=rtLine; t.style.display="block"; } else { t.style.display="none"; } }
-  // 고해상 캡처: 일시적으로 픽셀비율을 올려 슈퍼샘플링 렌더 후 dataURL 반환(표시 크기 불변)
-  function snapHiRes(quality){
-    var cv=renderer.domElement;
-    var cw=cv.clientWidth||window.innerWidth, ch=cv.clientHeight||window.innerHeight;
-    var pr0=renderer.getPixelRatio();
-    var factor=Math.max(1, Math.min(3.5, 2560/(Math.max(cw,ch)*pr0)));   // 백버퍼 긴 변 ≈2560 목표
-    try{
-      if(factor>1.02){ renderer.setPixelRatio(pr0*factor); renderer.setSize(cw,ch,false); }
-      applyRenderCamera(); renderer.render(scene,camera);
-      return cv.toDataURL("image/jpeg", quality||0.95);
-    } finally {
-      if(factor>1.02){ renderer.setPixelRatio(pr0); renderer.setSize(cw,ch,false); applyRenderCamera(); renderer.render(scene,camera); }
-    }
-  }
-  // 클린 지오메트리(폴백용): 카트리지 스킨 평면만 잠깐 숨기고 프레임·매스·층선만 같은 카메라로 렌더
-  function snapModelGeo(quality){
-    if(typeof rtOverlay==="undefined" || !rtOverlay) return null;
-    var skinSet=[_mat&&_mat.sc,_mat&&_mat.so,_mat&&_mat.rc,_mat&&_mat.ro,_mat&&_mat.c1,_mat&&_mat.c2,_mat&&_mat.air].filter(Boolean);
-    var hidden=[];
-    rtOverlay.traverse(function(o){ if(o.isMesh && skinSet.indexOf(o.material)>=0 && o.visible){ hidden.push(o); o.visible=false; } });
-    var vis0=rtOverlay.visible; rtOverlay.visible=true;
-    try{ return snapHiRes(quality); }
-    finally{ hidden.forEach(function(o){ o.visible=true; }); rtOverlay.visible=vis0; }
-  }
-  function _rtDelay(ms){ return new Promise(function(res){ setTimeout(res,ms); }); }
-  // 모델뷰: 잠깐 5번탭(카트리지)으로 이동 → 저장한 렌더 뷰 카메라로 캡처 → 원래 탭 복귀
-  async function captureStep5(quality){
-    if(typeof setStep!=="function" || typeof step==="undefined") return null;
-    var prev=step;
-    var L={ th:theta, ph:phi, r:sRadius, tx:target.x, ty:target.y, tz:target.z, tth:tTheta, tph:tPhi, zm:zoomMul, mode:camMode };
-    try{
-      if(prev!==5){ setStep(5); await _rtDelay(90); await _rtDelay(340); }   // 모델·텍스처 정착 대기(setTimeout: 백그라운드에서도 동작)
-      theta=L.th; phi=L.ph; sRadius=L.r; target.set(L.tx,L.ty,L.tz); zoomMul=L.zm; try{ setCamMode(L.mode); }catch(e){}
-      applyRenderCamera();
-      return snapHiRes(quality);
-    }catch(e){ return null; }
-    finally{
-      if(prev!==5){ setStep(prev); }
-      tTheta=L.tth; tPhi=L.tph; zoomMul=L.zm; theta=L.th; phi=L.ph; sRadius=L.r; target.set(L.tx,L.ty,L.tz);
-      if(typeof wake==="function") wake(8);
-    }
-  }
-  // 버튼: 5번탭 모델뷰 캡처
-  async function captureModel(){
-    var btn=$id("rtModelCap"), old=btn?btn.textContent:"";
-    if(btn){ btn.disabled=true; btn.textContent="5번탭에서 캡처 중…"; }
-    stat("모델뷰: 5번탭으로 이동해 캡처 중…");
-    try{
-      var u=await captureStep5(0.95);
-      if(u){ rtModel=u; onLineToggle(); stat("모델뷰(5번탭) 캡처 완료."); }
-      else { stat("모델뷰 캡처 실패 — 모델이 로드됐는지 확인하세요."); }
-    }catch(e){ stat("모델뷰 캡처 실패: "+(e&&e.message||e)); }
-    finally{ if(btn){ btn.disabled=false; btn.textContent=old||"🔄 5번탭 모델뷰 캡처"; } }
-  }
-  async function capture(){
-    try{
-      stat("캡처 중… 소스+라인아트+모델뷰(동일 뷰) 생성");
-      showSrc(snapHiRes(0.95));            // ① 소스(step7 텍스처 렌더) + 라인아트 자동 추출
-      rtModel=await captureStep5(0.95);    // ② 모델뷰(step5) — 같은 카메라로
-      onLineToggle();
-      stat("캡처 완료 — 소스·라인아트·모델뷰 모두 동일 뷰. ‘실사 변환 실행’을 누르세요.");
-    }catch(e){ stat("캡처 실패: "+(e&&e.message||e)); }
-  }
-  async function captureRegion(){
-    var full, fullModel; try{ stat("캡처 준비… 소스+모델뷰(동일 뷰)"); full=snapHiRes(0.95); fullModel=await captureStep5(0.95); }catch(e){ stat("캡처 실패: "+(e&&e.message||e)); return; }
+  function showSrc(url){ rtSource=url; var im=$id("rtSrcImg"); if(im)im.src=url; show("rtSrcWrap",true); }
+  function capture(){ try{ applyRenderCamera(); renderer.render(scene,camera); showSrc(renderer.domElement.toDataURL("image/jpeg",0.92)); stat("캡처 완료. ‘실사 변환 실행’을 누르세요."); }catch(e){ stat("캡처 실패: "+e.message); } }
+  function captureRegion(){
+    var full; try{ applyRenderCamera(); renderer.render(scene,camera); full=renderer.domElement.toDataURL("image/jpeg",0.95); }catch(e){ stat("캡처 실패: "+e.message); return; }
     var rect=renderer.domElement.getBoundingClientRect();
     var ov=document.createElement("div"); ov.style.cssText="position:fixed;inset:0;z-index:100000;cursor:crosshair;background:rgba(20,22,26,0.12);";
     var bx=document.createElement("div"); bx.style.cssText="position:absolute;border:2px solid #e68d39;background:rgba(230,141,57,0.12);display:none;"; ov.appendChild(bx);
@@ -8354,12 +8245,9 @@ window.FitCalcApp = App;
       if(w<8||h<8){ stat("영역이 너무 작습니다. 다시 시도하세요."); return; }
       var img=new Image(); img.onload=function(){ var sx=img.width/rect.width, sy=img.height/rect.height;
         var cx=(x-rect.left)*sx, cy=(y-rect.top)*sy, cw=w*sx, ch=h*sy;
-        function cropTo(src,cb){ var i2=new Image(); i2.onload=function(){ var cc=document.createElement("canvas"); cc.width=Math.max(1,Math.round(cw)); cc.height=Math.max(1,Math.round(ch)); cc.getContext("2d").drawImage(i2,cx,cy,cw,ch,0,0,cc.width,cc.height); cb(cc.toDataURL("image/jpeg",0.95)); }; i2.src=src; }
         var cv=document.createElement("canvas"); cv.width=Math.max(1,Math.round(cw)); cv.height=Math.max(1,Math.round(ch));
         cv.getContext("2d").drawImage(img,cx,cy,cw,ch,0,0,cv.width,cv.height);
-        showSrc(cv.toDataURL("image/jpeg",0.95));   // 소스(영역) + 라인아트 자동
-        if(fullModel){ cropTo(fullModel,function(u){ rtModel=u; onLineToggle(); }); }   // 모델뷰도 같은 영역으로 크롭
-        stat("영역 캡처 완료 — 소스·라인아트·모델뷰 동일 뷰. ‘실사 변환 실행’을 누르세요."); }; img.src=full; }
+        showSrc(cv.toDataURL("image/jpeg",0.95)); stat("영역 캡처 완료. ‘실사 변환 실행’을 누르세요."); }; img.src=full; }
     function key(e){ if(e.key==="Escape"){ cleanup(); stat("취소했습니다."); } }
     function cleanup(){ window.removeEventListener("mousemove",move); window.removeEventListener("mouseup",up); window.removeEventListener("keydown",key); if(ov.parentNode)ov.parentNode.removeChild(ov); }
     ov.addEventListener("mousedown",down); window.addEventListener("mousemove",move); window.addEventListener("mouseup",up); window.addEventListener("keydown",key);
@@ -8369,106 +8257,24 @@ window.FitCalcApp = App;
   function onRef(input){ var f=input.files&&input.files[0]; if(!f)return; var rd=new FileReader(); rd.onload=function(e){ rtRef=e.target.result; var im=$id("rtRefImg"); im.src=rtRef; im.style.display="block"; }; rd.readAsDataURL(f); }
   function clearRef(){ rtRef=null; var im=$id("rtRefImg"); if(im){im.src="";im.style.display="none";} var u=$id("rtRefUpload"); if(u)u.value=""; }
   function download(){ if(!rtResult){ stat("다운로드할 결과가 없습니다."); return; } var a=document.createElement("a"); a.href=rtResult; a.download="render_"+Date.now()+".png"; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
-  // 원본·라인아트·결과 가용한 것 모두 한번에 저장
-  function downloadAll(){
-    var items=[];
-    if(rtSource) items.push(["capture",rtSource]);
-    if(rtLine)   items.push(["lineart",rtLine]);
-    if(rtModel)  items.push(["modelview",rtModel]);
-    if(rtResult) items.push(["render",rtResult]);
-    if(!items.length){ stat("저장할 이미지가 없습니다."); return; }
-    var stamp=Date.now();
-    items.forEach(function(it,i){ setTimeout(function(){ var ext=/image\/png/.test(it[1])?"png":"jpg"; var a=document.createElement("a"); a.href=it[1]; a.download="fit_"+it[0]+"_"+stamp+"."+ext; document.body.appendChild(a); a.click(); document.body.removeChild(a); }, i*400); });
-    stat(items.length+"개 파일 저장 중… (브라우저가 다중 다운로드를 물으면 허용하세요)");
-  }
-  // 비교 팝업: 원본/라인아트/결과 레이어를 토글로 골라 좌우 슬라이드 비교
   function compare(){
-    var layers=[];
-    if(rtSource) layers.push({label:"원본",url:rtSource});
-    if(rtLine)   layers.push({label:"라인아트",url:rtLine});
-    if(rtModel)  layers.push({label:"모델뷰",url:rtModel});
-    if(rtResult) layers.push({label:"결과",url:rtResult});
-    if(!layers.length) return;
-    var single=layers.length<2, li=0, ri=single?0:layers.length-1;
-    var ov=document.createElement("div"); ov.style.cssText="position:fixed;inset:0;z-index:100001;background:rgba(10,10,12,0.85);display:flex;align-items:center;justify-content:center;";
-    var bxx=document.createElement("div"); bxx.style.cssText="position:relative;width:92vw;max-width:1470px;"; ov.appendChild(bxx);
-    var bar=document.createElement("div"); bar.style.cssText="display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap;margin-bottom:10px;"; bxx.appendChild(bar);
-    function mkRow(side){
-      var wrap=document.createElement("div"); wrap.style.cssText="display:flex;gap:5px;align-items:center;";
-      var lab=document.createElement("span"); lab.textContent=(side==="L"?"◧":"◨"); lab.style.cssText="color:#aaa;font:700 13px sans-serif;"; wrap.appendChild(lab);
-      layers.forEach(function(L,idx){ var b=document.createElement("button"); b.textContent=L.label; b.setAttribute("data-idx",idx);
-        b.style.cssText="font:600 11px sans-serif;padding:5px 11px;border-radius:999px;border:1px solid #555;background:#222;color:#ddd;cursor:pointer;";
-        b.onclick=function(){ if(side==="L") li=idx; else ri=idx; refresh(); }; wrap.appendChild(b); });
-      return wrap;
-    }
-    var rowL=mkRow("L"), rowR=single?null:mkRow("R"); bar.appendChild(rowL); if(rowR) bar.appendChild(rowR);
-    var wrap=document.createElement("div"); wrap.style.cssText="position:relative;line-height:0;border-radius:10px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,0.5);background:#fff;cursor:ew-resize;max-height:90vh;"; bxx.appendChild(wrap);
-    var aft=document.createElement("img"); aft.style.cssText="width:100%;height:auto;display:block;max-height:90vh;object-fit:contain;background:#fff;"; wrap.appendChild(aft);
-    var bef=document.createElement("img"); bef.style.cssText="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;background:#fff;"; wrap.appendChild(bef);
-    var divr=document.createElement("div"); divr.style.cssText="position:absolute;top:0;bottom:0;left:50%;width:2px;background:#e68d39;pointer-events:none;"; wrap.appendChild(divr);
-    var close=document.createElement("button"); close.textContent="×"; close.style.cssText="position:absolute;top:-14px;right:-14px;width:30px;height:30px;border-radius:50%;border:none;background:#1a1a1a;color:#fff;font-size:18px;cursor:pointer;z-index:2;"; bxx.appendChild(close);
+    if(!rtSource&&!rtResult) return;
+    var before=rtSource||rtResult, after=rtResult||rtSource, both=!!(rtSource&&rtResult);
+    var ov=document.createElement("div"); ov.style.cssText="position:fixed;inset:0;z-index:100001;background:rgba(10,10,12,0.8);display:flex;align-items:center;justify-content:center;";
+    var bxx=document.createElement("div"); bxx.style.cssText="position:relative;width:80vw;max-width:900px;"; ov.appendChild(bxx);
+    var wrap=document.createElement("div"); wrap.style.cssText="position:relative;line-height:0;border-radius:10px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,0.5);background:#000;cursor:ew-resize;max-height:84vh;"; bxx.appendChild(wrap);
+    var aft=document.createElement("img"); aft.src=after; aft.style.cssText="width:100%;height:auto;display:block;"; wrap.appendChild(aft);
+    var bef=document.createElement("img"); bef.src=before; bef.style.cssText="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;"; wrap.appendChild(bef);
+    var divr=document.createElement("div"); divr.style.cssText="position:absolute;top:0;bottom:0;left:50%;width:2px;background:#e68d39;"; wrap.appendChild(divr);
+    var close=document.createElement("button"); close.textContent="×"; close.style.cssText="position:absolute;top:-14px;right:-14px;width:30px;height:30px;border-radius:50%;border:none;background:#1a1a1a;color:#fff;font-size:18px;cursor:pointer;"; bxx.appendChild(close);
     function slide(v){ v=Math.max(0,Math.min(100,v)); bef.style.clipPath="inset(0 "+(100-v)+"% 0 0)"; divr.style.left=v+"%"; }
     function pct(e){ var r=wrap.getBoundingClientRect(); return (e.clientX-r.left)/r.width*100; }
     var dragging=false;
-    function refresh(){
-      if(!single && li===ri){ ri=(li+1)%layers.length; }
-      bef.src=layers[li].url; aft.src=layers[single?li:ri].url;
-      [[rowL,li],[rowR,single?-1:ri]].forEach(function(pr){ if(!pr[0])return; Array.prototype.forEach.call(pr[0].querySelectorAll("button"),function(b){ var on=(+b.getAttribute("data-idx")===pr[1]); b.style.background=on?"#e68d39":"#222"; b.style.color=on?"#1a1a1a":"#ddd"; b.style.borderColor=on?"#e68d39":"#555"; }); });
-      if(single){ divr.style.display="none"; bef.style.display="none"; } else { divr.style.display="block"; bef.style.display="block"; slide(50); }
-    }
-    function mm(e){ if(dragging)slide(pct(e)); } function mu(){ dragging=false; }
-    if(!single){ wrap.addEventListener("mousedown",function(e){dragging=true;slide(pct(e));}); window.addEventListener("mousemove",mm); window.addEventListener("mouseup",mu); }
-    function cl(){ window.removeEventListener("mousemove",mm); window.removeEventListener("mouseup",mu); if(ov.parentNode)ov.parentNode.removeChild(ov); }
+    if(both){ wrap.addEventListener("mousedown",function(e){dragging=true;slide(pct(e));}); window.addEventListener("mousemove",function(e){if(dragging)slide(pct(e));}); window.addEventListener("mouseup",function(){dragging=false;}); }
+    else { divr.style.display="none"; }
+    function cl(){ if(ov.parentNode)ov.parentNode.removeChild(ov); }
     close.onclick=cl; ov.addEventListener("click",function(e){ if(e.target===ov)cl(); });
-    document.body.appendChild(ov); refresh();
-  }
-  // 캡처 이미지 → 라인아트(외곽선·프레임 격자·층선) : Sobel 엣지 → 흰 배경 위 검은 선
-  function extractLineart(dataURL){
-    return new Promise(function(resolve,reject){
-      var im=new Image();
-      im.onload=function(){
-        try{
-          var mx=1024, s=Math.min(1, mx/Math.max(im.width,im.height));
-          var w=Math.max(1,Math.round(im.width*s)), h=Math.max(1,Math.round(im.height*s));
-          var c=document.createElement("canvas"); c.width=w; c.height=h;
-          var ctx=c.getContext("2d"); ctx.drawImage(im,0,0,w,h);
-          var d=ctx.getImageData(0,0,w,h).data;
-          var g=new Float32Array(w*h);
-          for(var i=0,p=0;i<d.length;i+=4,p++) g[p]=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
-          var out=ctx.createImageData(w,h), o=out.data, thr=34;
-          for(var y=0;y<h;y++) for(var x=0;x<w;x++){
-            var idx=y*w+x, oi=idx*4, v=255;
-            if(x>0&&y>0&&x<w-1&&y<h-1){
-              var gx=-g[idx-w-1]-2*g[idx-1]-g[idx+w-1]+g[idx-w+1]+2*g[idx+1]+g[idx+w+1];
-              var gy=-g[idx-w-1]-2*g[idx-w]-g[idx-w+1]+g[idx+w-1]+2*g[idx+w]+g[idx+w+1];
-              if(Math.sqrt(gx*gx+gy*gy)>thr) v=0;   // 엣지=검은 선
-            }
-            o[oi]=o[oi+1]=o[oi+2]=v; o[oi+3]=255;
-          }
-          ctx.putImageData(out,0,0);
-          resolve(c.toDataURL("image/png"));
-        }catch(e){ reject(e); }
-      };
-      im.onerror=function(){ reject(new Error("이미지 로드 실패")); };
-      im.src=dataURL;
-    });
-  }
-  // Gemini로 실제 전송되는 이미지(소스/가이드/레퍼런스)를 run()과 동일 로직으로 미리보기
-  async function previewSend(){
-    if(!rtSource){ stat("먼저 캡처/업로드하세요."); return; }
-    var items=[{label:"① 소스 (주 이미지 — 결과 카메라/구도 기준)", url:rtSource}];
-    if(ckd("rtLineart")){
-      if(guideMode()==="model"){ var g=rtModel||snapModelGeo(0.95); items.push({label:"② 가이드 — 모델뷰"+(rtModel?" (5번탭 캡처본)":" ⚠ 미캡처 → 클린지오 폴백"), url:g}); }
-      else { if(!rtLine) await updateLineart(); if(rtLine) items.push({label:"② 가이드 — 라인아트", url:rtLine}); }
-    }
-    if(rtRef) items.push({label:"③ 레퍼런스 — 스타일", url:rtRef});
-    var ov=document.createElement("div"); ov.style.cssText="position:fixed;inset:0;z-index:100002;background:rgba(10,10,12,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;overflow:auto;";
-    var head=document.createElement("div"); head.textContent="Gemini로 실제 전송되는 이미지 ("+items.length+"장) · 가이드: "+(ckd("rtLineart")?guideMode():"없음"); head.style.cssText="color:#fff;font:700 14px sans-serif;text-align:center;"; ov.appendChild(head);
-    var row=document.createElement("div"); row.style.cssText="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;justify-content:center;max-width:96vw;"; ov.appendChild(row);
-    items.forEach(function(it){ var c=document.createElement("div"); c.style.cssText="display:flex;flex-direction:column;gap:6px;align-items:center;max-width:46vw;"; var im=document.createElement("img"); im.src=it.url; im.style.cssText="max-width:44vw;max-height:68vh;object-fit:contain;background:#fff;border-radius:8px;border:2px solid #444;"; var lb=document.createElement("div"); lb.textContent=it.label; lb.style.cssText="color:#eee;font:600 12px sans-serif;text-align:center;"; c.appendChild(im); c.appendChild(lb); row.appendChild(c); });
-    var close=document.createElement("button"); close.textContent="닫기"; close.style.cssText="padding:8px 18px;border:none;border-radius:8px;background:#e68d39;color:#1a1a1a;font:700 12px sans-serif;cursor:pointer;"; close.onclick=function(){ if(ov.parentNode)ov.parentNode.removeChild(ov); }; ov.appendChild(close);
-    ov.addEventListener("click",function(e){ if(e.target===ov && ov.parentNode) ov.parentNode.removeChild(ov); });
-    document.body.appendChild(ov);
+    document.body.appendChild(ov); slide(50);
   }
   async function run(){
     var key=($id("rtKey").value||"").trim(); if(!key){ stat("먼저 Gemini API 키를 입력하세요."); return; }
@@ -8477,36 +8283,12 @@ window.FitCalcApp = App;
     var prompt=($id("rtPrompt").value||"").trim()||AI_PRESETS.day;
     var m=rtSource.match(/^data:(.*?);base64,(.*)$/); if(!m){ stat("원본 형식 오류."); return; }
     var parts=[{text:prompt},{inline_data:{mime_type:m[1],data:m[2]}}];
-    // ── 라인아트 정합성 가이드: 캡처에서 외곽·프레임·층선을 추출해 구조 제약으로 함께 전송 ──
-    if(ckd("rtLineart")){
-      try{
-        var gMode=guideMode(), gURL, lead, tail;
-        if(gMode==="model"){
-          // 렌더 중에는 스텝 전환(카메라 이동) 금지 — 미리 떠둔 5번탭 모델뷰 사용, 없으면 클린 지오 폴백
-          gURL = rtModel || snapModelGeo(0.95);
-          if(!rtModel) stat("모델뷰 미캡처 → 클린 지오메트리로 대체(정확한 5번탭 뷰는 ‘🔄 5번탭 모델뷰 캡처’ 먼저).");
-          lead="A MODEL-VIEW guide image (the project's CARTRIDGE design model captured from the same camera) is also provided, showing the project building's exact geometry: its silhouette and footprint, its facade FRAME GRID, and every FLOOR / slab line.";
-          tail="The guide defines geometry/alignment ONLY. COMPLETELY IGNORE the model-view's colours, tints and materials — they are arbitrary CG placeholders and must NOT influence the final image's colours or materials in any way. Do NOT reproduce its flat CG model look in the final photoreal image.";
-        } else {
-          if(!rtLine) await updateLineart();
-          gURL=rtLine;   // 라인아트 = 외곽/프레임/층선 추출
-          lead="A LINE-ART guide image (black lines on a white background) is also provided. It is an exact edge extraction of the source rendering: the project building's silhouette and footprint, its facade FRAME GRID, and every FLOOR / slab line.";
-          tail="The guide defines geometry/alignment only; never draw the black outline strokes themselves in the final photoreal image.";
-        }
-        var gm=gURL?gURL.match(/^data:(.*?);base64,(.*)$/):null;
-        if(gm){
-          // 라인 정합성 제약은 두 방식 동일(아래 문장 공통)
-          parts[0].text+="\n\n"+lead+" Use it for STRUCTURE/ALIGNMENT only. For the PROJECT building it is a STRICT constraint: (1) render ONLY the building whose outline matches this guide — never substitute, invent, or render a different or neighbouring building; (2) reproduce EXACTLY the same number of facade frame modules and the same floor count — do not add, remove, merge, or shift any frame division or floor line. For the SURROUNDING buildings the guide only fixes their footprint, position and massing — you SHOULD still enrich them with realistic facade detail, windows and materials as instructed above; do NOT flatten them back to a low-detail look. "+tail;
-          parts.push({inline_data:{mime_type:gm[1],data:gm[2]}});
-        }
-      }catch(e){ /* 가이드 준비 실패 → 가이드 없이 계속 진행 */ }
-    }
     if(rtRef){ var rm=rtRef.match(/^data:(.*?);base64,(.*)$/); if(rm){ var asp=[];
       if(ckd("rtRefFacade")) asp.push("the facade design language and articulation");
       if(ckd("rtRefMaterial")) asp.push("the materials and surface textures");
       if(ckd("rtRefColor")) asp.push("the overall color tone and palette");
       var at=asp.length?asp.join(", "):"the overall visual style";
-      parts[0].text+="\n\nAn additional STYLE REFERENCE image is provided. Borrow ONLY "+at+" and apply it to the project building. Strictly keep the building geometry, facade module spacing, camera view, site layout, roads and surrounding context from the source rendering. Do NOT copy the reference image's buildings, composition, or layout.";
+      parts[0].text+="\n\nA SECOND image is provided as a STYLE REFERENCE. Borrow ONLY "+at+" and apply it to the project building. Strictly keep the building geometry, facade module spacing, camera view, site layout, roads and surrounding context from the FIRST image. Do NOT copy the reference image's buildings, composition, or layout.";
       parts.push({inline_data:{mime_type:rm[1],data:rm[2]}}); } }
     var btn=$id("rtRunBtn"); btn.disabled=true;
     var t0=Date.now(), tick=setInterval(function(){ stat("변환 중… "+Math.round((Date.now()-t0)/1000)+"초 (보통 15~30초)"); },1000);
@@ -8514,20 +8296,9 @@ window.FitCalcApp = App;
     var ctrl=new AbortController(), killer=setTimeout(function(){ ctrl.abort(); },120000);
     try{
       var url="https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent?key="+encodeURIComponent(key);
-      var sizeSel=($id("rtImgSize")&&$id("rtImgSize").value)||"2K";
-      var gc={ responseModalities:["IMAGE"] };
-      if(sizeSel && sizeSel!=="auto") gc.imageConfig={ imageSize: sizeSel };   // 출력 해상도(1K/2K/4K)
-      async function _send(genConf){
-        var body={ contents:[{ parts:parts }], generationConfig:genConf };
-        var r=await fetch(url,{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body), signal:ctrl.signal });
-        return { r:r, d:await r.json() };
-      }
-      var resp=await _send(gc);
-      if(!resp.r.ok && gc.imageConfig){   // imageSize 미지원 모델이면 옵션 빼고 1회 재시도
-        var em=(resp.d&&resp.d.error&&resp.d.error.message)||"";
-        if(/image|config|size|unknown|invalid|field|not.*support/i.test(em)) resp=await _send({ responseModalities:["IMAGE"] });
-      }
-      var res=resp.r, data=resp.d;
+      var body={ contents:[{ parts:parts }], generationConfig:{ responseModalities:["IMAGE"] } };
+      var res=await fetch(url,{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body), signal:ctrl.signal });
+      var data=await res.json();
       if(!res.ok) throw new Error((data.error&&data.error.message)||("HTTP "+res.status));
       var rp=((((data.candidates||[])[0]||{}).content)||{}).parts||[], img=null, txt=null;
       rp.forEach(function(p){ if(p.inlineData||p.inline_data) img=p; else if(p.text) txt=p; });
@@ -8541,7 +8312,7 @@ window.FitCalcApp = App;
   }
 
   // ───────── 진입 ─────────
-  function onEnter(){ _dirty=true; _interior=false; loadRT(); var _sti0=$id("rtSlabTh"); if(_sti0 && typeof slabTh!=="undefined") _sti0.value=Math.round(slabTh*1000); onStruct(); onLines(); updateCornerLabels(); syncVcFloor(); vcPoint=vcCentroid(); wireVcPlan(); drawVcPlan(); renderSlots(); setCamMode(camMode); updSkinSel(); initAi(); mainTab("tex"); texTab("struct"); aiTab("main"); camTab("cam"); }
+  function onEnter(){ _dirty=true; _interior=false; loadRT(); var _sti0=$id("rtSlabTh"); if(_sti0 && typeof slabTh!=="undefined") _sti0.value=Math.round(slabTh*1000); onStruct(); onLines(); updateCornerLabels(); syncVcFloor(); vcPoint=vcCentroid(); wireVcPlan(); drawVcPlan(); renderSlots(); setCamMode(camMode); updSkinSel(); initAi(); mainTab("tex"); texTab("struct"); camTab("cam"); }
 
   function _setStructUI(st){ function sc(id,on){ var e=$id(id); if(e) e.checked=!!on; } function sv(id,v){ var e=$id(id); if(e) e.value=v; }
     sc("rtMassOn",st.massOn); sv("rtMassB",st.massB); sv("rtMassA",Math.round((st.massA!=null?st.massA:1)*100));
@@ -8570,14 +8341,14 @@ window.FitCalcApp = App;
     _setStructUI({ massOn:true, massB:235, massA:0.46, slabOn:true, slabTh:coreTh, slabB:100, slabA:1.0, coreOn:true, coreB:150, coreA:1.0, frameOn:true, glassOn:true, glassA:0.12 });
     camMode="2pt"; try{ setPattern("random"); }catch(e){} try{ onStruct(); }catch(e){} _dirty=true; }
   window.RT = { onEnter:onEnter, applyStructure:applyStructure, onStruct:onStruct, serialize:serialize, restore:restore, resetRender:resetRender,
-    mainTab:mainTab, texTab:texTab, camTab:camTab, aiTab:aiTab, pickSkin:pickSkin, setPattern:setPattern, onRatio:onRatio,
+    mainTab:mainTab, texTab:texTab, camTab:camTab, pickSkin:pickSkin, setPattern:setPattern, onRatio:onRatio,
     toggleFaceSelect:toggleFaceSelect, onLetter:onLetter, onShape:onShape, onScale:onScale,
     flyCorner:flyCorner, flyTop:flyTop, flyBird:flyBird,
     onVcFloor:onVcFloor, interiorView:interiorView, lookAround:lookAround, isInterior:isInterior,
     applyInteriorCamera:applyInteriorCamera, holdsCamera:holdsCamera, applyRenderCamera:applyRenderCamera,
     setCamMode:setCamMode, saveView:saveView, onLines:onLines,
     saveKey:saveKey, applyPreset:applyPreset, capture:capture, captureRegion:captureRegion,
-    onUpload:onUpload, onRef:onRef, clearRef:clearRef, compare:compare, run:run, download:download, downloadAll:downloadAll, onLineToggle:onLineToggle, captureModel:captureModel, previewSend:previewSend, wideLoad:wideLoad, wideRestore:wideRestore };
+    onUpload:onUpload, onRef:onRef, clearRef:clearRef, compare:compare, run:run, download:download, wideLoad:wideLoad, wideRestore:wideRestore };
 })();
 </script>
 <script>
