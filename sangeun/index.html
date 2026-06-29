@@ -6329,7 +6329,7 @@ window.FitCalcApp = App;
     }
     if (!_cap && canDel) {
       var hits = _ray.intersectObjects(ST.buildingsGroup.children, true);
-      if (hits.length) { var o = hits[0].object; while (o && o.parent !== ST.buildingsGroup) o = o.parent; if (o) _cap = { type: "del", obj: o }; }
+      if (hits.length) { _cap = { type: "del", mesh: hits[0].object, fi: hits[0].faceIndex, pt: hits[0].point.clone() }; }
     }
     if (!_cap && canRemodel) { var hI = _ray.intersectObjects(ST.buildingsGroup.children, true); if (hI.length) { _cap = { type: "remodel", mesh: hI[0].object, fi: hI[0].faceIndex, pt: hI[0].point.clone() }; } }
     if (_cap) { e.stopImmediatePropagation(); e.preventDefault(); }  // sangeun 드래그 시작 차단
@@ -6341,9 +6341,11 @@ window.FitCalcApp = App;
     if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) return; // 드래그였으면 동작 취소
     if (cap.type === "remodel") { _doRemodel(cap); }
     else if (cap.type === "add") addNeighbor(cap.idx);
-    else if (cap.type === "del" && cap.obj && cap.obj.visible) {
-      cap.obj.visible = false; ST.deleted.push(cap.obj);
-      status("건물 삭제됨 (" + ST.deleted.length + "개) · 복원으로 되돌리기");
+    else if (cap.type === "del" && cap.mesh) {
+      var _comp = _bldComponent(cap.mesh, cap.fi, cap.pt);
+      if (_comp && _comp.comp && _comp.comp.length) { _hideComponent(cap.mesh, _comp.comp); }
+      else { cap.mesh.visible = false; ST.deleted.push(cap.mesh); }
+      status("건물 삭제됨 · 복원으로 되돌리기");
     }
   }
   function restoreBuildings() {
@@ -7617,6 +7619,9 @@ window.FitCalcApp = App;
   REGION_BF["45210"]=REGION_BF["52210"];   /* 구 전라북도 코드(45) 호환 */   /* 구 전라북도 코드(45) 호환 — 전북특별자치도 출범 전 PNU */   /* 구 강원도 코드(42) 호환 */
   REGION_BF["41285"]=REGION_BF["41287"]=REGION_BF["41280"]=REGION_BF["41281"];   /* 고양시 일산동/일산서구 + 기준코드 */
   // 시·도 코드(PNU 앞 2자리)별 조례 표 → 해당 용도지역 있으면 그 값, 없으면 null(→ 시행령 표준 _vwZoneFB 사용)
+  var SEOUL_DT_POLY=[[126.971,37.596],[126.981,37.598],[127.000,37.592],[127.009,37.580],[127.011,37.571],[127.010,37.565],[127.004,37.557],[126.995,37.551],[126.988,37.550],[126.978,37.553],[126.972,37.559],[126.966,37.566],[126.960,37.575],[126.958,37.582],[126.963,37.591]];
+  function _inSeoulDt(lon,lat){ var P=SEOUL_DT_POLY, n=P.length, inside=false, i, j=n-1; for(i=0;i<n;j=i++){ var xi=P[i][0],yi=P[i][1],xj=P[j][0],yj=P[j][1]; if(((yi>lat)!==(yj>lat)) && (lon < (xj-xi)*(lat-yi)/(yj-yi)+xi)) inside=!inside; } return inside; }
+  function _seoulDtFar(zone){ var z=String(zone||'').replace(/\s/g,''); if(z.indexOf('중심상업')>=0) return 800; if(z.indexOf('일반상업')>=0) return 600; if(z.indexOf('근린상업')>=0) return 500; if(z.indexOf('유통상업')>=0) return 500; return null; }
   function _regionBF(pnu, zone){ if(!pnu||!zone) return null;
     var p=String(pnu), tbl=REGION_BF[p.slice(0,5)]||REGION_BF[p.slice(0,2)]; if(!tbl) return null;
     var z=String(zone).replace(/\s/g,''), ks=Object.keys(tbl).sort(function(a,b){return b.length-a.length;}), i;
@@ -7654,12 +7659,12 @@ window.FitCalcApp = App;
       if(_now-_vwSigT>500){ ps.forEach(function(p){ if(p._zone===undefined && !p._zf && !p._zq){ p._zq=true; _vwZQ.push(p); } }); _vwPumpZone(); }
       var _SI=window.__siteInfo;
       var _seoul=false; try{ for(var _pi=0;_pi<ps.length;_pi++){ var _pnu=ps[_pi].pnu; if(_pnu && String(_pnu).slice(0,2)==='11'){_seoul=true;break;} } if(!_seoul){ var _ad=(_SI&&_SI.site&&_SI.site.address)||''; if(_ad.indexOf('서울')>=0)_seoul=true; } if(!_seoul){ var _lo=_SI&&_SI.site&&_SI.site.lon,_la=_SI&&_SI.site&&_SI.site.lat; if(_lo&&_la&&_lo>126.76&&_lo<127.19&&_la>37.42&&_la<37.70)_seoul=true; } }catch(_se){}
-      var aw=0,fs=0,bs=0,zn=[],pending=false;
-      ps.forEach(function(p){ if(p._zone===undefined){ pending=true; return; } var fb=_regionBF(p.pnu||p._sgg,p._zone)||(_seoul?_regionBF('11',p._zone):null)||_vwZoneFB(p._zone); if(fb){ aw+=p._areaM2; fs+=p._areaM2*fb.far; bs+=p._areaM2*fb.bcr; if(zn.indexOf(p._zone)<0) zn.push(p._zone); } });
+      var aw=0,fs=0,bs=0,zn=[],pending=false,_anyDt=false;
+      ps.forEach(function(p){ if(p._zone===undefined){ pending=true; return; } var fb=_regionBF(p.pnu||p._sgg,p._zone)||(_seoul?_regionBF('11',p._zone):null)||_vwZoneFB(p._zone); if(fb){ var _far=fb.far; if(_seoul){ try{ var _c=_vwCentroid(p.ring), _df=_seoulDtFar(p._zone); if(_df!=null && _inSeoulDt(_c.lon,_c.lat)){ _far=_df; _anyDt=true; } }catch(_e){} } aw+=p._areaM2; fs+=p._areaM2*_far; bs+=p._areaM2*fb.bcr; if(zn.indexOf(p._zone)<0) zn.push(p._zone); } });
       var zEl=document.getElementById('vwliZone'),bEl=document.getElementById('vwliBcr'),fEl=document.getElementById('vwliFar');
       var _fa=(_SI&&_SI.ok&&_SI.site&&_SI.site.areaM2!=null && ps.length<=1)?_SI.site.areaM2:null, _A=(_fa!=null)?_fa:totalA;
       if(aEl) aEl.textContent=_vwFmt(Math.round(_A))+' ㎡ ('+_vwFmt(Math.round(_A*0.3025))+' 평)';
-      if(aw>0){ var one=zn.length<=1; if(zEl)zEl.textContent=(one?(zn[0]||'—'):(zn.length+'개 혼합'))+(pending?' · 조회 중':''); if(bEl)bEl.textContent=(one?Math.round(bs/aw):(bs/aw).toFixed(1))+' %'; if(fEl)fEl.textContent=(one?Math.round(fs/aw):(fs/aw).toFixed(1))+' %'; window.__landInfo={areaM2:_A, bcr:(one?Math.round(bs/aw):+(bs/aw).toFixed(1)), far:(one?Math.round(fs/aw):+(fs/aw).toFixed(1)), ready:!pending}; }
+      if(aw>0){ var one=zn.length<=1; if(zEl)zEl.textContent=(one?(zn[0]||'—'):(zn.length+'개 혼합'))+(pending?' · 조회 중':''); if(bEl)bEl.textContent=(one?Math.round(bs/aw):(bs/aw).toFixed(1))+' %'; if(fEl)fEl.textContent=(_anyDt?'(서울도심) ':'')+(one?Math.round(fs/aw):(fs/aw).toFixed(1))+' %'; window.__landInfo={areaM2:_A, bcr:(one?Math.round(bs/aw):+(bs/aw).toFixed(1)), far:(one?Math.round(fs/aw):+(fs/aw).toFixed(1)), ready:!pending}; }
       else if(pending){ if(zEl)zEl.textContent='조회 중…'; if(bEl)bEl.textContent='—'; if(fEl)fEl.textContent='—'; }
       else { var anyz=ps.map(function(p){return p._zone;}).filter(Boolean); var er=''; for(var qi=0;qi<ps.length;qi++){ if(ps[qi]._zoneErr){ er=ps[qi]._zoneErr; break; } } if(zEl)zEl.textContent= anyz.length?anyz[0]:('확인 불가'+(er?' · '+er:'')); if(bEl)bEl.textContent='—'; if(fEl)fEl.textContent='—'; window.__landInfo={areaM2:_A, bcr:null, far:null, ready:false}; }
       var _SI=window.__siteInfo, _H=(_SI&&_SI.ok&&_SI.height)||null;
