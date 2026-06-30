@@ -991,6 +991,28 @@ function frameFHCapMM(frameName){
   }catch(e){return null;}
 }
 
+/* 새 프로젝트 기초정보(면적·층수·층고·주소)를 plan.html(계획안 도구) 입력에 시드.
+   plan.html은 bindNum이 blur에서 커밋 → 입력값 세팅 후 blur 디스패치 + buildPlan으로 매스 갱신. (도면 미작도 상태에서만 W/D 반영) */
+function seedPlanTool(seed){
+  try{
+    const ifr=document.getElementById('plan-massing-frame'), w=ifr&&ifr.contentWindow, d=ifr&&ifr.contentDocument;
+    if(!w||!d||typeof w.getDesignState!=='function')return false;
+    const set=(id,val)=>{const el=d.getElementById(id);if(el){el.value=val;el.dispatchEvent(new Event('blur',{bubbles:true}));}};
+    const floors=Math.max(1,Math.round(Number(seed.floors)||10));
+    const fh=Math.max(2,Math.min(8,Number(seed.floorH)||4));
+    const gfa=Number(seed.gfa)||0, site=Number(seed.siteArea)||0;
+    const footArea=gfa>0?(gfa/floors):(site>0?site*0.5:0);   /* 연면적/층수 우선, 없으면 대지면적×0.5(건폐 가정) */
+    if(footArea>0){const side=Math.max(8,Math.min(120,Math.sqrt(footArea)));set('inGW',side.toFixed(1));set('inGD',side.toFixed(1));}
+    set('inFloors',String(floors));
+    set('inFloorH',fh.toFixed(1));
+    if(typeof w.buildPlan==='function')w.buildPlan();
+    if(typeof w.updateReadout==='function')w.updateReadout();
+    /* 대지 불러오기 — plan.html VWorldContext로 주소→대지 경계 자동 로드(작도 메뉴에서 '대지 불러오기 완료' 상태) */
+    if(seed.addr&&w.VWorldContext&&typeof w.VWorldContext.loadSite==='function'){try{w.VWorldContext.loadSite(seed.addr);}catch(e){}}
+    return true;
+  }catch(e){return false;}
+}
+
 function FrameTab({f,setF,crt,frames,activeFrameId,setActiveFrameId,setFrames,planMeta,FD,toast}){
   const fhCap=frameFHCapMM(f&&f.name);   /* 모델 층고 캡(mm) — 없으면 null */
   const fhCapStep=fhCap?Math.floor(fhCap/50)*50:null;  /* 50mm 스텝 정렬 상한 */
@@ -1905,7 +1927,8 @@ function lccAnalyze(agg,lp,Pc,FD,addr){
   const useId=lp.leaseUse||'office';
   const baseRent=(reg&&(reg[useId]||reg.office))||0;
   const ageF=((lease.ageFactors||[]).find(a=>(lp.leaseAge||0)<=a.maxAge)||{f:1}).f;
-  const rent=baseRent*ageF;
+  const rentManual=Math.max(0,Number(lp.leaseRentManual)||0);   /* 기준 임대료 직접입력(원/㎡·월) — >0이면 우선, 아니면 지역×용도×준공경과 자동 */
+  const rent=rentManual>0?rentManual:(baseRent*ageF);
   const vac=1-(lease.vacancy||0);
   const nra=lease.nra_ratio||0.65;
   const rentableM2=totalM2*nra;
@@ -1921,7 +1944,7 @@ function lccAnalyze(agg,lp,Pc,FD,addr){
   let cum=-netPremium, npv=-netPremium, pay=(netPremium<=0?0:null);
   const series=[{y:0,cum}];
   for(let t=1;t<=yrs;t++){const k=Math.pow(1+esc,t-1);const b=annualBenefit*k-maintDiff;cum+=b;npv+=b/Math.pow(1+r,t);series.push({y:t,cum});if(pay===null&&cum>=0)pay=t;}
-  return {lease,yrs,r,esc,maintR,totalM2,bz,convCW,convHvacRate,convHvacCost,equipCredit,convInit,fitInit,netPremium,maintDiff,reg,useId,baseRent,ageF,rent,vac,nra,rentableM2,energyAnnual,cartCount,areaPerCart,areaGainM2,rentGainAnnual,cp,rentPremAnnual,annualBenefit,cum,npv,pay,series,regionAuto,regId,hasData:(totalM2>0&&fitInit>0)};
+  return {lease,yrs,r,esc,maintR,totalM2,bz,convCW,convHvacRate,convHvacCost,equipCredit,convInit,fitInit,netPremium,maintDiff,reg,useId,baseRent,ageF,rent,rentManual,vac,nra,rentableM2,energyAnnual,cartCount,areaPerCart,areaGainM2,rentGainAnnual,cp,rentPremAnnual,annualBenefit,cum,npv,pay,series,regionAuto,regId,hasData:(totalM2>0&&fitInit>0)};
 }
 
 function LccTab({zones,frames,f,crt,grd,os,E,P,FD,committed}){
@@ -1930,7 +1953,7 @@ function LccTab({zones,frames,f,crt,grd,os,E,P,FD,committed}){
   const lp=C_.E||E||{};
   const Pc=C_.P||P||{};
   const A=lccAnalyze(agg,lp,Pc,FD,(C_.overview&&C_.overview.location)||'');
-  const {lease,yrs,r,esc,maintR,totalM2,bz,convCW,convHvacRate,equipCredit,convInit,fitInit,netPremium,reg,useId,rent,ageF,vac,nra,energyAnnual,areaGainM2,rentGainAnnual,cp,rentPremAnnual,annualBenefit,regionAuto}=A;
+  const {lease,yrs,r,esc,maintR,totalM2,bz,convCW,convHvacRate,equipCredit,convInit,fitInit,netPremium,reg,useId,rent,rentManual,ageF,vac,nra,energyAnnual,areaGainM2,rentGainAnnual,cp,rentPremAnnual,annualBenefit,regionAuto}=A;
   const siteAddr=(C_.overview&&C_.overview.location)||'';
   const hasData=A.hasData;
   const L={series:A.series,cum:A.cum,npv:A.npv,pay:A.pay};
@@ -1984,7 +2007,7 @@ function LccTab({zones,frames,f,crt,grd,os,E,P,FD,committed}){
       ):(<>
         <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',background:C.blueLt,border:`1px solid ${C.blue}`,borderRadius:13,padding:'12px 16px',marginTop:16}}>
           <span style={{fontSize:11,fontWeight:700,color:C.blue,letterSpacing:'.02em'}}>기준 임대료</span>
-          <span style={{fontSize:12.5,color:C.ink}}>{regionAuto?'🎯 대상지 자동':'수동 선택'} · <b>{reg?reg.name:'-'}</b> · {({office:'업무시설',knowledge:'지식산업센터',retail:'근린·리테일'})[useId]||useId}{ageF!==1?` · 준공경과 ×${ageF}`:''}</span>
+          <span style={{fontSize:12.5,color:C.ink}}>{rentManual>0?<>✍ 직접입력 · <b>{({office:'업무시설',knowledge:'지식산업센터',retail:'근린·리테일'})[useId]||useId}</b></>:<>{regionAuto?'🎯 대상지 자동':'수동 선택'} · <b>{reg?reg.name:'-'}</b> · {({office:'업무시설',knowledge:'지식산업센터',retail:'근린·리테일'})[useId]||useId}{ageF!==1?` · 준공경과 ×${ageF}`:''}</>}</span>
           <span style={{marginLeft:'auto',fontFamily:FF.mono,fontSize:17,fontWeight:700,color:C.blue}}>{fmt(Math.round(rent)).toLocaleString()}<span style={{fontSize:10,color:C.sub,fontWeight:400}}> 원/㎡·월</span></span>
         </div>
         {regionAuto&&!siteAddr&&<p style={{fontSize:10.5,color:C.amber,margin:'8px 0 0'}}>※ 대상지 주소가 없어 기본권역으로 책정 중입니다 — PLATFORM 탭 「대지위치」에 주소를 입력하면 해당 지역 임대료로 자동 책정됩니다.</p>}
@@ -2141,7 +2164,7 @@ function defaultProject(){
     grd:{hasGrid:false,type:'integrated',daylight:false,dimming:false,zoneCtrl:false,emergency:false,colorTemp:4000},
     os:{hasOs:false,interface:'app',sunTrack:false,energy:false,comfort:false,bms:false,scheduler:false,me:false},
     E:{eui:250,elec:130,lccYears:30,lccDiscount:3,lccEnergyEsc:2,lccMaintRate:1.0,
-       leaseRegion:'auto',leaseUse:'office',leaseAge:0,cert:'both',convHvac:'central',areaPerCart:8.75,lccBenefits:{energy:true,area:true,cert:true,equip:true}},
+       leaseRegion:'auto',leaseUse:'office',leaseAge:0,cert:'both',convHvac:'central',areaPerCart:8.75,leaseRentManual:0,lccBenefits:{energy:true,area:true,cert:true,equip:true}},
     P:{pFrame:85000,pSheet:60000,pHvac:35000000,pHvacCeil:38000000,pFtu:1500000,pFtuPerZone:8,pDiffCirc:60000,pDiffFront:90000,pErv:3000000,pHumid:1500000,pUv:800000,pEhp:250000,pCentral:300000,pEtc:200000,pConv:700000,pGrid:650000,pDaylight:200000,pDimming:100000,pOsBase:80000000,pOsSun:30000000,pOsEnergy:20000000,pOsBms:50000000,
       pFrameLabor:500000,pFrameExp:200000,pSkinLabor:0,pSkinExp:0,pHvacLabor:0,pHvacExp:0,pGridLabor:0,pGridExp:0,pOsLabor:0,pOsExp:0,
       osZoneFixed:16000000,osZoneMat:6000000,osZoneLabor:17500000},
@@ -2236,9 +2259,7 @@ function ProjectListTab({projects,setProjects,sel,setSel,current,loadFromList,sa
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',flexWrap:'wrap',gap:12,marginBottom:18}}>
         <SH code="PROJECTS" sub="프로젝트 리스트 · 비교 분석"/>
         <div style={{display:'flex',gap:7,flexWrap:'wrap',alignItems:'center'}}>
-          {onCreatePlan&&<button onClick={onCreatePlan} style={{background:C.green,color:C.white,border:'none',padding:'7px 16px',fontFamily:FF.disp,fontSize:13,letterSpacing:'.04em'}}>＋ 계획안 생성</button>}
-          {newProject&&<button onClick={newProject} style={{background:C.ink,color:C.white,border:'none',padding:'7px 14px',fontFamily:FF.disp,fontSize:13,letterSpacing:'.04em'}}>새 프로젝트</button>}
-          <button onClick={saveCurrentToList} style={{background:C.white,color:C.ink,border:`1px solid ${C.ink}`,padding:'7px 14px',fontSize:12.5}}>＋ 현재 프로젝트 추가</button>
+          {newProject&&<button onClick={newProject} style={{background:C.blue,color:C.white,border:'none',borderRadius:980,padding:'8px 20px',fontFamily:FF.disp,fontWeight:600,fontSize:13,letterSpacing:'-.005em',cursor:'pointer'}}>＋ 새 프로젝트</button>}
           {saveProject&&<button onClick={saveProject} style={{background:'transparent',color:C.sub,border:`1px solid ${C.border}`,padding:'7px 12px',fontSize:12.5}}>프로젝트 저장</button>}
           {loadProject&&<button onClick={loadProject} style={{background:'transparent',color:C.sub,border:`1px solid ${C.border}`,padding:'7px 12px',fontSize:12.5}}>프로젝트 열기</button>}
           <span style={{width:1,height:22,background:C.border}}/>
@@ -2268,7 +2289,7 @@ function ProjectListTab({projects,setProjects,sel,setSel,current,loadFromList,sa
       {projects.length===0?(
         <div style={{border:`1px dashed ${C.borderDark}`,padding:'48px 20px',textAlign:'center'}}>
           <p style={{fontSize:13,color:C.sub,marginBottom:6}}>저장된 프로젝트가 없습니다.</p>
-          <p style={{fontSize:11,color:C.light}}>각 탭에서 설정을 마친 뒤 상단 <b>＋현재 프로젝트 추가</b>를 누르면 리스트에 담깁니다.</p>
+          <p style={{fontSize:11,color:C.light}}>상단 <b>＋ 새 프로젝트</b>를 눌러 대지위치·면적·층수를 입력하면 리스트에 추가되고, 그 정보로 계획안 작성(작도)이 시작됩니다.</p>
         </div>
       ):(
         <div style={{border:`1.5px solid ${C.ink}`,overflowX:'auto'}}>
@@ -2560,6 +2581,7 @@ function PlanTab({applyMassing,toast,zones,setZones,floorZones,setFloorZones,zon
             <div><Lbl ch="지역 (대상지 자동)"/><select value={E.leaseRegion||'auto'} onChange={e=>setE(s=>({...s,leaseRegion:e.target.value}))} style={ss}><option value="auto">🎯 자동 (대상지 기준)</option>{LD.regions.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></div>
             <div><Lbl ch="용도"/><select value={E.leaseUse||'office'} onChange={e=>setE(s=>({...s,leaseUse:e.target.value}))} style={ss}>{LD.uses.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
             <NF label="준공 경과" unit="년" value={E.leaseAge??0} step={1} min={0} max={60} onChange={v=>setE(s=>({...s,leaseAge:Math.max(0,Math.round(v))}))}/>
+            <NF label="기준 임대료 (0=지역자동)" unit="원/㎡·월" value={E.leaseRentManual??0} step={1000} min={0} onChange={v=>setE(s=>({...s,leaseRentManual:Math.max(0,Math.round(v))}))}/>
             <div><Lbl ch="인증 목표"/><select value={E.cert||'none'} onChange={e=>setE(s=>({...s,cert:e.target.value}))} style={ss}><option value="none">없음</option><option value="leed">LEED</option><option value="well">WELL</option><option value="both">LEED+WELL</option></select></div>
             <div><Lbl ch="대체 관행공조"/><select value={E.convHvac||'central'} onChange={e=>setE(s=>({...s,convHvac:e.target.value}))} style={ss}><option value="central">중앙공조(AHU+기계실)</option><option value="ehp_erv">EHP+전열교환기</option></select></div>
             <NF label="카트리지당 전용면적 ↑" unit="㎡/대" value={E.areaPerCart??8.75} step={0.25} min={0} onChange={v=>setE(s=>({...s,areaPerCart:Math.max(0,v)}))}/>
@@ -3182,6 +3204,20 @@ function FitPlatform(){
   /* ═══ COMMITTED STATE — 적용 버튼을 누른 시점의 입력값. 결과 계산은 이 값을 사용 ═══ */
   const [showNewModal,setShowNewModal]=useState(false);
   const [showReport,setShowReport]=useState(false);
+  const [planSeed,setPlanSeed]=useState(null);  /* 새 프로젝트 기초정보 → plan.html 시드 대기열 */
+  /* 새 프로젝트 기초정보 → 계획안 도구(plan.html) 시드: PLAN 진입 + iframe 준비 시 1회 적용 후 소비 */
+  useEffect(()=>{
+    if(!planSeed||tab!=='PLAN')return;
+    let tries=0,done=false;
+    const iv=setInterval(()=>{
+      tries++;
+      const w=(document.getElementById('plan-massing-frame')||{}).contentWindow;
+      const ready=w&&typeof w.getDesignState==='function'&&typeof w.buildPlan==='function'&&(!planSeed.addr||(w.VWorldContext&&typeof w.VWorldContext.loadSite==='function'));
+      if(ready){ if(seedPlanTool(planSeed)){done=true;clearInterval(iv);setPlanSeed(null);} }
+      if(tries>40){clearInterval(iv);if(!done&&w&&typeof w.getDesignState==='function'){seedPlanTool(planSeed);}if(!done)setPlanSeed(null);}
+    },300);
+    return ()=>clearInterval(iv);
+  },[planSeed,tab]);
   const [planAutoStart,setPlanAutoStart]=useState(false); /* 리스트 '계획안 생성' → PLAN 탭 마운트 시 필지모달 자동 오픈+기본모델 생성(one-shot) */
   const [committed,setCommitted]=useState(()=>({
     zones:_dp.zones, frames:_dp.frames, crt:_dp.crt, grd:_dp.grd,
@@ -3332,16 +3368,26 @@ function FitPlatform(){
     const d=defaultProject();
     const ovIn=Object.fromEntries(Object.entries(info||{}).filter(([k])=>k!=='projectName'));
     const overview={...d.overview,...ovIn};
-    setProjectName((info&&info.projectName)||d.projectName);
+    const name=(info&&info.projectName)||d.projectName;
+    setProjectName(name);
     setOverview(overview);
     setFrames(d.frames);setActiveFrameId(d.frames[0].id);
     setZones(d.zones);setZonePer(d.zonePer||165);setFloorZones(d.floorZones);setCrt(d.crt);setGrd(d.grd);setOs(d.os);
     setE(d.E);setP(d.P);
     /* FD는 ADMIN 표준값(현재 값) 유지 — d.FD로 reset하지 않음 */
-    setActiveProjectId(null);setPlanMeta(null);setTab('PLATFORM');
+    /* ① 프로젝트 리스트에 즉시 추가 (저장=리스트 등록) */
+    const pid='p'+Date.now();
+    const proj={id:pid,name,createdAt:new Date().toISOString(),overview,frames:d.frames,zones:d.zones,zonePer:d.zonePer||165,floorZones:d.floorZones,crt:d.crt,grd:d.grd,os:d.os,E:d.E,P:d.P,FD,planMeta:null};
+    setProjects(ps=>[...ps,proj]);
+    setActiveProjectId(pid);setPlanMeta(null);
     syncCommitted({zones:d.zones,frames:d.frames,crt:d.crt,grd:d.grd,os:d.os,E:d.E,P:d.P,overview,zonePer:d.zonePer||165,floorZones:d.floorZones});
-    setShowNewModal(false);
-    toast(`'${(info&&info.projectName)||'새 프로젝트'}'를 시작했습니다`);
+    /* ② 입력 기초정보 → 계획안 도구 시드 (면적·층수·층고·주소) */
+    const fa=Number(String(info&&info.floorsAbove||'').replace(/,/g,''))||0;
+    const ht=Number(String(info&&info.height||'').replace(/,/g,''))||0;
+    setPlanSeed({gfa:Number(String(info&&info.gfa||'').replace(/,/g,''))||0,siteArea:Number(String(info&&info.siteArea||'').replace(/,/g,''))||0,floors:fa||10,floorH:(fa>0&&ht>0)?ht/fa:4,addr:(info&&info.location)||'',_t:Date.now()});
+    /* ③ 계획안 작성(작도) 페이지로 이동 */
+    setShowNewModal(false);setTab('PLAN');
+    toast(`'${name}' 생성 — 계획안 작성에서 작도를 시작하세요`);
   };
   const saveProject=()=>{
     const data={_fitproj:1,version:'1.5',projectName,savedAt:new Date().toISOString(),overview,frames,zones,zonePer,floorZones,crt,grd,os,E,P,FD,planMeta};
