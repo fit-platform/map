@@ -7983,19 +7983,10 @@ try{ window.buildFrame=buildFrame; window.buildME=buildME; window.buildAster=bui
   }
   function retexAll(){ if(!_loaded) return; buildFaceGrids(); _lg={key:"",grid:null}; clearOverlay(); frVol.children.forEach(retexMesh); if(typeof wake==="function") wake(2); }
   var _was7=false;
-  var _rcLastStep=null;
   function rtTick(){
     requestAnimationFrame(rtTick);
-    // 렌더뷰(step7) 이탈 시 카메라 절대 스냅샷 저장, 복귀 시 복원+동결 (규모 변경해도 동일 유지)
-    var _cs=(typeof step!=="undefined")?step:null;
-    if(_rcLastStep===7 && _cs!==7){ try{ _renderCamSaved=_snapRenderCam(); }catch(e){} _renderCamFreeze=false; }
-    else if(_cs===7 && _rcLastStep!==7 && _renderCamSaved){ try{ var s=_renderCamSaved;
-      tTheta=s.tTheta; tPhi=s.tPhi; zoomMul=s.zoomMul; theta=s.theta; phi=s.phi; sRadius=s.sRadius; target.copy(s.target); camMode=s.camMode;
-      _interior=s.interior; if(s.iEye)_iEye=s.iEye.clone(); if(s.iLook)_iLook=s.iLook.clone();
-      var _b2=$id("rtMode2pt"),_bp=$id("rtModePersp"); if(_b2)_b2.classList.toggle("on",camMode==="2pt"); if(_bp)_bp.classList.toggle("on",camMode==="persp");
-      _renderCamFreeze=true; _freezeWatch={ tTheta:s.tTheta, tPhi:s.tPhi, zoomMul:s.zoomMul };
-    }catch(e){} }
-    _rcLastStep=_cs;
+    // 렌더뷰(step7)를 벗어나 있으면 복귀 대기 플래그만 설정 — 실제 복원/동결은 applyRenderCamera가 처리(프레임 순서 무관)
+    if((typeof step!=="undefined") && step!==7) _pendingRestore=true;
     var onStep=(typeof step!=="undefined") && (step===7 || step===6);   // 06 RENDER(s7)+07 완료(s6) 모두 텍스처 유지
     if(!onStep){ if(rtOverlay.visible) rtOverlay.visible=false; if(_interior){ exitInterior(); } if(_was7){ resetStructure(); clearOverlay(); if(typeof frSig!=="undefined") frSig=""; _was7=false; } return; }
     if(!_loaded){ loadRT(); return; }
@@ -8175,7 +8166,7 @@ try{ window.buildFrame=buildFrame; window.buildME=buildME; window.buildAster=bui
   function setCamMode(m){ exitInterior(); camMode=m; var a=$id("rtMode2pt"),b=$id("rtModePersp"); if(a)a.classList.toggle("on",m==="2pt"); if(b)b.classList.toggle("on",m==="persp"); if(typeof wake==="function")wake(4); }
   function _clearVO(){ try{ if(camera.view && camera.view.enabled && camera.clearViewOffset) camera.clearViewOffset(); }catch(e){} }
   // ── 렌더뷰 카메라 동결: 7 이탈 시 절대 스냅샷 저장 → 복귀 시 규모가 바뀌어도 동일 카메라 복원 ──
-  var _renderCamSaved=null, _renderCamFreeze=false, _freezeWatch=null;
+  var _renderCamSaved=null, _renderCamFreeze=false, _freezeWatch=null, _pendingRestore=false;
   function _snapRenderCam(){
     var vo=null; try{ if(camera.view && camera.view.enabled) vo={ fx:camera.view.offsetX/camera.view.fullWidth, fy:camera.view.offsetY/camera.view.fullHeight }; }catch(e){}
     return { pos:camera.position.clone(), quat:camera.quaternion.clone(), up:camera.up.clone(), fov:camera.fov, vo:vo,
@@ -8190,8 +8181,17 @@ try{ window.buildFrame=buildFrame; window.buildME=buildME; window.buildAster=bui
   }
   function applyRenderCamera(){   // host tick에서 호출(s7)
     if(_baseFov==null) _baseFov=camera.fov;
-    // 동결 중: 사용자가 궤도/줌을 건드리면 해제, 아니면 저장한 절대 카메라 그대로 복원
-    if(_renderCamFreeze && _renderCamSaved){
+    var _isR=(typeof step==="undefined")||step===7;   // RENDER 뷰(step7)에서만 동결/복원
+    if(_isR && _pendingRestore){   // step7 진입: 저장된 렌더 카메라가 있으면 복원+동결, 없으면(첫 진입) 그냥 대기 해제
+      if(_renderCamSaved){ var s=_renderCamSaved;
+        tTheta=s.tTheta; tPhi=s.tPhi; zoomMul=s.zoomMul; theta=s.theta; phi=s.phi; sRadius=s.sRadius; target.copy(s.target); camMode=s.camMode;
+        _interior=s.interior; if(s.iEye)_iEye=s.iEye.clone(); if(s.iLook)_iLook=s.iLook.clone();
+        var _b2=$id("rtMode2pt"),_bp=$id("rtModePersp"); if(_b2)_b2.classList.toggle("on",camMode==="2pt"); if(_bp)_bp.classList.toggle("on",camMode==="persp");
+        _renderCamFreeze=true; _freezeWatch={ tTheta:s.tTheta, tPhi:s.tPhi, zoomMul:s.zoomMul };
+      }
+      _pendingRestore=false;
+    }
+    if(_isR && _renderCamFreeze && _renderCamSaved){   // 동결 중: 조작 시 해제, 아니면 절대 카메라 복원
       if(_freezeWatch && (Math.abs(tTheta-_freezeWatch.tTheta)>1e-4 || Math.abs(tPhi-_freezeWatch.tPhi)>1e-4 || Math.abs(zoomMul-_freezeWatch.zoomMul)>1e-4)){ _renderCamFreeze=false; }
       else { _replayRenderCam(_renderCamSaved); return; }
     }
@@ -8213,6 +8213,8 @@ try{ window.buildFrame=buildFrame; window.buildME=buildME; window.buildAster=bui
     } else {
       _clearVO(); applyCamera();                        // 투시: 시프트 해제 + 일반 원근
     }
+    // step7에 있는 동안(동결/복귀대기 아님) 현재 렌더 카메라 연속 저장 → 이탈 후 복귀 시 동일 복원
+    if(_isR && !_renderCamFreeze && !_pendingRestore){ try{ _renderCamSaved=_snapRenderCam(); }catch(e){} }
   }
   // ── 뷰 저장(최대 5) ──
   var camViews=[];
