@@ -717,6 +717,7 @@ body.calc-mode .vwui, body.calc-mode #fitCtxPanel, body.calc-mode #fitCtxPanelB,
       <button class="segb" onclick="RT.flyTop()">평면</button>
       <button class="segb" onclick="RT.flyBird()">조감</button>
     </div>
+    <button class="segb" id="rtRhinoBtn" onclick="RT.rhinoCam()" style="width:176px;box-sizing:border-box;margin-top:6px;">📐 Rhino 카메라 값</button>
   </div>
   <!-- 실내뷰 (3D 뷰 버튼 아래, 항상 표시) -->
   <div id="rtVcSection">
@@ -8216,6 +8217,49 @@ try{ window.buildFrame=buildFrame; window.buildME=buildME; window.buildAster=bui
     // step7에 있는 동안(동결/복귀대기 아님) 현재 렌더 카메라 연속 저장 → 이탈 후 복귀 시 동일 복원
     if(_isR && !_renderCamFreeze && !_pendingRestore){ try{ _renderCamSaved=_snapRenderCam(); }catch(e){} }
   }
+  // ── Rhino 카메라 값 출력 (Z-up, m) ──
+  function rhinoCam(){
+    try{
+      var W=renderer.domElement.width, H=renderer.domElement.height, aspect=(H>0?W/H:1.5);
+      var dir=new T.Vector3(); camera.getWorldDirection(dir);
+      var dist=camera.position.distanceTo(target)||50; if(dist<1) dist=50;
+      var camPos=camera.position.clone();
+      var tgt=camPos.clone().add(dir.clone().multiplyScalar(dist));
+      function toR(v){ return [v.x, -v.z, v.y]; }   // Three(Y-up) → Rhino(Z-up): (x,-z,y)
+      var C=toR(camPos), Tg=toR(tgt);
+      var fovV=camera.fov*Math.PI/180;
+      var thH=2*Math.atan(Math.tan(fovV/2)*aspect);         // 수평 화각
+      var LL=18/Math.tan(thH/2);                             // Rhino 렌즈길이(36mm 프레임 기준)
+      var f3=function(a){ return a.map(function(n){ return (+n).toFixed(3); }).join(", "); };
+      var py="import rhinoscriptsyntax as rs\n"+
+             "rs.ViewCameraTarget(None, ("+f3(C)+"), ("+f3(Tg)+"))\n"+
+             "rs.ViewCameraLens(None, "+LL.toFixed(2)+")";
+      var txt="[Rhino 카메라 · Z-up · m]\n"+
+              "카메라 위치: "+f3(C)+"\n"+
+              "타겟 위치 : "+f3(Tg)+"\n"+
+              "렌즈길이  : "+LL.toFixed(2)+" mm\n"+
+              "수직 FOV  : "+camera.fov.toFixed(2)+"°  ·  화면비: "+aspect.toFixed(4)+"\n"+
+              "※ Rhino 뷰포트 종횡비를 화면비("+aspect.toFixed(3)+")에 맞춰야 정확히 일치\n"+
+              (camMode==="2pt"?"※ 세로선 수직: Rhino 뷰포트 Two-Point Perspective 켜기":"※ 일반 투시");
+      // 팝업
+      var ov=document.createElement("div"); ov.style.cssText="position:fixed;inset:0;z-index:100003;background:rgba(10,10,12,0.88);display:flex;align-items:center;justify-content:center;";
+      var bx=document.createElement("div"); bx.style.cssText="background:#fff;border-radius:10px;padding:20px 22px;max-width:520px;width:88vw;box-shadow:0 24px 70px rgba(0,0,0,.5);font-family:inherit;color:#1a1a1a;";
+      bx.innerHTML="<div style='font:800 13px inherit;color:#e68d39;letter-spacing:.05em;margin-bottom:12px;'>RHINO 카메라 값 (Z-up · m)</div>"+
+        "<pre style='white-space:pre-wrap;font:600 12px monospace;background:#f6f4ef;border:1px solid #e0ddd5;border-radius:6px;padding:12px;margin:0 0 10px;'>"+txt.replace(/</g,"&lt;")+"</pre>"+
+        "<div style='font:700 11px inherit;color:#666;margin:10px 0 5px;'>RhinoPython (EditPythonScript에 붙여넣고 실행)</div>"+
+        "<pre id='rtRhinoPy' style='white-space:pre-wrap;font:600 11.5px monospace;background:#1e1e1e;color:#dcdcaa;border-radius:6px;padding:12px;margin:0 0 12px;'>"+py.replace(/</g,"&lt;")+"</pre>"+
+        "<div style='display:flex;gap:8px;'>"+
+        "<button id='rtRhinoCopy' style='flex:1;padding:9px 0;border:none;border-radius:6px;background:#e68d39;color:#1a1a1a;font:700 12px inherit;cursor:pointer;'>스크립트 복사</button>"+
+        "<button id='rtRhinoCopyV' style='flex:1;padding:9px 0;border:1px solid #cfcbc3;border-radius:6px;background:#fff;color:#333;font:700 12px inherit;cursor:pointer;'>값 복사</button>"+
+        "<button id='rtRhinoClose' style='flex:0 0 auto;padding:9px 16px;border:1px solid #cfcbc3;border-radius:6px;background:#fff;color:#333;font:700 12px inherit;cursor:pointer;'>닫기</button></div>";
+      ov.appendChild(bx); document.body.appendChild(ov);
+      function cp(s,btn,ok){ try{ navigator.clipboard.writeText(s).then(function(){ var o=btn.textContent; btn.textContent=ok; setTimeout(function(){btn.textContent=o;},1200); }); }catch(e){} }
+      bx.querySelector("#rtRhinoCopy").onclick=function(){ cp(py,this,"복사됨 ✓"); };
+      bx.querySelector("#rtRhinoCopyV").onclick=function(){ cp(txt,this,"복사됨 ✓"); };
+      function cl(){ if(ov.parentNode)ov.parentNode.removeChild(ov); }
+      bx.querySelector("#rtRhinoClose").onclick=cl; ov.addEventListener("click",function(e){ if(e.target===ov)cl(); });
+    }catch(e){ stat("Rhino 값 계산 실패: "+(e&&e.message||e)); }
+  }
   // ── 뷰 저장(최대 5) ──
   var camViews=[];
   function saveView(){ if(camViews.length>=5) return; camViews.push({th:tTheta, ph:tPhi, zm:zoomMul, mode:camMode}); renderSlots(); }
@@ -8607,7 +8651,7 @@ try{ window.buildFrame=buildFrame; window.buildME=buildME; window.buildAster=bui
   window.RT = { onEnter:onEnter, applyStructure:applyStructure, onStruct:onStruct, serialize:serialize, restore:restore, resetRender:resetRender,
     mainTab:mainTab, texTab:texTab, camTab:camTab, aiTab:aiTab, pickSkin:pickSkin, setPattern:setPattern, onRatio:onRatio,
     toggleFaceSelect:toggleFaceSelect, onLetter:onLetter, onShape:onShape, onScale:onScale,
-    flyCorner:flyCorner, flyTop:flyTop, flyBird:flyBird,
+    flyCorner:flyCorner, flyTop:flyTop, flyBird:flyBird, rhinoCam:rhinoCam,
     onVcFloor:onVcFloor, interiorView:interiorView, lookAround:lookAround, isInterior:isInterior,
     applyInteriorCamera:applyInteriorCamera, holdsCamera:holdsCamera, applyRenderCamera:applyRenderCamera,
     setCamMode:setCamMode, saveView:saveView, onLines:onLines,
